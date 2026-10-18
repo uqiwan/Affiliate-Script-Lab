@@ -57,7 +57,7 @@ export function generateAllScriptsTxt(
   scripts: ScriptItem[]
 ): string {
   const dateStr = new Date().toISOString().split('T')[0];
-  let full = `AFFILIATE SCRIPT LAB - PAKET SKRIP TIKTOK AFFILIATE\n`;
+  let full = `AFFILIATE SCRIPT LAB - PAKET SKRIP VIDEO AFFILIATE (MULTI-PLATFORM)\n`;
   full += `Dibuat pada: ${dateStr}\n`;
   full += `============================================================\n\n`;
 
@@ -98,10 +98,9 @@ export function generateAllScriptsTxt(
     full += `\n\n`;
   });
 
-  full += `============================================================\n`;
   full += `Catatan Produksi Video Safe Zone (1080x1920 9:16):\n`;
   full += `Top margin: 130px | Right margin: 140px | Bottom margin: 484px | Left margin: 44px\n`;
-  full += `Pastikan teks overlay berada di area tengah, kontras tinggi, dan tidak tertutup ikon TikTok.\n`;
+  full += `Pastikan teks overlay berada di area tengah, kontras tinggi, dan tidak tertutup ikon antarmuka platform (keranjang kiri bawah, like, komentar).\n`;
   full += `============================================================\n`;
 
   return full;

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type InputMode = 'images' | 'url' | 'text' | 'mixed';
 export type SourceType = 'user' | 'image' | 'url' | 'unknown';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
@@ -27,6 +28,7 @@ export interface ProductBrief {
   socialProof?: string;
   creatorExperience?: string;
   platform?: string;
+  activeSourceMode?: 'images' | 'url' | 'text' | 'mixed';
   restrictions: string[];
   additionalNotes?: string;
   sources: SourceProvenance[];
@@ -78,7 +80,7 @@ export type DemoMethod =
 
 export type CtaType =
   | 'Auto'
-  | 'Direct instruction (klik keranjang kuning)'
+  | 'Direct instruction (keranjang kiri bawah)'
   | 'Cek detail / pilihan variasi'
   | 'Soft CTA (simpan video ini)'
   | 'Price / value CTA'
@@ -147,6 +149,7 @@ export interface ExtractProductRequest {
 export interface ExtractProductResponse {
   productBrief: ProductBrief;
   platform?: string;
+  inputMode?: 'mixed' | 'images' | 'url' | 'text';
   extractedFromUrl?: boolean;
   extractedFromImages?: number;
   sourceNotes?: string;

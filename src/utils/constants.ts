@@ -144,7 +144,7 @@ export const SAFE_ZONE_GUIDE = {
   resolution: '1080 x 1920 px (9:16 vertical)',
   topMargin: '130 px (hindari ikon Live / Search / tab)',
   rightMargin: '140 px (hindari avatar, like, komentar, bookmark, share)',
-  bottomMargin: '484 px (hindari caption, sound title, tombol keranjang kuning affiliate)',
+  bottomMargin: '484 px (hindari caption, sound title, tombol keranjang affiliate di kiri bawah)',
   leftMargin: '44 px',
   safeAreaRect: 'x: 44–940 px, y: 130–1436 px',
   note: 'Safe zone adalah panduan editing sumber riset, bukan jaminan statis. Letakkan teks overlay penting di area tengah, kontras tinggi, ringkas, dan tidak menutupi produk.',

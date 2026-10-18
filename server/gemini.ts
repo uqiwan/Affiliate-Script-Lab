@@ -36,6 +36,33 @@ function cleanJsonString(raw: string): string {
   return cleaned.trim();
 }
 
+/**
+ * Sanitizes platform-specific terms and replaces 'keranjang kuning' with neutral multi-platform CTA phrases.
+ * Ensures scripts can be cross-posted / mirrored seamlessly to Shopee Video, TikTok, Tokopedia, etc.
+ */
+export function sanitizeCrossPlatformText(text: string): string {
+  if (!text) return '';
+  return text
+    // Replace 'keranjang kuning' variations
+    .replace(/keranjang\s+kuning/gi, 'keranjang kiri bawah')
+    .replace(/klik\s+keranjang\s+kuning/gi, 'klik keranjang kiri bawah')
+    .replace(/cek\s+keranjang\s+kuning/gi, 'cek keranjang bawah video ini')
+    .replace(/checkout\s+di\s+keranjang\s+kuning/gi, 'checkout di keranjang bawah')
+    .replace(/keranjang\s+orange/gi, 'keranjang kiri bawah')
+    .replace(/keranjang\s+oranye/gi, 'keranjang kiri bawah')
+    // Remove or neutralize explicit platform mentions in dialogue or CTA
+    .replace(/\bdi\s+tiktok\s+shop\b/gi, 'di keranjang bawah')
+    .replace(/\bdi\s+shopee\s+video\b/gi, 'di keranjang bawah')
+    .replace(/\bdi\s+shopee\b/gi, 'di keranjang bawah')
+    .replace(/\bke\s+shopee\b/gi, 'ke keranjang bawah')
+    .replace(/\bdi\s+tiktok\b/gi, 'di keranjang bawah')
+    .replace(/\bke\s+tiktok\b/gi, 'ke keranjang bawah')
+    .replace(/\bdi\s+tokopedia\b/gi, 'di keranjang bawah')
+    .replace(/\bke\s+tokopedia\b/gi, 'ke keranjang bawah')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 
 /**
@@ -315,9 +342,10 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
     socialProof: parsed.socialProof || undefined,
     creatorExperience: parsed.creatorExperience || undefined,
     platform: mode === 'url' || (mode === 'mixed' && params.urlData) ? params.urlData?.platform : undefined,
+    activeSourceMode: mode,
     restrictions: Array.isArray(parsed.restrictions) ? parsed.restrictions : [],
     sources,
-    conflicts,
+    conflicts: mode === 'mixed' ? conflicts : [],
   };
 
   const notes =
@@ -358,35 +386,46 @@ export async function generateScripts(params: {
   };
   const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
 
-  const systemPrompt = `Anda adalah Master Copywriter & Content Strategist Video TikTok Affiliate nomor satu di Indonesia.
-Anda memproduksi skrip video affiliate yang siap rekam, mengalir alami, memikat perhatian di detik awal, dan memiliki kepatuhan etika & faktual 100%.
+  const systemPrompt = `Anda adalah Master Copywriter & Content Strategist Video Affiliate Short Video (Multi-Platform: Shopee Video, TikTok, Tokopedia) nomor satu di Indonesia.
+Anda memproduksi skrip video affiliate yang siap rekam, multi-platform (bisa di-mirror ke semua e-commerce), mengalir alami, memikat perhatian di detik awal, dan memiliki kepatuhan etika & faktual 100%.
 
-ATURAN UTAMA FAKTUALITAS & ETIKA (MUTLAK):
-1. JANGAN PERNAH MENGARANG DATA:
+ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
+1. VIDEO AKAN DI-MIRROR / DI-CROSS-POST KE BERBAGAI PLATFORM (Shopee Video, TikTok Shop, Tokopedia, dll):
+   - DILARANG KERAS MENYEBUT NAMA PLATFORM APAPUN (JANGAN sebut "TikTok", "Shopee", "Tokopedia", "Lazada", dll) dalam dialog narasi lisan, overlay text, maupun arahan visual!
+   - DILARANG KERAS MENGGUNAKAN ISTILAH EKSKLUSIF 1 PLATFORM SEPERTI "keranjang kuning" ATAU "keranjang orange"!
+   - WAJIB MENGGUNAKAN SEBUTAN NETRAL UNIVERSAL UNTUK CALL TO ACTION (CTA), seperti:
+     * "klik keranjang di kiri bawah"
+     * "cek keranjang bawah video ini"
+     * "klik ikon keranjang di bawah"
+     * "langsung cek variasi di keranjang bawah"
+     * "lihat detailnya di keranjang kiri bawah"
+     * "checkout sekarang lewat keranjang di bawah"
+2. JANGAN PERNAH MENGARANG DATA:
    - Jika harga saat ini (${productBrief.currentPrice || 'TIDAK ADA'}) tidak ada, DILARANG menyebut angka harga atau membuat price anchoring palsu.
    - Jika promo/stok/deadline (${productBrief.stockOrDeadline || 'TIDAK ADA'}) tidak ada, DILARANG memakai scarcity palsu ("tinggal sedikit", "promo berakhir hari ini").
    - Jika social proof (${productBrief.socialProof || 'TIDAK ADA'}) tidak ada, DILARANG mengaku "sudah terjual ribuan" atau "banyak ulasan positif".
    - Jika pengalaman kreator (${productBrief.creatorExperience || 'TIDAK ADA'}) tidak ada, DILARANG memakai "saya sudah pakai 1 bulan" atau testimoni palsu orang pertama.
    - DILARANG menjanjikan kesembuhan penyakit, hasil instan tanpa bukti, atau overclaim.
-2. Setiap skrip dalam batch ini HARUS MEMILIKI ANGLE DAN PENDEKATAN YANG BERBEDA SECARA SUBSTANSIAL. Jangan hanya menukar sinonim!
-3. TARGET JUMLAH KATA NARASI DIALOG LISAN (DIHITUNG HANYA DIALOG, BUKAN ARAHAN VISUAL/OVERLAY):
+3. Setiap skrip dalam batch ini HARUS MEMILIKI ANGLE DAN PENDEKATAN YANG BERBEDA SECARA SUBSTANSIAL. Jangan hanya menukar sinonim!
+4. TARGET JUMLAH KATA NARASI DIALOG LISAN (DIHITUNG HANYA DIALOG, BUKAN ARAHAN VISUAL/OVERLAY):
    - Durasi ${config.durationSeconds} detik: WAJIB berkisar antara ${targetWords.min} sampai ${targetWords.max} KATA lisan.
    - Pacing harus pas: tidak terlalu padat dan tidak terlalu renggang.
-4. STRUKTUR SEGMEN:
+5. STRUKTUR SEGMEN:
    - HOOK (0-3 detik): Scroll-stopper kuat, sebut kata kunci/nama produk secara natural bila relevan.
    - PROBLEM / RELATABLE CONTEXT: Masalah nyata atau situasi yang dialami penonton.
    - DEMONSTRASI & BUKTI: B-roll dan visual realistis yang murah dan mudah direkam kreator dengan smartphone.
    - VALUE / HARGA (Hanya bila data harga tersedia): Nilai guna atau perbandingan logis.
-   - CTA: Ajakan bertindak jelas ke keranjang kuning/cek variasi, tanpa memanipulasi urgensi.
-5. SAFE ZONE TIKTOK (1080x1920):
+   - CTA: Ajakan bertindak jelas ke keranjang kiri bawah / keranjang bawah video ini / cek variasi di bawah, tanpa memanipulasi urgensi, tanpa menyebut nama platform, dan TANPA kata 'keranjang kuning'.
+6. SAFE ZONE UNIVERSAL VERTICAL (1080x1920):
    - Teks overlay harus pendek, mudah dibaca cepat, kontras, dan berada di tengah (menghindari margin atas 130px, margin kanan 140px, margin bawah 484px).
-6. STRATEGI:
+7. STRATEGI:
    - Gunakan sedikitnya 3 pemicu konten (misal: pattern interrupt, curiosity loop, relatable problem, demo proof, value framing, low-friction CTA).
    - Tulis pemicu di kolom catatan strategi, BUKAN diucapkan dalam dialog narasi.
 `;
 
   const userPrompt = `
-BUAT ${config.scriptCount} SKRIP TIKTOK AFFILIATE YANG BERBEDA.
+BUAT ${config.scriptCount} SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA.
+INGAT: Video ini akan di-mirror ke Shopee & TikTok. DILARANG sebut nama platform dan DILARANG gunakan istilah 'keranjang kuning'. Gunakan 'keranjang kiri bawah' atau 'keranjang bawah video ini'.
 
 DATA PRODUK (SUMBER RESMI):
 - Nama Produk: ${productBrief.name}
@@ -413,7 +452,7 @@ KONFIGURASI GENERASI:
 - Selected Angles: ${config.selectedAngles.length > 0 ? config.selectedAngles.join(', ') : 'Pilih otomatis dari 20 angle terbaik'}
 - Tipe Hook: ${config.hookType}
 - Metode Demo: ${config.demoMethod}
-- Pendekatan CTA: ${config.ctaType}
+- Pendekatan CTA: ${config.ctaType} (Wajib netral multi-platform: keranjang kiri bawah / keranjang bawah video ini)
 - Intensitas Penjualan: ${config.sellingIntensity}
 - Price Anchoring: ${config.priceAnchoringEnabled && productBrief.currentPrice ? 'Gunakan data harga' : 'NONAKTIFKAN'}
 - Sapaan/Pronoun: ${config.pronouns}
@@ -476,17 +515,33 @@ FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
     }
   }
 
-  // Post-process and verify word counts accurately in code
+  // Post-process, sanitize cross-platform terms, and verify word counts accurately in code
   const validatedScripts: ScriptItem[] = rawScripts.map((s, index) => {
     const id = s.id || `script-${Date.now()}-${index + 1}`;
-    const segments = Array.isArray(s.segments) ? s.segments : [];
+    const rawSegments = Array.isArray(s.segments) ? s.segments : [];
+
+    const segments = rawSegments.map((seg: any, sIdx: number) => {
+      const cleanDialogue = sanitizeCrossPlatformText(seg.spokenDialogue || '');
+      const cleanOverlay = sanitizeCrossPlatformText(seg.overlayText || '');
+      const cleanVisual = sanitizeCrossPlatformText(seg.visualDirection || '');
+
+      return {
+        timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
+        segmentName: seg.segmentName || (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
+        visualDirection: cleanVisual || 'Tampilkan produk ke kamera',
+        spokenDialogue: cleanDialogue,
+        overlayText: cleanOverlay,
+        strategyNote: seg.strategyNote || '',
+      };
+    });
 
     // Compile voiceover text from spokenDialogue if not provided or to ensure accuracy
-    const compiledVoiceover =
+    const rawVoiceover =
       s.voiceoverOnly && typeof s.voiceoverOnly === 'string'
         ? s.voiceoverOnly
-        : segments.map((seg: any) => seg.spokenDialogue || '').filter(Boolean).join(' ');
+        : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
 
+    const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
     const actualWordCount = countWords(compiledVoiceover);
     const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
 
@@ -495,9 +550,11 @@ FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
       warnings.push(evalStatus.message);
     }
 
+    const cleanTitle = sanitizeCrossPlatformText(s.title || `Konsep #${index + 1}: ${s.angle || 'Affiliate Video'}`);
+
     return {
       id,
-      title: s.title || `Konsep #${index + 1}: ${s.angle || 'TikTok Affiliate'}`,
+      title: cleanTitle,
       angle: s.angle || 'Problem-Solution / PAS',
       persona: s.persona || config.audiencePersona,
       differentiator: s.differentiator || 'Pendekatan konten unik untuk segmen ini',
@@ -506,22 +563,15 @@ FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
       estimatedDurationSeconds: config.durationSeconds,
       spokenWordCount: actualWordCount,
       durationStatus: evalStatus.status,
-      segments: segments.map((seg: any, sIdx: number) => ({
-        timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
-        segmentName: seg.segmentName || (sIdx === 0 ? 'HOOK' : sIdx === segments.length - 1 ? 'CTA' : 'BODY'),
-        visualDirection: seg.visualDirection || 'Tampilkan produk ke kamera',
-        spokenDialogue: seg.spokenDialogue || '',
-        overlayText: seg.overlayText || '',
-        strategyNote: seg.strategyNote || '',
-      })),
+      segments,
       voiceoverOnly: compiledVoiceover,
       qualityChecklist: Array.isArray(s.qualityChecklist) && s.qualityChecklist.length > 0
-        ? s.qualityChecklist
+        ? s.qualityChecklist.map((q: string) => sanitizeCrossPlatformText(q))
         : [
             'Hook kuat di 0-3 detik',
             'Tanpa overclaim atau urgensi palsu',
-            'Visual mudah dieksekusi kreator',
-            'Overlay aman di safe zone TikTok',
+            'CTA netral aman untuk multi-platform (Shopee & TikTok)',
+            'Overlay aman di safe zone 9:16',
             `Target kata ${targetWords.min}-${targetWords.max} kata tercapai`,
           ],
       warnings,
@@ -566,7 +616,7 @@ export async function refineSingleScript(params: {
       refinementPrompt = `Persingkat dialog agar lebih padat, hapus kata-kata mubazir, pastikan tepat di batas ${targetWords.min}–${targetWords.max} kata.`;
       break;
     case 'clearer_cta':
-      refinementPrompt = 'Buat Call to Action (CTA) di bagian akhir lebih jelas, spesifik ke keranjang kuning, tetapi tetap etis tanpa urgensi palsu.';
+      refinementPrompt = 'Buat Call to Action (CTA) di bagian akhir lebih jelas dan netral (gunakan "keranjang kiri bawah" atau "keranjang bawah video ini", DILARANG menyebut "keranjang kuning" atau nama platform tertentu), dan tetap etis tanpa urgensi palsu.';
       break;
     case 'change_angle':
       refinementPrompt = 'Ganti angle dan konsep penyampaian menjadi sudut pandang berbeda yang belum dipakai sebelumnya.';
@@ -577,8 +627,11 @@ export async function refineSingleScript(params: {
       break;
   }
 
-  const prompt = `Anda bertugas memperbaiki skrip TikTok Affiliate berikut.
-PERINGATAN: DILARANG mengubah fakta produk (harga, promo, stok, klaim medis, atau testimoni palsu tetap dilarang keras).
+  const prompt = `Anda bertugas memperbaiki skrip affiliate multi-platform berikut (Shopee Video, TikTok, Tokopedia).
+PERINGATAN:
+1. DILARANG menyebut nama platform spesifik (TikTok, Shopee, Tokopedia, dll).
+2. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Gunakan sebutan netral: "keranjang kiri bawah" atau "keranjang bawah video ini".
+3. DILARANG mengubah fakta produk (harga, promo, stok, klaim medis, atau testimoni palsu tetap dilarang keras).
 
 SKRIP SAAT INI:
 ${JSON.stringify(script, null, 2)}
@@ -632,18 +685,28 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
   });
 
   const parsed = JSON.parse(cleanJsonString(response.text || '{}'));
-  const segments = Array.isArray(parsed.segments) ? parsed.segments : script.segments;
-  const compiledVoiceover =
+  const rawSegments = Array.isArray(parsed.segments) ? parsed.segments : script.segments;
+  const segments = rawSegments.map((seg: any) => ({
+    timeRange: seg.timeRange || '0-3s',
+    segmentName: seg.segmentName || 'SEGMENT',
+    visualDirection: sanitizeCrossPlatformText(seg.visualDirection || ''),
+    spokenDialogue: sanitizeCrossPlatformText(seg.spokenDialogue || ''),
+    overlayText: sanitizeCrossPlatformText(seg.overlayText || ''),
+    strategyNote: seg.strategyNote || '',
+  }));
+
+  const rawVoiceover =
     parsed.voiceoverOnly && typeof parsed.voiceoverOnly === 'string'
       ? parsed.voiceoverOnly
-      : segments.map((seg: any) => seg.spokenDialogue || '').filter(Boolean).join(' ');
+      : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
 
+  const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
   const actualWordCount = countWords(compiledVoiceover);
   const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
 
   return {
     id: script.id,
-    title: parsed.title || script.title,
+    title: sanitizeCrossPlatformText(parsed.title || script.title),
     angle: parsed.angle || script.angle,
     persona: parsed.persona || script.persona,
     differentiator: parsed.differentiator || script.differentiator,
@@ -654,7 +717,9 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
     durationStatus: evalStatus.status,
     segments,
     voiceoverOnly: compiledVoiceover,
-    qualityChecklist: Array.isArray(parsed.qualityChecklist) ? parsed.qualityChecklist : script.qualityChecklist,
+    qualityChecklist: Array.isArray(parsed.qualityChecklist)
+      ? parsed.qualityChecklist.map((q: string) => sanitizeCrossPlatformText(q))
+      : script.qualityChecklist,
     warnings: evalStatus.status !== 'ok' ? [evalStatus.message] : [],
   };
 }

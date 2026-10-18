@@ -50,10 +50,11 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
     const isImageMode = inputMode === 'images';
     const isUrlMode = inputMode === 'url';
     const isTextMode = inputMode === 'text';
+    const isMixedMode = inputMode === 'mixed';
 
-    const rawText = isTextMode || inputMode === 'mixed' ? textDescription?.trim() : undefined;
-    const targetUrl = isUrlMode || inputMode === 'mixed' ? productUrl?.trim() : undefined;
-    const candidateImages = isImageMode || inputMode === 'mixed' ? images : undefined;
+    const rawText = isTextMode || isMixedMode ? textDescription?.trim() : undefined;
+    const targetUrl = isUrlMode || isMixedMode ? productUrl?.trim() : undefined;
+    const candidateImages = isImageMode || isMixedMode ? images : undefined;
 
     if (!rawText && !targetUrl && (!candidateImages || candidateImages.length === 0)) {
       const modeLabels: Record<string, string> = {
@@ -127,22 +128,30 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
       }
     }
 
-    // Call Gemini for multimodal & text extraction
+    // Call Gemini for multimodal & text extraction with explicit inputMode
     const { brief, notes, conflicts } = await extractProductBrief({
+      inputMode,
       textDescription: rawText,
       urlData,
       images: validatedImages,
     });
 
-    // Zero out conflicts if user explicitly ran extraction from a single-source tab
-    const finalConflicts = inputMode === 'mixed' ? conflicts : [];
+    // Zero out conflicts if user explicitly ran extraction from a single-source tab (images, url, text)
+    const isSingleSource = inputMode === 'images' || inputMode === 'url' || inputMode === 'text';
+    const finalConflicts = isSingleSource ? [] : conflicts;
     brief.conflicts = finalConflicts;
+    brief.activeSourceMode = inputMode;
+
+    // Isolate platform indicator only to url or mixed mode where url is actually provided
+    const resolvedPlatform = (isUrlMode || (isMixedMode && targetUrl)) ? (urlData?.platform || brief.platform) : undefined;
+    brief.platform = resolvedPlatform;
 
     const responseData: ExtractProductResponse = {
       productBrief: brief,
-      platform: urlData?.platform || brief.platform,
-      extractedFromUrl: !!(urlData && (urlData.success || urlData.extractedProductTitle)),
-      extractedFromImages: validatedImages.length,
+      platform: resolvedPlatform,
+      inputMode,
+      extractedFromUrl: !!(targetUrl && urlData && (urlData.success || urlData.extractedProductTitle)),
+      extractedFromImages: candidateImages ? validatedImages.length : 0,
       sourceNotes: notes,
       conflictsFound: finalConflicts,
       warning: urlWarning,

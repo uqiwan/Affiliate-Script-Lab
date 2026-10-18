@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ onReset, onOpenSafeZone, hasData
             type="button"
             onClick={onOpenSafeZone}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors cursor-pointer"
-            title="Buka panduan area aman video TikTok 9:16"
+            title="Buka panduan area aman video 9:16 multi-platform"
           >
             <Smartphone className="w-4 h-4 text-emerald-600" />
             <span className="hidden xs:inline">Panduan</span> Safe Zone
