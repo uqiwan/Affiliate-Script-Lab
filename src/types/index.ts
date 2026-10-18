@@ -185,3 +185,16 @@ export interface RefineScriptRequest {
 export interface RefineScriptResponse {
   script: ScriptItem;
 }
+
+export interface HistorySession {
+  id: string;
+  timestamp: number;
+  productName: string;
+  category: string;
+  scriptCount: number;
+  durationSeconds: number;
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  scripts: ScriptItem[];
+}
+

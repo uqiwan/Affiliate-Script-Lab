@@ -21,7 +21,7 @@ export function formatScriptAsText(script: ScriptItem, index?: number): string {
   }
   txt += `\n--- STRUKTUR DETAIL SEGMEN ---\n\n`;
 
-  script.segments.forEach((seg, i) => {
+  script.segments.forEach((seg) => {
     txt += `[${seg.timeRange}] - ${seg.segmentName}\n`;
     txt += `  Aksi Visual & B-roll : ${seg.visualDirection}\n`;
     txt += `  Dialog Narasi        : "${seg.spokenDialogue}"\n`;
@@ -32,22 +32,6 @@ export function formatScriptAsText(script: ScriptItem, index?: number): string {
   txt += `--- NARASI / VOICEOVER SAJA (SIAP DIBACA) ---\n`;
   txt += `${script.voiceoverOnly}\n\n`;
 
-  if (script.qualityChecklist && script.qualityChecklist.length > 0) {
-    txt += `Checklist Kualitas:\n`;
-    script.qualityChecklist.forEach((c) => {
-      txt += `  [✓] ${c}\n`;
-    });
-    txt += `\n`;
-  }
-
-  if (script.warnings && script.warnings.length > 0) {
-    txt += `Catatan Penting:\n`;
-    script.warnings.forEach((w) => {
-      txt += `  [!] ${w}\n`;
-    });
-    txt += `\n`;
-  }
-
   return txt;
 }
 
@@ -57,51 +41,35 @@ export function generateAllScriptsTxt(
   scripts: ScriptItem[]
 ): string {
   const dateStr = new Date().toISOString().split('T')[0];
-  let full = `AFFILIATE SCRIPT LAB - PAKET SKRIP VIDEO AFFILIATE (MULTI-PLATFORM)\n`;
+  let full = `AFFILIATE SCRIPT LAB - PAKET SKRIP LENGKAP (MULTI-PLATFORM)\n`;
+  full += `Produk: ${productBrief.name || 'Produk'}\n`;
   full += `Dibuat pada: ${dateStr}\n`;
   full += `============================================================\n\n`;
-
-  full += `RINGKASAN PRODUK:\n`;
-  full += `• Nama Produk : ${productBrief.name || '-'}\n`;
-  full += `• Kategori    : ${productBrief.category || '-'}\n`;
-  full += `• Ringkasan   : ${productBrief.description || '-'}\n`;
-  if (productBrief.currentPrice) {
-    full += `• Harga Saat Ini: ${productBrief.currentPrice}\n`;
-  }
-  if (productBrief.referencePrice) {
-    full += `• Harga Pembanding: ${productBrief.referencePrice}\n`;
-  }
-  if (productBrief.promoDetails) {
-    full += `• Promo/Diskon : ${productBrief.promoDetails}\n`;
-  }
-  if (productBrief.stockOrDeadline) {
-    full += `• Stok/Deadline: ${productBrief.stockOrDeadline}\n`;
-  }
-  if (productBrief.features && productBrief.features.length > 0) {
-    full += `• Fitur Utama  : ${productBrief.features.join(' | ')}\n`;
-  }
-  if (productBrief.restrictions && productBrief.restrictions.length > 0) {
-    full += `• Batasan Klaim: ${productBrief.restrictions.join(' | ')}\n`;
-  }
-  full += `\n`;
-
-  full += `PENGATURAN GENERASI:\n`;
-  full += `• Durasi Target   : ${config.durationSeconds} detik\n`;
-  full += `• Gaya Penyampaian: ${config.style}\n`;
-  full += `• Persona Audiens : ${config.audiencePersona}\n`;
-  full += `• Intensitas Jual : ${config.sellingIntensity}\n`;
-  full += `• Jumlah Konsep   : ${scripts.length} skrip\n`;
-  full += `• Kepatuhan Fakta : Aktif (Tanpa klaim palsu)\n\n`;
 
   scripts.forEach((script, idx) => {
     full += formatScriptAsText(script, idx);
     full += `\n\n`;
   });
 
-  full += `Catatan Produksi Video Safe Zone (1080x1920 9:16):\n`;
-  full += `Top margin: 130px | Right margin: 140px | Bottom margin: 484px | Left margin: 44px\n`;
-  full += `Pastikan teks overlay berada di area tengah, kontras tinggi, dan tidak tertutup ikon antarmuka platform (keranjang kiri bawah, like, komentar).\n`;
-  full += `============================================================\n`;
+  return full;
+}
+
+export function generateAllVoiceoversTxt(
+  productBrief: ProductBrief,
+  scripts: ScriptItem[]
+): string {
+  const dateStr = new Date().toISOString().split('T')[0];
+  let full = `AFFILIATE SCRIPT LAB - KUMPULAN NARASI SUARA SAJA (VOICEOVER)\n`;
+  full += `Produk: ${productBrief.name || 'Produk'}\n`;
+  full += `Tanggal: ${dateStr}\n`;
+  full += `============================================================\n\n`;
+
+  scripts.forEach((script, idx) => {
+    full += `[KONSEP #${idx + 1}] ${script.title}\n`;
+    full += `Angle: ${script.angle} | Durasi: ${script.estimatedDurationSeconds} detik (${script.spokenWordCount} kata)\n`;
+    full += `------------------------------------------------------------\n`;
+    full += `"${script.voiceoverOnly}"\n\n`;
+  });
 
   return full;
 }
@@ -118,8 +86,28 @@ export function downloadScriptsTxtFile(
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 30);
-  const filename = `skrip-affiliate-${safeName || 'produk'}-${dateStr}.txt`;
+  const filename = `skrip-lengkap-${safeName || 'produk'}-${dateStr}.txt`;
 
+  downloadBlob(content, filename);
+}
+
+export function downloadVoiceoversTxtFile(
+  productBrief: ProductBrief,
+  scripts: ScriptItem[]
+): void {
+  const content = generateAllVoiceoversTxt(productBrief, scripts);
+  const dateStr = new Date().toISOString().split('T')[0];
+  const safeName = (productBrief.name || 'produk')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 30);
+  const filename = `narasi-saja-${safeName || 'produk'}-${dateStr}.txt`;
+
+  downloadBlob(content, filename);
+}
+
+function downloadBlob(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

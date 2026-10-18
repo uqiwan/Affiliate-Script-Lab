@@ -8,7 +8,12 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { safeFetchProductPage, ScrapedPageResult } from './server/ssrf';
-import { extractProductBrief, generateScripts, refineSingleScript } from './server/gemini';
+import {
+  extractProductBrief,
+  generateScripts,
+  refineSingleScript,
+  testGeminiApiKey,
+} from './server/gemini';
 import {
   ExtractProductRequest,
   ExtractProductResponse,
@@ -39,6 +44,30 @@ app.get('/api/health', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     hasApiKey: !!process.env.GEMINI_API_KEY,
   });
+});
+
+// Test Gemini API Key
+app.post('/api/test-key', async (req: Request, res: Response) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'API Key wajib diisi.' });
+    }
+    const result = await testGeminiApiKey(apiKey.trim());
+    if (result.valid) {
+      return res.json({ success: true, message: 'Koneksi ke Google AI Studio berhasil!' });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'API Key tidak valid atau tidak memiliki akses.',
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Gagal menguji koneksi API Key.',
+    });
+  }
 });
 
 // 1. EXTRACT PRODUCT INFO
@@ -128,12 +157,16 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
       }
     }
 
+    const customApiKey =
+      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
+
     // Call Gemini for multimodal & text extraction with explicit inputMode
     const { brief, notes, conflicts } = await extractProductBrief({
       inputMode,
       textDescription: rawText,
       urlData,
       images: validatedImages,
+      customApiKey,
     });
 
     // Zero out conflicts if user explicitly ran extraction from a single-source tab (images, url, text)
@@ -167,6 +200,8 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
 app.post('/api/generate-scripts', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { productBrief, config } = req.body as GenerateScriptsRequest;
+    const customApiKey =
+      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
 
     if (!productBrief || !productBrief.name) {
       return res.status(400).json({
@@ -180,11 +215,11 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
       });
     }
 
-    // Clamp scriptCount between 1 and 10
-    config.scriptCount = Math.max(1, Math.min(10, Math.floor(config.scriptCount)));
+    // Clamp scriptCount between 1 and 30
+    config.scriptCount = Math.max(1, Math.min(30, Math.floor(config.scriptCount)));
 
     // Generate scripts using Gemini
-    const scripts = await generateScripts({ productBrief, config });
+    const scripts = await generateScripts({ productBrief, config, customApiKey });
 
     const responseData: GenerateScriptsResponse = {
       productBrief,
@@ -202,6 +237,8 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
   try {
     const { script, productBrief, config, refinementType, customInstruction } =
       req.body as RefineScriptRequest;
+    const customApiKey =
+      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
 
     if (!script || !productBrief || !config || !refinementType) {
       return res.status(400).json({
@@ -215,6 +252,7 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
       config,
       refinementType,
       customInstruction,
+      customApiKey,
     });
 
     const responseData: RefineScriptResponse = {

@@ -6,27 +6,25 @@
 import React, { useState } from 'react';
 import {
   Copy,
-  Check,
   RotateCcw,
   Sparkles,
   Layers,
-  Clock,
-  Mic,
   Eye,
   MessageSquare,
-  AlertCircle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Sliders,
+  Info,
+  Check,
 } from 'lucide-react';
-import { ScriptItem, ScriptSegment } from '../types';
+import { ScriptItem } from '../types';
 import { formatScriptAsText } from '../utils/exportTxt';
 
 interface ScriptCardProps {
   script: ScriptItem;
   index: number;
   totalScripts: number;
+  isVoiceoverOnly?: boolean;
+  onToggleVoiceoverOnly?: () => void;
   onCopyText: (text: string, label: string) => void;
   onRegenerate: (script: ScriptItem) => void;
   onRefine: (script: ScriptItem, refinementType: any, customInstruction?: string) => void;
@@ -37,14 +35,29 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   script,
   index,
   totalScripts,
+  isVoiceoverOnly,
+  onToggleVoiceoverOnly,
   onCopyText,
   onRegenerate,
   onRefine,
   isRefining,
 }) => {
-  const [showVoiceoverOnly, setShowVoiceoverOnly] = useState<boolean>(false);
+  const [showConceptInfo, setShowConceptInfo] = useState<boolean>(false);
+  const [internalVoiceoverOnly, setInternalVoiceoverOnly] = useState<boolean>(false);
   const [showRefineMenu, setShowRefineMenu] = useState<boolean>(false);
+  const [selectedRefinement, setSelectedRefinement] = useState<string | null>(null);
   const [customRefineText, setCustomRefineText] = useState<string>('');
+
+  const currentIsVoiceover =
+    isVoiceoverOnly !== undefined ? isVoiceoverOnly : internalVoiceoverOnly;
+
+  const handleToggleVoiceover = () => {
+    if (onToggleVoiceoverOnly) {
+      onToggleVoiceoverOnly();
+    } else {
+      setInternalVoiceoverOnly(!internalVoiceoverOnly);
+    }
+  };
 
   const handleCopyFull = () => {
     const text = formatScriptAsText(script, index);
@@ -55,345 +68,291 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
     onCopyText(script.voiceoverOnly, `Narasi Konsep #${index + 1}`);
   };
 
-  const getStatusBadge = () => {
-    if (script.durationStatus === 'ok') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-          <CheckCircle2 className="w-3 h-3" />
-          {script.spokenWordCount} kata (Optimal)
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
-        <AlertCircle className="w-3 h-3" />
-        {script.spokenWordCount} kata ({script.durationStatus === 'short' ? 'Kurang panjang' : 'Terlalu panjang'})
-      </span>
-    );
+  const handleApplyRefine = () => {
+    if (!selectedRefinement && !customRefineText.trim()) return;
+    const refType = selectedRefinement || 'custom';
+    onRefine(script, refType, customRefineText.trim() || undefined);
+    setSelectedRefinement(null);
+    setCustomRefineText('');
   };
 
+  const canApplyRefine = Boolean(selectedRefinement || customRefineText.trim());
+
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs overflow-hidden transition-all hover:shadow-md">
-      {/* Top Banner & Title */}
-      <div className="p-4 sm:p-5 border-b border-zinc-100 bg-zinc-50/40">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1.5 flex-1 min-w-[240px]">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-zinc-900 text-white">
-                Konsep #{index + 1} of {totalScripts}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200">
-                <Layers className="w-3 h-3" />
-                {script.angle}
-              </span>
-              {getStatusBadge()}
-            </div>
+    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs overflow-hidden transition-all hover:border-emerald-200">
+      {/* Header Bar: Rata Kiri Konsep + Info Button, Rata Kanan Tombol Narasi & Skrip */}
+      <div className="p-3.5 sm:p-4 border-b border-zinc-100 bg-zinc-50/60 flex flex-wrap items-center justify-between gap-2.5">
+        {/* Rata Kiri: Judul Konsep + Tombol Info */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-zinc-900 text-white shrink-0">
+            Konsep #{index + 1}
+          </span>
 
-            <h3 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">
-              {script.title}
-            </h3>
-
-            <p className="text-xs text-zinc-500 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>🎯 <strong>Persona:</strong> {script.persona}</span>
-              <span>⚡ <strong>Hook:</strong> {script.hookType}</span>
-              <span>⏱️ <strong>Target:</strong> {script.estimatedDurationSeconds} detik</span>
-            </p>
-
-            <p className="text-xs text-emerald-800 bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
-              💡 <strong>Pembeda Konsep:</strong> {script.differentiator}
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleCopyVoiceover}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Salin narasi dialog saja untuk dibaca"
-            >
-              <Mic className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Salin Narasi</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopyFull}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-              title="Salin seluruh skrip lengkap (arahan visual, dialog, overlay)"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>Salin Skrip</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowConceptInfo(!showConceptInfo)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+              showConceptInfo
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-white text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200'
+            }`}
+          >
+            <Info className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Info tentang Konsep {index + 1}</span>
+            {showConceptInfo ? (
+              <ChevronUp className="w-3 h-3 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-3 h-3 text-zinc-400" />
+            )}
+          </button>
         </div>
 
-        {/* Triggers Bar */}
-        {script.triggers && script.triggers.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] text-zinc-400 font-semibold uppercase">Pemicu Konten:</span>
-            {script.triggers.map((trig, idx) => (
-              <span
-                key={idx}
-                className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 font-medium"
-              >
-                {trig}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Rata Kanan Sejajar: Tombol "Icon Salin + Narasi" & "Icon Salin + Skrip" (Warna Sama) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleCopyVoiceover}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 transition-colors cursor-pointer shadow-2xs"
+            title="Salin teks narasi suara saja"
+          >
+            <Copy className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Narasi</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyFull}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 transition-colors cursor-pointer shadow-2xs"
+            title="Salin skrip visual + narasi lengkap"
+          >
+            <Copy className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Skrip</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main Content: Segments */}
-      <div className="p-4 sm:p-5 space-y-4">
-        {/* Toggle Voiceover vs Full Table */}
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-wider flex items-center gap-1.5">
+      {/* Tersembunyi: Informasi Metadata Konsep (Hanya Muncul jika Tombol Info Diklik) */}
+      {showConceptInfo && (
+        <div className="p-3.5 sm:p-4 bg-emerald-50/30 border-b border-emerald-100/60 space-y-2 animate-in fade-in duration-150 text-xs text-zinc-700">
+          <div className="flex flex-wrap items-center gap-2 pb-1.5 border-b border-emerald-100">
+            <span className="font-bold text-zinc-900 text-sm">{script.title}</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+              <Layers className="w-3 h-3" />
+              {script.angle}
+            </span>
+            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+              {script.spokenWordCount} kata ({script.durationStatus === 'ok' ? 'Optimal' : script.durationStatus})
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-zinc-600">
+            <div><strong>🎯 Target Persona:</strong> {script.persona}</div>
+            <div><strong>⚡ Tipe Hook:</strong> {script.hookType}</div>
+            <div><strong>⏱️ Estimasi Durasi:</strong> {script.estimatedDurationSeconds} detik</div>
+            <div><strong>💡 Pembeda Konsep:</strong> {script.differentiator}</div>
+          </div>
+
+          {script.triggers && script.triggers.length > 0 && (
+            <div className="pt-1 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase">Pemicu Konten:</span>
+              {script.triggers.map((trig, idx) => (
+                <span
+                  key={idx}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-white text-zinc-700 border border-zinc-200 font-medium"
+                >
+                  {trig}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Konten Utama: Struktur Siap Rekam (Langsung Tampil di Bawah Menu Konsep) */}
+      <div className="p-3.5 sm:p-5 space-y-3.5">
+        {/* Toggle Mode: Segmen Visual vs Narasi Saja */}
+        <div className="flex items-center justify-between pb-1">
+          <h4 className="text-xs font-bold text-zinc-800 uppercase tracking-wider flex items-center gap-1.5">
             <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-            Struktur Segmen Siap Rekam
+            STRUKTUR SIAP REKAM
           </h4>
 
           <button
             type="button"
-            onClick={() => setShowVoiceoverOnly(!showVoiceoverOnly)}
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium underline cursor-pointer"
+            onClick={handleToggleVoiceover}
+            className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold underline cursor-pointer"
           >
-            {showVoiceoverOnly ? 'Tampilkan Rincian B-Roll' : 'Tampilkan Narasi Saja'}
+            {currentIsVoiceover ? 'Tampilkan Visual Lengkap' : 'Lihat Narasi Saja'}
           </button>
         </div>
 
-        {showVoiceoverOnly ? (
-          /* Narasi Saja View */
-          <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200 space-y-2">
-            <div className="flex items-center justify-between text-xs text-zinc-500 font-medium pb-2 border-b border-zinc-200">
-              <span className="flex items-center gap-1.5">
-                <Mic className="w-3.5 h-3.5 text-emerald-600" />
-                Naskah Suara (Voiceover / Baca Langsung)
-              </span>
-              <span>{script.spokenWordCount} kata</span>
+        {/* View Mode 1: Narasi Suara Saja */}
+        {currentIsVoiceover ? (
+          <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-700">Teks Naskah Suara (Siap Dibaca):</span>
+              <span className="text-xs font-mono text-zinc-500">{script.spokenWordCount} kata</span>
             </div>
-            <p className="text-sm font-medium text-zinc-800 leading-relaxed whitespace-pre-line">
-              {script.voiceoverOnly}
+            <p className="text-sm font-medium text-zinc-900 leading-relaxed italic bg-white p-3 rounded-lg border border-zinc-200">
+              "{script.voiceoverOnly}"
             </p>
           </div>
         ) : (
-          /* Structured Segments List */
+          /* View Mode 2: Segmen B-Roll + Dialog Lengkap */
           <div className="space-y-2.5">
-            {/* Desktop Table View (hidden on small screens) */}
-            <div className="hidden md:block overflow-x-auto border border-zinc-200 rounded-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-600 font-semibold">
-                    <th className="py-2.5 px-3 w-28">Detik / Segmen</th>
-                    <th className="py-2.5 px-3 w-1/3">Aksi Visual & B-Roll</th>
-                    <th className="py-2.5 px-3 w-1/3">Dialog Narasi Verbal</th>
-                    <th className="py-2.5 px-3">Teks Overlay (Safe Zone)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {script.segments.map((seg, sIdx) => (
-                    <tr key={sIdx} className="hover:bg-zinc-50/50">
-                      <td className="py-2.5 px-3 align-top font-medium">
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-100 text-zinc-800 mb-1">
-                          {seg.timeRange}
-                        </span>
-                        <div className="text-[11px] font-bold text-emerald-700">
-                          {seg.segmentName}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 align-top text-zinc-700 leading-relaxed">
-                        <div className="flex items-start gap-1">
-                          <Eye className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
-                          <span>{seg.visualDirection}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 align-top font-medium text-zinc-900 leading-relaxed">
-                        "{seg.spokenDialogue}"
-                        {seg.strategyNote && (
-                          <p className="text-[10px] text-zinc-400 mt-1 italic">
-                            Strategi: {seg.strategyNote}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 align-top">
-                        {seg.overlayText ? (
-                          <span className="inline-block px-2 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-semibold leading-tight">
-                            {seg.overlayText}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 text-[11px]">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards View (displayed on < md screens) */}
-            <div className="md:hidden space-y-2">
-              {script.segments.map((seg, sIdx) => (
-                <div
-                  key={sIdx}
-                  className="p-3 bg-zinc-50 rounded-xl border border-zinc-200/80 space-y-2 text-xs"
-                >
-                  <div className="flex items-center justify-between border-b border-zinc-200/60 pb-1.5">
-                    <span className="font-bold text-emerald-800">{seg.segmentName}</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-200 text-zinc-700">
+            {script.segments.map((seg, sIdx) => (
+              <div
+                key={sIdx}
+                className="p-3 rounded-xl border border-zinc-200 bg-white hover:border-zinc-300 transition-colors space-y-2"
+              >
+                {/* Segment Header */}
+                <div className="flex items-center justify-between text-xs pb-1.5 border-b border-zinc-100">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-zinc-100 text-zinc-700">
                       {seg.timeRange}
                     </span>
-                  </div>
-
-                  {/* Narasi */}
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-semibold text-zinc-400 uppercase">
-                      Dialog Narasi:
+                    <span className="font-bold text-zinc-900 text-xs">
+                      {seg.segmentName}
                     </span>
-                    <p className="font-medium text-zinc-900 leading-relaxed">
-                      "{seg.spokenDialogue}"
-                    </p>
                   </div>
-
-                  {/* B-Roll */}
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-semibold text-zinc-400 uppercase">
-                      Visual / B-Roll:
+                  {seg.strategyNote && (
+                    <span className="text-[10px] text-zinc-400 italic hidden sm:inline">
+                      {seg.strategyNote}
                     </span>
-                    <p className="text-zinc-600 leading-relaxed flex items-start gap-1">
-                      <Eye className="w-3 h-3 text-zinc-400 shrink-0 mt-0.5" />
-                      <span>{seg.visualDirection}</span>
-                    </p>
-                  </div>
-
-                  {/* Overlay */}
-                  {seg.overlayText && (
-                    <div className="space-y-0.5 pt-0.5">
-                      <span className="text-[10px] font-semibold text-zinc-400 uppercase">
-                        Overlay Safe Zone:
-                      </span>
-                      <div>
-                        <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[11px] font-bold">
-                          {seg.overlayText}
-                        </span>
-                      </div>
-                    </div>
                   )}
                 </div>
-              ))}
-            </div>
+
+                {/* Dialog Narasi Lisan */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    Dialog Narasi:
+                  </span>
+                  <p className="font-semibold text-zinc-900 text-xs sm:text-sm leading-relaxed">
+                    "{seg.spokenDialogue}"
+                  </p>
+                </div>
+
+                {/* Visual / B-Roll */}
+                <div className="space-y-0.5 text-xs">
+                  <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                    Visual / B-Roll:
+                  </span>
+                  <p className="text-zinc-600 leading-relaxed flex items-start gap-1.5 text-xs">
+                    <Eye className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                    <span>{seg.visualDirection}</span>
+                  </p>
+                </div>
+
+                {/* Overlay Text Safe Zone if any */}
+                {seg.overlayText && (
+                  <div className="pt-1 flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
+                      Overlay:
+                    </span>
+                    <span className="inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
+                      {seg.overlayText}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Quality Checklist & Warnings */}
-        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 text-xs">
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-            {script.qualityChecklist?.map((checkItem, cIdx) => (
-              <span key={cIdx} className="inline-flex items-center gap-1 text-emerald-700">
-                <Check className="w-3 h-3" /> {checkItem}
-              </span>
-            ))}
-          </div>
-
-          {/* Quick Refine Toggle */}
+        {/* Footer Area: Sempurnakan Skrip Ini */}
+        <div className="pt-2 flex items-center justify-between border-t border-zinc-100">
           <button
             type="button"
             onClick={() => setShowRefineMenu(!showRefineMenu)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-zinc-700 hover:text-emerald-700 bg-zinc-100 hover:bg-emerald-50 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-700 hover:text-emerald-700 bg-zinc-100 hover:bg-emerald-50 transition-colors cursor-pointer"
           >
-            <Sparkles className="w-3 h-3 text-emerald-600" />
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
             <span>Sempurnakan Skrip Ini</span>
             {showRefineMenu ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
         </div>
 
-        {/* Expandable Refinement Panel */}
+        {/* Panel Sempurnakan Skrip: Tidak langsung memproses sebelum tombol Terapkan diklik */}
         {showRefineMenu && (
-          <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 mt-2">
+          <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 animate-in fade-in duration-150">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-800">
-                Pilih Refinement Cepat (Fakta Produk Tetap Terjaga):
+                Pilih Jenis Penyesuaian (Klik salah satu, lalu tekan Terapkan):
               </span>
               <button
                 type="button"
                 onClick={() => onRegenerate(script)}
                 disabled={isRefining}
-                className="text-xs font-semibold text-zinc-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                className="text-xs font-semibold text-zinc-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" /> Buat Ulang Konsep Ini
               </button>
             </div>
 
+            {/* Pilihan Refinement: Saat diklik hanya memilih (highlight), tidak langsung mengeksekusi */}
             <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'hook_stronger')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                ⚡ Hook Lebih Kuat
-              </button>
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'more_natural')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                🌿 Lebih Natural
-              </button>
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'softer_selling')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                🍃 Lebih Soft Selling
-              </button>
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'more_concise')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                ✂️ Lebih Ringkas
-              </button>
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'clearer_cta')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                🎯 CTA Lebih Jelas
-              </button>
-              <button
-                type="button"
-                disabled={isRefining}
-                onClick={() => onRefine(script, 'change_angle')}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50 text-zinc-700 cursor-pointer"
-              >
-                🔄 Ganti Angle
-              </button>
+              {[
+                { id: 'hook_stronger', label: '⚡ Hook Lebih Kuat' },
+                { id: 'more_natural', label: '🌿 Lebih Natural' },
+                { id: 'softer_selling', label: '🍃 Lebih Soft Selling' },
+                { id: 'more_concise', label: '✂️ Lebih Ringkas' },
+                { id: 'clearer_cta', label: '🎯 CTA Lebih Jelas' },
+                { id: 'change_angle', label: '🔄 Ganti Angle' },
+              ].map((opt) => {
+                const isSelected = selectedRefinement === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={isRefining}
+                    onClick={() =>
+                      setSelectedRefinement(isSelected ? null : opt.id)
+                    }
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-white text-zinc-700 hover:bg-zinc-100 border-zinc-200'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {isSelected && <Check className="w-3 h-3 ml-1 inline" />}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Custom Instruction Input */}
-            <div className="flex gap-2">
+            {/* Input Instruksi Kustom + Tombol Terapkan */}
+            <div className="flex gap-2 pt-1">
               <input
                 type="text"
                 value={customRefineText}
                 onChange={(e) => setCustomRefineText(e.target.value)}
-                placeholder="Instruksi spesifik (cth: Tambahkan penekanan pada ketahanan baterai)..."
+                placeholder="Atau tuliskan instruksi khusus (misal: tekankan harga hemat)..."
                 disabled={isRefining}
-                className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 bg-white"
+                className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
+
               <button
                 type="button"
-                disabled={isRefining || !customRefineText.trim()}
-                onClick={() => {
-                  onRefine(script, 'custom', customRefineText.trim());
-                  setCustomRefineText('');
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-zinc-200 disabled:text-zinc-400 cursor-pointer shrink-0"
+                disabled={isRefining || !canApplyRefine}
+                onClick={handleApplyRefine}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                  isRefining || !canApplyRefine
+                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-300/60'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer ring-2 ring-emerald-500/30'
+                }`}
               >
-                {isRefining ? 'Memproses...' : 'Terapkan'}
+                {isRefining ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menerapkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Terapkan</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

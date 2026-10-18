@@ -3,12 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronDown,
   ChevronUp,
-  Clock,
-  Sparkles,
   ShieldCheck,
   Check,
   Wand2,
@@ -35,27 +33,33 @@ interface GeneratorConfigPanelProps {
   onBackToBrief?: () => void;
 }
 
-const DELIVERY_STYLES: DeliveryStyle[] = [
-  'Natural conversational',
-  'Soft selling',
-  'Persuasif langsung tetapi etis',
-  'Storytelling/pengalaman',
-  'UGC review/demo',
-  'Edukatif/tutorial',
-  'Humor ringan/relatable',
-  'POV/rutinitas',
-  'Unboxing/first impression',
-  'Komparasi/value',
+// Gaya Penyampaian dengan simbol berwarna-warni
+interface DeliveryStyleOption {
+  value: DeliveryStyle;
+  label: string;
+  symbol: string;
+}
+
+const DELIVERY_STYLES_WITH_SYMBOLS: DeliveryStyleOption[] = [
+  { value: 'Natural conversational', symbol: '💬', label: 'Natural conversational (Santai)' },
+  { value: 'Soft selling', symbol: '🍃', label: 'Soft selling (Halus & Edukasi)' },
+  { value: 'Persuasif langsung tetapi etis', symbol: '🎯', label: 'Persuasif langsung tetapi etis (Direct CTA)' },
+  { value: 'Storytelling/pengalaman', symbol: '📖', label: 'Storytelling / Pengalaman Pribadi' },
+  { value: 'UGC review/demo', symbol: '📱', label: 'UGC Review / Demo Pemakaian' },
+  { value: 'Edukatif/tutorial', symbol: '🎓', label: 'Edukatif / Mini Tutorial' },
+  { value: 'Humor ringan/relatable', symbol: '😄', label: 'Humor ringan / Relatable' },
+  { value: 'POV/rutinitas', symbol: '👤', label: 'POV / Rutinitas Harian' },
+  { value: 'Unboxing/first impression', symbol: '📦', label: 'Unboxing & First Impression' },
+  { value: 'Komparasi/value', symbol: '⚖️', label: 'Komparasi / Value for Money' },
 ];
 
-const AUDIENCE_PERSONAS: AudiencePersona[] = [
+const STANDARD_PERSONAS: AudiencePersona[] = [
   'Auto',
   'Mahasiswa/anak kost',
   'Pekerja kantor/Gen-Z',
   'Orang tua/rumah tangga',
   'Profesional',
   'Pengguna pemula',
-  'Custom',
 ];
 
 export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
@@ -69,22 +73,49 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
 }) => {
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [showAngleLibrary, setShowAngleLibrary] = useState<boolean>(false);
-  const [customPersona, setCustomPersona] = useState<string>('');
+
+  // Custom persona handling
+  const isCustomSelected =
+    config.audiencePersona === 'Custom' ||
+    (!STANDARD_PERSONAS.includes(config.audiencePersona as AudiencePersona) && Boolean(config.audiencePersona));
+
+  const [customPersonaValue, setCustomPersonaValue] = useState<string>(
+    isCustomSelected && config.audiencePersona !== 'Custom' ? config.audiencePersona : ''
+  );
+
+  useEffect(() => {
+    if (isCustomSelected && config.audiencePersona !== 'Custom') {
+      setCustomPersonaValue(config.audiencePersona);
+    }
+  }, [config.audiencePersona, isCustomSelected]);
 
   const handleDurationSelect = (dur: ScriptDuration) => {
     onChange({ ...config, durationSeconds: dur });
   };
 
   const handleScriptCountChange = (count: number) => {
-    onChange({ ...config, scriptCount: Math.max(1, Math.min(10, count)) });
+    onChange({ ...config, scriptCount: Math.max(1, Math.min(30, count)) });
   };
 
-  const toggleAngle = (angleName: string) => {
-    let next: string[];
-    if (config.selectedAngles.includes(angleName)) {
-      next = config.selectedAngles.filter((a) => a !== angleName);
+  const handlePersonaSelect = (selected: string) => {
+    if (selected === 'Custom') {
+      onChange({ ...config, audiencePersona: customPersonaValue.trim() || 'Custom' });
     } else {
-      next = [...config.selectedAngles, angleName];
+      onChange({ ...config, audiencePersona: selected });
+    }
+  };
+
+  const handleCustomPersonaChange = (val: string) => {
+    setCustomPersonaValue(val);
+    onChange({ ...config, audiencePersona: val.trim() || 'Custom' });
+  };
+
+  const toggleAngle = (angleLabel: string) => {
+    let next: string[];
+    if (config.selectedAngles.includes(angleLabel)) {
+      next = config.selectedAngles.filter((a) => a !== angleLabel);
+    } else {
+      next = [...config.selectedAngles, angleLabel];
     }
     onChange({
       ...config,
@@ -94,18 +125,18 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-4 sm:p-5 space-y-4">
-      {/* Header */}
+    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-3.5 sm:p-5 space-y-3.5">
+      {/* Header Bar */}
       <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
             3
           </div>
-          <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center gap-1.5">
-            <span>Pengaturan Generator Skrip</span>
+          <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center">
+            <span>Pengaturan Generator</span>
             <InfoTooltip
               title="Pengaturan Generator"
-              content="Tentukan jumlah skrip yang diinginkan, target durasi video, serta gaya penyampaian. Tiap skrip akan memiliki angle, hook, dan alur visual B-roll yang unik."
+              content="Tentukan jumlah konsep skrip (1, 5, 10, 20, 30), durasi video, dan gaya penyampaian. Setiap skrip yang dihasilkan memiliki hook 3 detik, alur visual B-roll, dan narasi siap rekam."
             />
           </h2>
         </div>
@@ -114,29 +145,29 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         </span>
       </div>
 
-      {/* 1. JUMLAH SKRIP & DURASI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {/* Jumlah Skrip */}
+      {/* Row 1: Jumlah Skrip (1, 5, 10, 20, 30) & Durasi */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Jumlah Skrip: 1, 5, 10, 20, 30 */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-700 flex items-center justify-between">
-            <span className="flex items-center gap-1">
-              Jumlah Skrip
+            <span className="flex items-center">
+              <span>Jumlah Skrip</span>
               <InfoTooltip
-                title="Jumlah Konsep Skrip"
-                content="Berapa banyak variasi konsep video yang ingin dibuat sekaligus dalam 1 kali proses."
+                title="Jumlah Skrip"
+                content="Pilih jumlah konsep skrip yang ingin dibuat sekaligus (1, 5, 10, 20, atau 30 variasi)."
               />
             </span>
             <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
               {config.scriptCount} konsep
             </span>
           </label>
-          <div className="flex items-center gap-1.5">
-            {[1, 2, 3, 5, 10].map((num) => (
+          <div className="grid grid-cols-5 gap-1.5">
+            {[1, 5, 10, 20, 30].map((num) => (
               <button
                 key={num}
                 type="button"
                 onClick={() => handleScriptCountChange(num)}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                   config.scriptCount === num
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                     : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
@@ -151,15 +182,14 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         {/* Durasi Skrip */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-700 flex items-center justify-between">
-            <span className="flex items-center gap-1">
-              Durasi Video
+            <span className="flex items-center">
+              <span>Durasi Video</span>
               <InfoTooltip
-                title="Target Durasi Video"
-                content="30 detik adalah sweet-spot ideal algoritma affiliate. 15 detik untuk hook kilat, 60 detik untuk edukasi/review mendalam."
+                title="Durasi Video"
+                content="30 detik adalah durasi optimal affiliate. 15 detik untuk hook kilat, 60-90 detik untuk review mendalam."
               />
             </span>
-            <span className="text-zinc-500 text-[11px] font-normal flex items-center gap-1">
-              <Clock className="w-3 h-3 text-zinc-400" />
+            <span className="text-zinc-500 text-[11px] font-normal">
               {config.durationSeconds === 15 && '40–55 kata'}
               {config.durationSeconds === 30 && '75–100 kata'}
               {config.durationSeconds === 60 && '140–180 kata'}
@@ -185,190 +215,159 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         </div>
       </div>
 
-      {/* 2. GAYA & TARGET AUDIENS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {/* Gaya Penyampaian */}
+      {/* Row 2: Gaya Penyampaian (Simbol Berwarna-warni) & Target Persona */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Gaya Penyampaian with Colorful Symbols */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1">
-            Gaya Penyampaian
+          <label className="text-xs font-semibold text-zinc-700 flex items-center">
+            <span>Gaya Penyampaian</span>
             <InfoTooltip
               title="Gaya Penyampaian"
-              content="Nada bicara voiceover narator saat menyampaikan pesan produk (misal: natural santai, review jujur, bercerita, atau unboxing)."
+              content="Pilih nada dan gaya bicara narasi yang diawali simbol berwarna-warni agar mudah dibedakan."
             />
           </label>
           <select
             value={config.style}
             onChange={(e) => onChange({ ...config, style: e.target.value as DeliveryStyle })}
-            className="w-full px-2.5 py-1.5 rounded-xl border border-zinc-200 text-xs text-zinc-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+            className="w-full px-2.5 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
           >
-            {DELIVERY_STYLES.map((st) => (
-              <option key={st} value={st}>
-                {st}
+            {DELIVERY_STYLES_WITH_SYMBOLS.map((st) => (
+              <option key={st.value} value={st.value}>
+                {st.symbol} {st.label}
               </option>
             ))}
           </select>
         </div>
 
-        {/* Target Persona */}
+        {/* Target Persona with Custom Textbox */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1">
-            Target Persona
-            <InfoTooltip
-              title="Target Persona"
-              content="Pilih profil penonton utama agar pemilihan kosakata, masalah yang diangkat, dan analogi terasa sangat relevan bagi mereka."
-            />
+          <label className="text-xs font-semibold text-zinc-700 flex items-center justify-between">
+            <span className="flex items-center">
+              <span>Target Persona</span>
+              <InfoTooltip
+                title="Target Persona"
+                content="Pilih profil audiens atau pilih 'Custom' untuk mengisi target audiens spesifik Anda sendiri."
+              />
+            </span>
+            {isCustomSelected && (
+              <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
+                Kustom Aktif
+              </span>
+            )}
           </label>
           <select
-            value={config.audiencePersona}
-            onChange={(e) =>
-              onChange({ ...config, audiencePersona: e.target.value as AudiencePersona })
-            }
-            className="w-full px-2.5 py-1.5 rounded-xl border border-zinc-200 text-xs text-zinc-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+            value={isCustomSelected ? 'Custom' : config.audiencePersona}
+            onChange={(e) => handlePersonaSelect(e.target.value)}
+            className="w-full px-2.5 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           >
-            {AUDIENCE_PERSONAS.map((per) => (
-              <option key={per} value={per}>
-                {per === 'Auto' ? 'Auto (Berdasarkan Brief Produk)' : per}
+            {STANDARD_PERSONAS.map((p) => (
+              <option key={p} value={p}>
+                {p}
               </option>
             ))}
+            <option value="Custom">✏️ Custom (Tulis Manual Sendiri)</option>
           </select>
+
+          {/* Kotak Teks Manual ketika user memilih Custom */}
+          {isCustomSelected && (
+            <div className="pt-1.5 animate-in fade-in duration-150">
+              <input
+                type="text"
+                value={customPersonaValue}
+                onChange={(e) => handleCustomPersonaChange(e.target.value)}
+                placeholder="Tuliskan target audiens Anda (misal: Ibu baru melahirkan, Atlet lari, Gamer PC)..."
+                className="w-full px-3 py-1.5 text-xs rounded-xl border border-emerald-300 bg-emerald-50/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 placeholder:text-zinc-400 font-medium"
+                autoFocus
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Custom Persona Field */}
-      {config.audiencePersona === 'Custom' && (
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-zinc-700 block">
-            Jelaskan Persona Audiens Khusus
-          </label>
-          <input
-            type="text"
-            value={customPersona}
-            onChange={(e) => {
-              setCustomPersona(e.target.value);
-              onChange({ ...config, audiencePersona: `Custom: ${e.target.value}` });
-            }}
-            placeholder="Cth: Gamer yang sering begadang, pembuat konten pemula..."
-            className="w-full px-3 py-1.5 rounded-xl border border-zinc-200 text-xs"
-          />
-        </div>
-      )}
-
-      {/* 3. ANGLE CONTENT (COLLAPSIBLE) */}
-      <div className="border border-zinc-200/80 rounded-xl overflow-hidden bg-zinc-50/50">
-        <button
-          type="button"
-          onClick={() => setShowAngleLibrary(!showAngleLibrary)}
-          className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-zinc-100/60 transition-colors cursor-pointer text-xs font-semibold text-zinc-800"
-        >
-          <div className="flex items-center gap-1.5">
-            <span>Pilihan Sudut Pandang / Angle Video</span>
-            <span className="text-[10px] bg-zinc-200/70 text-zinc-700 px-1.5 py-0.2 rounded-full font-bold">
-              {config.selectedAngles.length === 0
-                ? 'Auto (AI Variatif)'
-                : `${config.selectedAngles.length} Dipilih`}
-            </span>
-          </div>
-          <div className="text-zinc-400">
-            {showAngleLibrary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </button>
-
-        {showAngleLibrary && (
-          <div className="p-3 pt-1 border-t border-zinc-200/60 mt-1 space-y-2">
-            <div className="flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Klik untuk memilih angle spesifik:</span>
-              {config.selectedAngles.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onChange({ ...config, angleMode: 'auto', selectedAngles: [] })}
-                  className="text-emerald-600 hover:underline font-medium cursor-pointer"
-                >
-                  Reset ke Auto
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-              {CONTENT_ANGLES.map((angle) => {
-                const isSelected = config.selectedAngles.includes(angle.name);
-                return (
-                  <button
-                    key={angle.name}
-                    type="button"
-                    onClick={() => toggleAngle(angle.name)}
-                    className={`p-2 rounded-lg text-left text-xs transition-all flex items-start justify-between gap-1.5 border cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium'
-                        : 'bg-white border-zinc-200 text-zinc-700 hover:border-zinc-300'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <span className="block truncate font-semibold">{angle.name}</span>
-                      <span className="text-[10px] text-zinc-500 block truncate">
-                        {angle.description}
-                      </span>
-                    </div>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 4. PENGATURAN LANJUTAN (COLLAPSIBLE) */}
-      <div className="border border-zinc-200/80 rounded-xl overflow-hidden bg-zinc-50/50">
-        <button
-          type="button"
+      {/* Collapsible Advanced Settings (Angle & CTA) */}
+      <div className="border border-zinc-200 rounded-xl overflow-hidden">
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-zinc-100/60 transition-colors cursor-pointer text-xs font-semibold text-zinc-800"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setShowAdvanced(!showAdvanced);
+            }
+          }}
+          className="w-full flex items-center justify-between p-2.5 bg-zinc-50 hover:bg-zinc-100 transition-colors text-xs font-semibold text-zinc-800 cursor-pointer select-none"
         >
-          <span>Pengaturan Tambahan (Kata Ganti & Instruksi)</span>
-          <div className="text-zinc-400">
+          <div className="flex items-center">
+            <span>Opsi Tambahan (Angle & CTA)</span>
+            <InfoTooltip
+              title="Opsi Tambahan"
+              content="Pilih angle spesifik dengan penjelasan bahasa Indonesia dalam kurung, atau tuliskan instruksi khusus."
+            />
+            {config.selectedAngles.length > 0 && (
+              <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.2 rounded-full font-semibold">
+                {config.selectedAngles.length} Angle Dipilih
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
             {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
-        </button>
+        </div>
 
         {showAdvanced && (
-          <div className="p-3 pt-1 border-t border-zinc-200/60 mt-1 space-y-2.5 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label className="font-semibold text-zinc-700 block">Kata Ganti Narator</label>
-                <select
-                  value={config.pronouns}
-                  onChange={(e) => onChange({ ...config, pronouns: e.target.value as any })}
-                  className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
+          <div className="p-3 border-t border-zinc-200 bg-white space-y-3">
+            {/* Angle Selection dengan penjelasan Bahasa Indonesia dalam kurung */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-zinc-700">Pilihan Angle Konten:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAngleLibrary(!showAngleLibrary)}
+                  className="text-emerald-700 font-bold hover:underline cursor-pointer text-[11px]"
                 >
-                  <option value="aku/saya">aku / saya</option>
-                  <option value="gue/lo">gue / lo</option>
-                  <option value="kita/kami">kita / kami</option>
-                  <option value="netral">netral (tanpa kata ganti)</option>
-                </select>
+                  {showAngleLibrary ? 'Tutup Pustaka' : 'Pilih dari 20 Angle'}
+                </button>
               </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-zinc-700 block">Intensitas Jualan</label>
-                <select
-                  value={config.sellingIntensity}
-                  onChange={(e) => onChange({ ...config, sellingIntensity: e.target.value as any })}
-                  className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
-                >
-                  <option value="Balanced">Seimbang (Fokus Manfaat)</option>
-                  <option value="Subtle">Halus (Soft-selling)</option>
-                  <option value="Direct">Langsung (Direct conversion)</option>
-                </select>
-              </div>
+              {showAngleLibrary && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto p-2 bg-zinc-50 rounded-lg border border-zinc-200">
+                  {CONTENT_ANGLES.map((ang) => {
+                    const isSelected =
+                      config.selectedAngles.includes(ang.label) ||
+                      config.selectedAngles.includes(ang.name);
+
+                    return (
+                      <button
+                        key={ang.id}
+                        type="button"
+                        onClick={() => toggleAngle(ang.label)}
+                        className={`text-left p-1.5 px-2 rounded-lg text-[11px] transition-all flex items-center justify-between cursor-pointer border ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white font-semibold border-emerald-600 shadow-xs'
+                            : 'bg-white text-zinc-700 hover:bg-zinc-100 border-zinc-200'
+                        }`}
+                        title={ang.description}
+                      >
+                        <span className="truncate pr-1">{ang.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
+            {/* Extra instruction input */}
             <div className="space-y-1">
-              <label className="font-semibold text-zinc-700 block">
-                Instruksi Khusus Tambahan (Opsional)
+              <label className="text-[11px] font-semibold text-zinc-700 block">
+                Instruksi Khusus (Opsional)
               </label>
               <input
                 type="text"
                 value={config.extraInstructions || ''}
                 onChange={(e) => onChange({ ...config, extraInstructions: e.target.value })}
-                placeholder="Contoh: Tekankan ukuran hemat tempat, jangan pakai kata 'gays'..."
+                placeholder="Contoh: Fokus pada variasi warna pastel..."
                 className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
               />
             </div>
@@ -381,16 +380,16 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="font-semibold text-[11px]">
-            Kepatuhan Multi-Platform & Etika Faktual Aktif
+            Kepatuhan Multi-Platform & Etika Aktif
           </span>
         </div>
         <InfoTooltip
           title="Kepatuhan Multi-Platform & Etika"
-          content="Skrip video otomatis netral platform (dapat di-mirror ke Shopee Video, TikTok, dan Reels). Dilarang keras menyebut 'keranjang kuning' atau 'keranjang orange', serta wajib menggunakan ajakan bertindak netral seperti 'keranjang kiri bawah' atau 'keranjang bawah video ini'."
+          content="Skrip otomatis netral tanpa sebutan satu platform tertentu, siap di-mirror ke Shopee Video, TikTok, dan Tokopedia dengan CTA netral (keranjang kiri bawah)."
         />
       </div>
 
-      {/* Action Buttons: Kembali & Buat Skrip */}
+      {/* Action Buttons: Kembali & Tombol 'Buat Skrip' */}
       <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         {onBackToBrief && (
           <button
@@ -407,21 +406,21 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
           type="button"
           onClick={onGenerate}
           disabled={disabled || isGenerating || !productBrief.name}
-          className={`flex-1 min-h-[46px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 min-h-[46px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
             disabled || isGenerating || !productBrief.name
               ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200/80'
-              : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md hover:shadow-lg ring-4 ring-emerald-500/20'
+              : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md hover:shadow-lg ring-4 ring-emerald-500/20 active:scale-[0.99] cursor-pointer'
           }`}
         >
           {isGenerating ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Menulis {config.scriptCount} Skrip Siap Rekam...</span>
+              <span>Membuat {config.scriptCount} Skrip...</span>
             </>
           ) : (
             <>
               <Wand2 className="w-4 h-4" />
-              <span>Buat {config.scriptCount} Skrip Siap Rekam ({config.durationSeconds}s)</span>
+              <span>Buat Skrip ({config.scriptCount} Konsep · {config.durationSeconds}s)</span>
               <ArrowRight className="w-4 h-4 ml-0.5" />
             </>
           )}

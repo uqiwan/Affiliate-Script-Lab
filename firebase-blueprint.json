@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile data stored for each authenticated user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "email"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User specific configuration such as custom Gemini API key",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "apiKey": { "type": "string", "maxLength": 256 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "HistoryItem": {
+      "title": "HistoryItem",
+      "description": "Script generation session saved for the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "number" },
+        "productName": { "type": "string", "maxLength": 256 },
+        "category": { "type": "string", "maxLength": 128 },
+        "scriptCount": { "type": "number" },
+        "durationSeconds": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "timestamp", "productName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public/private profile info for authenticated user"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "UserSettings",
+      "description": "Private settings including Gemini API Key"
+    },
+    "/users/{userId}/history/{sessionId}": {
+      "schema": "HistoryItem",
+      "description": "Saved script generation sessions"
+    }
+  }
+}

@@ -8,17 +8,48 @@ import { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } from '..
 import { ScrapedPageResult } from './ssrf';
 import { countWords, evaluateDurationStatus } from '../src/utils/wordCount';
 
-// Initialize GoogleGenAI SDK with user agent as per aistudio-build guidelines
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Initialize GoogleGenAI SDK helper with user agent as per aistudio-build guidelines
+function getAiClient(customApiKey?: string): GoogleGenAI {
+  const key = customApiKey || process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error(
+      'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'
+    );
+  }
+  return new GoogleGenAI({
+    apiKey: key,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
 
 const GEMINI_MODEL = 'gemini-3.8-flash';
+
+/**
+ * Verifies a Google AI Studio API Key by attempting a quick lightweight ping.
+ */
+export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const testAi = new GoogleGenAI({
+      apiKey: apiKey.trim(),
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+    await testAi.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: 'Ping',
+    });
+    return { valid: true };
+  } catch (err: any) {
+    return { valid: false, error: err?.message || 'Gagal memverifikasi API Key' };
+  }
+}
 
 /**
  * Strips markdown code blocks (```json ... ```) from model response.
@@ -68,14 +99,15 @@ const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 /**
  * Executes a Gemini generateContent call with seamless model failover on transient 503 / 429 spikes.
  */
-async function callGeminiWithRetry(options: any, maxRetries = 2): Promise<any> {
+async function callGeminiWithRetry(options: any, customApiKey?: string, maxRetries = 2): Promise<any> {
   let lastError: any;
+  const client = getAiClient(customApiKey);
 
   for (const modelName of CANDIDATE_MODELS) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const payload = { ...options, model: modelName };
-        return await ai.models.generateContent(payload);
+        return await client.models.generateContent(payload);
       } catch (err: any) {
         lastError = err;
         const msg = err.message || '';
@@ -113,6 +145,7 @@ export async function extractProductBrief(params: {
   textDescription?: string;
   urlData?: ScrapedPageResult;
   images?: Array<{ mimeType: string; base64Data: string; name: string }>;
+  customApiKey?: string;
 }): Promise<{ brief: ProductBrief; notes: string; conflicts: string[] }> {
   const parts: any[] = [];
   const mode = params.inputMode || 'mixed';
@@ -235,14 +268,17 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
 
   let rawText = '{}';
   try {
-    const response = await callGeminiWithRetry({
-      model: GEMINI_MODEL,
-      contents: { parts },
-      config: {
-        temperature: 0.2,
-        responseMimeType: 'application/json',
+    const response = await callGeminiWithRetry(
+      {
+        model: GEMINI_MODEL,
+        contents: { parts },
+        config: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+        },
       },
-    });
+      params.customApiKey
+    );
     rawText = response.text || '{}';
   } catch (err: any) {
     // Fallback heuristic extraction from url or text so user is not blocked
@@ -370,8 +406,9 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
 export async function generateScripts(params: {
   productBrief: ProductBrief;
   config: GenerationConfig;
+  customApiKey?: string;
 }): Promise<ScriptItem[]> {
-  const { productBrief, config } = params;
+  const { productBrief, config, customApiKey } = params;
 
   // Target word counts strictly from PRD:
   // 15s: 30-40 words
@@ -487,15 +524,18 @@ FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
   }
 ]`;
 
-  const response = await callGeminiWithRetry({
-    model: GEMINI_MODEL,
-    contents: userPrompt,
-    config: {
-      systemInstruction: systemPrompt,
-      temperature: 0.7,
-      responseMimeType: 'application/json',
+  const response = await callGeminiWithRetry(
+    {
+      model: GEMINI_MODEL,
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.7,
+        responseMimeType: 'application/json',
+      },
     },
-  });
+    customApiKey
+  );
 
   const rawText = response.text || '[]';
   let rawScripts: any[] = [];
@@ -590,8 +630,9 @@ export async function refineSingleScript(params: {
   config: GenerationConfig;
   refinementType: string;
   customInstruction?: string;
+  customApiKey?: string;
 }): Promise<ScriptItem> {
-  const { script, productBrief, config, refinementType, customInstruction } = params;
+  const { script, productBrief, config, refinementType, customInstruction, customApiKey } = params;
 
   const targetWordsMap = {
     15: { min: 30, max: 40 },
@@ -675,14 +716,17 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
   "warnings": []
 }`;
 
-  const response = await callGeminiWithRetry({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: {
-      temperature: 0.6,
-      responseMimeType: 'application/json',
+  const response = await callGeminiWithRetry(
+    {
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        temperature: 0.6,
+        responseMimeType: 'application/json',
+      },
     },
-  });
+    customApiKey
+  );
 
   const parsed = JSON.parse(cleanJsonString(response.text || '{}'));
   const rawSegments = Array.isArray(parsed.segments) ? parsed.segments : script.segments;
