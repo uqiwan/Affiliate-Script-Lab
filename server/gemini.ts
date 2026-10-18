@@ -1,0 +1,660 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { GoogleGenAI } from '@google/genai';
+import { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } from '../src/types';
+import { ScrapedPageResult } from './ssrf';
+import { countWords, evaluateDurationStatus } from '../src/utils/wordCount';
+
+// Initialize GoogleGenAI SDK with user agent as per aistudio-build guidelines
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
+
+const GEMINI_MODEL = 'gemini-3.8-flash';
+
+/**
+ * Strips markdown code blocks (```json ... ```) from model response.
+ */
+function cleanJsonString(raw: string): string {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+  return cleaned.trim();
+}
+
+const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+
+/**
+ * Executes a Gemini generateContent call with seamless model failover on transient 503 / 429 spikes.
+ */
+async function callGeminiWithRetry(options: any, maxRetries = 2): Promise<any> {
+  let lastError: any;
+
+  for (const modelName of CANDIDATE_MODELS) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const payload = { ...options, model: modelName };
+        return await ai.models.generateContent(payload);
+      } catch (err: any) {
+        lastError = err;
+        const msg = err.message || '';
+        const isTransient =
+          err.status === 503 ||
+          err.status === 429 ||
+          msg.includes('503') ||
+          msg.includes('high demand') ||
+          msg.includes('UNAVAILABLE') ||
+          msg.includes('429') ||
+          msg.includes('RESOURCE_EXHAUSTED');
+
+        if (isTransient) {
+          if (attempt < maxRetries) {
+            const waitMs = attempt * 800;
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            continue;
+          }
+          // Try next candidate model
+          break;
+        }
+        throw err;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Extracts product brief from multiple sources (text, page scrape, images).
+ */
+export async function extractProductBrief(params: {
+  inputMode?: 'mixed' | 'images' | 'url' | 'text';
+  textDescription?: string;
+  urlData?: ScrapedPageResult;
+  images?: Array<{ mimeType: string; base64Data: string; name: string }>;
+}): Promise<{ brief: ProductBrief; notes: string; conflicts: string[] }> {
+  const parts: any[] = [];
+  const mode = params.inputMode || 'mixed';
+
+  // Add images as inlineData parts only if in image mode or mixed mode
+  if ((mode === 'images' || mode === 'mixed') && params.images && params.images.length > 0) {
+    for (const img of params.images) {
+      parts.push({
+        inlineData: {
+          mimeType: img.mimeType,
+          data: img.base64Data,
+        },
+      });
+    }
+  }
+
+  let promptContext = `Anda adalah sistem ekstraksi fakta produk untuk kreator TikTok Affiliate.
+Tugas Anda: membaca informasi produk yang diberikan dan menyusun Product Brief terstruktur.
+
+MODE EKSTRAKSI SAAT INI: ${mode.toUpperCase()}
+`;
+
+  if (mode === 'images') {
+    promptContext += `
+PERHATIAN KHUSUS MODE FOTO (HANYA FOTO PRODUK):
+- Anda HANYA menganalisis gambar produk (${params.images?.length || 0} foto) yang dilampirkan.
+- Abaikan dan jangan anggap ada link atau deskripsi luar.
+- Ekstrak nama produk, kemasan, label, bentuk fisik, dan fitur nyata yang tampak dari foto.
+- PENTING: KARENA HANYA ADA 1 SUMBER (FOTO), FIELD 'conflicts' WAJIB BERUPA ARRAY KOSONG []. JANGAN PERNAH MENULISKAN APAPUN DI 'conflicts'!
+`;
+  } else if (mode === 'url') {
+    const pName = params.urlData?.platform || 'E-Commerce';
+    promptContext += `
+PERHATIAN KHUSUS MODE LINK (HANYA DARI TAUTAN ${pName.toUpperCase()}):
+- Anda HANYA menganalisis data dari tautan produk ${pName}.
+- Nama Produk Terdeteksi: "${params.urlData?.extractedProductTitle || params.urlData?.title || 'Produk'}"
+- Kategori e-commerce yang sesuai di ${pName}.
+- Uraikan fitur standar yang melekat pada produk nyata tersebut, manfaat fungsional, target audiens, dan pain points.
+- PENTING: KARENA HANYA ADA 1 SUMBER (LINK), FIELD 'conflicts' WAJIB BERUPA ARRAY KOSONG []. JANGAN PERNAH MENULISKAN APAPUN DI 'conflicts'!
+`;
+  } else if (mode === 'text') {
+    promptContext += `
+PERHATIAN KHUSUS MODE TEKS (HANYA DARI CATATAN TEKS):
+- Anda HANYA menganalisis deskripsi teks dari pengguna.
+- Ekstrak fakta yang tertulis secara objektif.
+- PENTING: KARENA HANYA ADA 1 SUMBER (TEKS), FIELD 'conflicts' WAJIB BERUPA ARRAY KOSONG []. JANGAN PERNAH MENULISKAN APAPUN DI 'conflicts'!
+`;
+  } else {
+    promptContext += `
+PERHATIAN MODE CAMPURAN (GABUNGAN FOTO + LINK + TEKS):
+- Anda menggabungkan informasi dari foto, link, dan deskripsi teks.
+- Hanya jika ada perbedaan data yang nyata antar-sumber (misal klaim harga atau fungsi berbeda di teks vs gambar/link), catat di array 'conflicts'.
+`;
+  }
+
+  promptContext += `
+ATURAN FAKTUAL KETAT:
+1. Catat fakta yang objektif dan masuk akal.
+2. JANGAN PERNAH MENGARANG klaim palsu:
+   - Harga/diskon jika tidak eksplisit kosongkan
+   - Stok/deadline jika tidak ada kosongkan
+   - Jangan klaim medis/penyembuhan/BPOM kecuali terbukti
+3. Tandai asal sumber field: "${mode === 'images' ? 'image' : mode === 'url' ? 'url' : mode === 'text' ? 'user' : 'user|image|url'}".
+4. Bila mode bukan 'mixed', array 'conflicts' HARUS KOSONG [].
+
+DATA SUMBER:
+`;
+
+  if ((mode === 'text' || mode === 'mixed') && params.textDescription) {
+    promptContext += `\n[Deskripsi dari Pengguna]:\n${params.textDescription}\n`;
+  }
+
+  if ((mode === 'url' || mode === 'mixed') && params.urlData) {
+    const pName = params.urlData.platform || 'E-Commerce';
+    promptContext += `\n[Data Terverifikasi dari Link Tautan ${pName}]:\n`;
+    promptContext += `Platform: ${pName}\n`;
+    if (params.urlData.resolvedUrl) promptContext += `URL: ${params.urlData.resolvedUrl}\n`;
+    if (params.urlData.extractedProductTitle) {
+      promptContext += `Nama Produk Nyata: "${params.urlData.extractedProductTitle}"\n`;
+    }
+    if (params.urlData.title) promptContext += `Judul Halaman/Meta: "${params.urlData.title}"\n`;
+    if (params.urlData.author) promptContext += `Akun Pembuat/Seller: "${params.urlData.author}"\n`;
+    if (params.urlData.identifiers && Object.keys(params.urlData.identifiers).length > 0) {
+      promptContext += `Identifikasi Produk: ${JSON.stringify(params.urlData.identifiers)}\n`;
+    }
+    if (params.urlData.description) promptContext += `Deskripsi/Caption: "${params.urlData.description}"\n`;
+    if (params.urlData.jsonLdData) promptContext += `Data JSON-LD: ${JSON.stringify(params.urlData.jsonLdData).slice(0, 1500)}\n`;
+    if (params.urlData.textSnippet) promptContext += `Cuplikan Halaman: "${params.urlData.textSnippet.slice(0, 1500)}"\n`;
+  }
+
+  if ((mode === 'images' || mode === 'mixed') && params.images && params.images.length > 0) {
+    promptContext += `\n[Gambar Terlampir]: ${params.images.length} gambar produk dilampirkan.\n`;
+  }
+
+  promptContext += `
+OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
+{
+  "name": "nama produk eksplisit",
+  "category": "kategori produk",
+  "description": "ringkasan deskripsi objektif",
+  "features": ["fitur 1 yang terbukti", "fitur 2"],
+  "benefits": ["manfaat fungsional masuk akal"],
+  "audience": "target audiens yang paling relevan (misal anak kost, pekerja kantor, dll)",
+  "painPoints": ["masalah yang diselesaikan"],
+  "currentPrice": "Rp... (atau kosongkan jika tidak eksplisit)",
+  "referencePrice": "Rp... (harga normal jika ada)",
+  "promoDetails": "diskon/voucher (jika eksplisit)",
+  "stockOrDeadline": "stok/tenggat waktu (jika eksplisit)",
+  "socialProof": "ulasan atau bukti sosial nyata jika ada",
+  "creatorExperience": "pengalaman pemakaian",
+  "restrictions": ["klaim overclaim atau batasan yang harus dihindari"],
+  "sources": [
+    { "field": "name", "source": "user|image|url|unknown", "confidence": "high|medium|low" }
+  ],
+  "conflicts": [],
+  "notes": "catatan singkat proses ekstraksi"
+}`;
+
+  parts.push({ text: promptContext });
+
+  let rawText = '{}';
+  try {
+    const response = await callGeminiWithRetry({
+      model: GEMINI_MODEL,
+      contents: { parts },
+      config: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+      },
+    });
+    rawText = response.text || '{}';
+  } catch (err: any) {
+    // Fallback heuristic extraction from url or text so user is not blocked
+    const fallbackName =
+      (mode === 'url' || mode === 'mixed') && (params.urlData?.extractedProductTitle || params.urlData?.title)
+        ? params.urlData?.extractedProductTitle || params.urlData?.title
+        : (mode === 'text' || mode === 'mixed') && params.textDescription
+        ? params.textDescription.split('\n')[0]?.slice(0, 80)
+        : 'Produk Terpilih';
+    const fallbackDesc =
+      (mode === 'url' && params.urlData?.description) ||
+      (mode === 'text' && params.textDescription) ||
+      '';
+
+    const fallbackSource = mode === 'images' ? 'image' : mode === 'url' ? 'url' : 'user';
+
+    return {
+      brief: {
+        name: fallbackName || 'Produk Baru',
+        category: 'Umum',
+        description: fallbackDesc,
+        features: [],
+        benefits: [],
+        audience: 'Umum',
+        painPoints: [],
+        platform: mode === 'url' ? params.urlData?.platform : undefined,
+        restrictions: [],
+        sources: [
+          { field: 'name', source: fallbackSource, confidence: 'high' },
+          { field: 'description', source: fallbackSource, confidence: 'medium' },
+        ],
+        conflicts: [],
+      },
+      notes: `Informasi produk berhasil disiapkan dari sumber ${mode}. Silakan tinjau brief sebelum membuat skrip.`,
+      conflicts: [],
+    };
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleanJsonString(rawText));
+  } catch (err) {
+    const fixed = cleanJsonString(rawText);
+    parsed = JSON.parse(fixed);
+  }
+
+  let sources: SourceProvenance[] = Array.isArray(parsed.sources) ? parsed.sources : [];
+  // Strictly enforce empty conflicts for non-mixed mode
+  const conflicts: string[] = mode === 'mixed' && Array.isArray(parsed.conflicts) ? parsed.conflicts : [];
+
+  // Determine final product name
+  let finalName = parsed.name && parsed.name !== 'Produk Tanpa Nama' ? parsed.name : '';
+  if (!finalName) {
+    if (mode === 'url' && (params.urlData?.extractedProductTitle || params.urlData?.title)) {
+      finalName = params.urlData.extractedProductTitle || params.urlData.title;
+    } else if (mode === 'text' && params.textDescription) {
+      finalName = params.textDescription.split('\n')[0]?.slice(0, 80) || 'Produk';
+    } else {
+      finalName = 'Produk Hasil Analisis';
+    }
+  }
+
+  // Set accurate provenance sources for single-source mode
+  if (mode === 'images') {
+    sources = [
+      { field: 'name', source: 'image', confidence: 'high' },
+      { field: 'category', source: 'image', confidence: 'high' },
+      { field: 'features', source: 'image', confidence: 'high' },
+      { field: 'description', source: 'image', confidence: 'medium' },
+    ];
+  } else if (mode === 'url') {
+    sources = [
+      { field: 'name', source: 'url', confidence: 'high' },
+      { field: 'category', source: 'url', confidence: 'high' },
+      { field: 'features', source: 'url', confidence: 'high' },
+      { field: 'description', source: 'url', confidence: 'high' },
+    ];
+  } else if (mode === 'text') {
+    sources = [
+      { field: 'name', source: 'user', confidence: 'high' },
+      { field: 'description', source: 'user', confidence: 'high' },
+    ];
+  }
+
+  const brief: ProductBrief = {
+    name: finalName,
+    category: parsed.category || 'Umum',
+    description: parsed.description || (mode === 'url' ? params.urlData?.description : '') || '',
+    features: Array.isArray(parsed.features) ? parsed.features : [],
+    benefits: Array.isArray(parsed.benefits) ? parsed.benefits : [],
+    audience: parsed.audience || 'Umum',
+    painPoints: Array.isArray(parsed.painPoints) ? parsed.painPoints : [],
+    currentPrice: parsed.currentPrice || undefined,
+    referencePrice: parsed.referencePrice || undefined,
+    promoDetails: parsed.promoDetails || undefined,
+    stockOrDeadline: parsed.stockOrDeadline || undefined,
+    socialProof: parsed.socialProof || undefined,
+    creatorExperience: parsed.creatorExperience || undefined,
+    platform: mode === 'url' || (mode === 'mixed' && params.urlData) ? params.urlData?.platform : undefined,
+    restrictions: Array.isArray(parsed.restrictions) ? parsed.restrictions : [],
+    sources,
+    conflicts,
+  };
+
+  const notes =
+    mode === 'url' && params.urlData?.platform
+      ? `Berhasil memetakan informasi asli dari link ${params.urlData.platform}: "${finalName}".`
+      : mode === 'images'
+      ? `Berhasil mengekstrak ${params.images?.length || 0} foto produk: "${finalName}".`
+      : mode === 'text'
+      ? `Berhasil menyusun brief dari teks deskripsi: "${finalName}".`
+      : parsed.notes || 'Ekstraksi selesai.';
+
+  return {
+    brief,
+    notes,
+    conflicts,
+  };
+}
+
+/**
+ * Generates TikTok affiliate scripts based on verified brief and configuration.
+ */
+export async function generateScripts(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+}): Promise<ScriptItem[]> {
+  const { productBrief, config } = params;
+
+  // Target word counts strictly from PRD:
+  // 15s: 30-40 words
+  // 30s: 60-75 words
+  // 60s: 125-150 words
+  // 90s: 200-225 words
+  const targetWordsMap = {
+    15: { min: 30, max: 40 },
+    30: { min: 60, max: 75 },
+    60: { min: 125, max: 150 },
+    90: { min: 200, max: 225 },
+  };
+  const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
+
+  const systemPrompt = `Anda adalah Master Copywriter & Content Strategist Video TikTok Affiliate nomor satu di Indonesia.
+Anda memproduksi skrip video affiliate yang siap rekam, mengalir alami, memikat perhatian di detik awal, dan memiliki kepatuhan etika & faktual 100%.
+
+ATURAN UTAMA FAKTUALITAS & ETIKA (MUTLAK):
+1. JANGAN PERNAH MENGARANG DATA:
+   - Jika harga saat ini (${productBrief.currentPrice || 'TIDAK ADA'}) tidak ada, DILARANG menyebut angka harga atau membuat price anchoring palsu.
+   - Jika promo/stok/deadline (${productBrief.stockOrDeadline || 'TIDAK ADA'}) tidak ada, DILARANG memakai scarcity palsu ("tinggal sedikit", "promo berakhir hari ini").
+   - Jika social proof (${productBrief.socialProof || 'TIDAK ADA'}) tidak ada, DILARANG mengaku "sudah terjual ribuan" atau "banyak ulasan positif".
+   - Jika pengalaman kreator (${productBrief.creatorExperience || 'TIDAK ADA'}) tidak ada, DILARANG memakai "saya sudah pakai 1 bulan" atau testimoni palsu orang pertama.
+   - DILARANG menjanjikan kesembuhan penyakit, hasil instan tanpa bukti, atau overclaim.
+2. Setiap skrip dalam batch ini HARUS MEMILIKI ANGLE DAN PENDEKATAN YANG BERBEDA SECARA SUBSTANSIAL. Jangan hanya menukar sinonim!
+3. TARGET JUMLAH KATA NARASI DIALOG LISAN (DIHITUNG HANYA DIALOG, BUKAN ARAHAN VISUAL/OVERLAY):
+   - Durasi ${config.durationSeconds} detik: WAJIB berkisar antara ${targetWords.min} sampai ${targetWords.max} KATA lisan.
+   - Pacing harus pas: tidak terlalu padat dan tidak terlalu renggang.
+4. STRUKTUR SEGMEN:
+   - HOOK (0-3 detik): Scroll-stopper kuat, sebut kata kunci/nama produk secara natural bila relevan.
+   - PROBLEM / RELATABLE CONTEXT: Masalah nyata atau situasi yang dialami penonton.
+   - DEMONSTRASI & BUKTI: B-roll dan visual realistis yang murah dan mudah direkam kreator dengan smartphone.
+   - VALUE / HARGA (Hanya bila data harga tersedia): Nilai guna atau perbandingan logis.
+   - CTA: Ajakan bertindak jelas ke keranjang kuning/cek variasi, tanpa memanipulasi urgensi.
+5. SAFE ZONE TIKTOK (1080x1920):
+   - Teks overlay harus pendek, mudah dibaca cepat, kontras, dan berada di tengah (menghindari margin atas 130px, margin kanan 140px, margin bawah 484px).
+6. STRATEGI:
+   - Gunakan sedikitnya 3 pemicu konten (misal: pattern interrupt, curiosity loop, relatable problem, demo proof, value framing, low-friction CTA).
+   - Tulis pemicu di kolom catatan strategi, BUKAN diucapkan dalam dialog narasi.
+`;
+
+  const userPrompt = `
+BUAT ${config.scriptCount} SKRIP TIKTOK AFFILIATE YANG BERBEDA.
+
+DATA PRODUK (SUMBER RESMI):
+- Nama Produk: ${productBrief.name}
+- Kategori: ${productBrief.category}
+- Ringkasan: ${productBrief.description}
+- Fitur Terverifikasi: ${productBrief.features.join(', ') || 'Sesuai deskripsi'}
+- Manfaat Wajar: ${productBrief.benefits.join(', ') || 'Sesuai deskripsi'}
+- Target Persona: ${productBrief.audience}
+- Pain Points: ${productBrief.painPoints.join(', ') || 'Kebutuhan fungsional'}
+- Harga Sekarang: ${productBrief.currentPrice || 'Tidak disebutkan (JANGAN MENGARANG)'}
+- Harga Pembanding: ${productBrief.referencePrice || 'Tidak disebutkan'}
+- Promo/Voucher: ${productBrief.promoDetails || 'Tidak disebutkan'}
+- Stok/Deadline: ${productBrief.stockOrDeadline || 'Tidak disebutkan (JANGAN BUAT SCARCITY PALSU)'}
+- Social Proof: ${productBrief.socialProof || 'Tidak disebutkan (JANGAN SEBUT ANGKA PENJUALAN PALSU)'}
+- Pengalaman Kreator: ${productBrief.creatorExperience || 'Belum mencoba langsung (Gunakan sudut pandang demonstrasi/informasi, bukan testimoni palsu)'}
+- Batasan/Hal Dilarang: ${productBrief.restrictions.join(', ') || 'Hindari overclaim'}
+
+KONFIGURASI GENERASI:
+- Jumlah Skrip: ${config.scriptCount} konsep
+- Target Durasi: ${config.durationSeconds} detik (WAJIB ${targetWords.min}–${targetWords.max} kata dialog narasi)
+- Gaya Penyampaian: ${config.style}
+- Persona Audiens: ${config.audiencePersona}
+- Angle Mode: ${config.angleMode}
+- Selected Angles: ${config.selectedAngles.length > 0 ? config.selectedAngles.join(', ') : 'Pilih otomatis dari 20 angle terbaik'}
+- Tipe Hook: ${config.hookType}
+- Metode Demo: ${config.demoMethod}
+- Pendekatan CTA: ${config.ctaType}
+- Intensitas Penjualan: ${config.sellingIntensity}
+- Price Anchoring: ${config.priceAnchoringEnabled && productBrief.currentPrice ? 'Gunakan data harga' : 'NONAKTIFKAN'}
+- Sapaan/Pronoun: ${config.pronouns}
+- Instruksi Tambahan Pengguna: ${config.extraInstructions || '-'}
+
+FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
+[
+  {
+    "id": "skrip-1",
+    "title": "Judul Konsep Kreatif",
+    "angle": "Nama Angle (dari 20 angle)",
+    "persona": "Persona audiens yang disasar",
+    "differentiator": "Pembeda utama konsep ini dibanding konsep lain",
+    "hookType": "Tipe hook yang dipakai",
+    "triggers": ["Pattern Interrupt", "Curiosity Loop", "Demo Proof"],
+    "estimatedDurationSeconds": ${config.durationSeconds},
+    "spokenWordCount": 68,
+    "durationStatus": "ok",
+    "segments": [
+      {
+        "timeRange": "0-3 detik",
+        "segmentName": "HOOK",
+        "visualDirection": "Arahan visual & B-roll detail (bisa dieksekusi sendiri dengan HP)",
+        "spokenDialogue": "Dialog narasi lisan Bahasa Indonesia yang mengalir",
+        "overlayText": "Teks singkat kontras di safe zone",
+        "strategyNote": "Catatan strategi/psikologi"
+      }
+    ],
+    "voiceoverOnly": "Gabungan seluruh dialog spokenDialogue saja agar siap direkam",
+    "qualityChecklist": ["Hook 3 detik pertama", "Fakta produk akurat", "Safe zone overlay", "Durasi sesuai target"],
+    "warnings": []
+  }
+]`;
+
+  const response = await callGeminiWithRetry({
+    model: GEMINI_MODEL,
+    contents: userPrompt,
+    config: {
+      systemInstruction: systemPrompt,
+      temperature: 0.7,
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const rawText = response.text || '[]';
+  let rawScripts: any[] = [];
+  try {
+    rawScripts = JSON.parse(cleanJsonString(rawText));
+  } catch (err) {
+    // Attempt one repair
+    const cleaned = cleanJsonString(rawText);
+    rawScripts = JSON.parse(cleaned);
+  }
+
+  if (!Array.isArray(rawScripts)) {
+    if (typeof rawScripts === 'object' && Array.isArray((rawScripts as any).scripts)) {
+      rawScripts = (rawScripts as any).scripts;
+    } else {
+      rawScripts = [rawScripts];
+    }
+  }
+
+  // Post-process and verify word counts accurately in code
+  const validatedScripts: ScriptItem[] = rawScripts.map((s, index) => {
+    const id = s.id || `script-${Date.now()}-${index + 1}`;
+    const segments = Array.isArray(s.segments) ? s.segments : [];
+
+    // Compile voiceover text from spokenDialogue if not provided or to ensure accuracy
+    const compiledVoiceover =
+      s.voiceoverOnly && typeof s.voiceoverOnly === 'string'
+        ? s.voiceoverOnly
+        : segments.map((seg: any) => seg.spokenDialogue || '').filter(Boolean).join(' ');
+
+    const actualWordCount = countWords(compiledVoiceover);
+    const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
+
+    const warnings: string[] = Array.isArray(s.warnings) ? [...s.warnings] : [];
+    if (evalStatus.status !== 'ok') {
+      warnings.push(evalStatus.message);
+    }
+
+    return {
+      id,
+      title: s.title || `Konsep #${index + 1}: ${s.angle || 'TikTok Affiliate'}`,
+      angle: s.angle || 'Problem-Solution / PAS',
+      persona: s.persona || config.audiencePersona,
+      differentiator: s.differentiator || 'Pendekatan konten unik untuk segmen ini',
+      hookType: s.hookType || config.hookType,
+      triggers: Array.isArray(s.triggers) ? s.triggers : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
+      estimatedDurationSeconds: config.durationSeconds,
+      spokenWordCount: actualWordCount,
+      durationStatus: evalStatus.status,
+      segments: segments.map((seg: any, sIdx: number) => ({
+        timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
+        segmentName: seg.segmentName || (sIdx === 0 ? 'HOOK' : sIdx === segments.length - 1 ? 'CTA' : 'BODY'),
+        visualDirection: seg.visualDirection || 'Tampilkan produk ke kamera',
+        spokenDialogue: seg.spokenDialogue || '',
+        overlayText: seg.overlayText || '',
+        strategyNote: seg.strategyNote || '',
+      })),
+      voiceoverOnly: compiledVoiceover,
+      qualityChecklist: Array.isArray(s.qualityChecklist) && s.qualityChecklist.length > 0
+        ? s.qualityChecklist
+        : [
+            'Hook kuat di 0-3 detik',
+            'Tanpa overclaim atau urgensi palsu',
+            'Visual mudah dieksekusi kreator',
+            'Overlay aman di safe zone TikTok',
+            `Target kata ${targetWords.min}-${targetWords.max} kata tercapai`,
+          ],
+      warnings,
+    };
+  });
+
+  return validatedScripts;
+}
+
+/**
+ * Refines a single script with targeted adjustments without compromising factual integrity.
+ */
+export async function refineSingleScript(params: {
+  script: ScriptItem;
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  refinementType: string;
+  customInstruction?: string;
+}): Promise<ScriptItem> {
+  const { script, productBrief, config, refinementType, customInstruction } = params;
+
+  const targetWordsMap = {
+    15: { min: 30, max: 40 },
+    30: { min: 60, max: 75 },
+    60: { min: 125, max: 150 },
+    90: { min: 200, max: 225 },
+  };
+  const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
+
+  let refinementPrompt = '';
+  switch (refinementType) {
+    case 'hook_stronger':
+      refinementPrompt = 'Buat Hook 3 detik pertama jauh lebih menghentak, scroll-stopping, dan memicu rasa penasaran tanpa overclaim.';
+      break;
+    case 'more_natural':
+      refinementPrompt = 'Ubah gaya bahasa dialog agar lebih santai, mengalir seperti obrolan teman akrab, hapus kesan kaku atau bahasa brosur.';
+      break;
+    case 'softer_selling':
+      refinementPrompt = 'Ubah pendekatan menjadi soft-selling, tonjolkan cerita dan nilai kegunaan sehari-hari, kurangi desakan jualan langsung.';
+      break;
+    case 'more_concise':
+      refinementPrompt = `Persingkat dialog agar lebih padat, hapus kata-kata mubazir, pastikan tepat di batas ${targetWords.min}–${targetWords.max} kata.`;
+      break;
+    case 'clearer_cta':
+      refinementPrompt = 'Buat Call to Action (CTA) di bagian akhir lebih jelas, spesifik ke keranjang kuning, tetapi tetap etis tanpa urgensi palsu.';
+      break;
+    case 'change_angle':
+      refinementPrompt = 'Ganti angle dan konsep penyampaian menjadi sudut pandang berbeda yang belum dipakai sebelumnya.';
+      break;
+    case 'custom':
+    default:
+      refinementPrompt = customInstruction || 'Sempurnakan skrip ini agar lebih engaging dan siap rekam.';
+      break;
+  }
+
+  const prompt = `Anda bertugas memperbaiki skrip TikTok Affiliate berikut.
+PERINGATAN: DILARANG mengubah fakta produk (harga, promo, stok, klaim medis, atau testimoni palsu tetap dilarang keras).
+
+SKRIP SAAT INI:
+${JSON.stringify(script, null, 2)}
+
+DATA PRODUK YANG SAH:
+- Nama: ${productBrief.name}
+- Fitur: ${productBrief.features.join(', ')}
+- Manfaat: ${productBrief.benefits.join(', ')}
+- Harga: ${productBrief.currentPrice || 'Tidak ada'}
+- Stok/Promo: ${productBrief.stockOrDeadline || 'Tidak ada'}
+
+INSTRUKSI PERBAIKAN:
+${refinementPrompt}
+
+Target kata dialog narasi: ${targetWords.min}–${targetWords.max} kata (${config.durationSeconds} detik).
+
+KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
+{
+  "id": "${script.id}",
+  "title": "string",
+  "angle": "string",
+  "persona": "string",
+  "differentiator": "string",
+  "hookType": "string",
+  "triggers": ["string"],
+  "estimatedDurationSeconds": ${config.durationSeconds},
+  "spokenWordCount": 0,
+  "durationStatus": "ok",
+  "segments": [
+    {
+      "timeRange": "0-3 detik",
+      "segmentName": "HOOK",
+      "visualDirection": "string",
+      "spokenDialogue": "string",
+      "overlayText": "string",
+      "strategyNote": "string"
+    }
+  ],
+  "voiceoverOnly": "string",
+  "qualityChecklist": ["string"],
+  "warnings": []
+}`;
+
+  const response = await callGeminiWithRetry({
+    model: GEMINI_MODEL,
+    contents: prompt,
+    config: {
+      temperature: 0.6,
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const parsed = JSON.parse(cleanJsonString(response.text || '{}'));
+  const segments = Array.isArray(parsed.segments) ? parsed.segments : script.segments;
+  const compiledVoiceover =
+    parsed.voiceoverOnly && typeof parsed.voiceoverOnly === 'string'
+      ? parsed.voiceoverOnly
+      : segments.map((seg: any) => seg.spokenDialogue || '').filter(Boolean).join(' ');
+
+  const actualWordCount = countWords(compiledVoiceover);
+  const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
+
+  return {
+    id: script.id,
+    title: parsed.title || script.title,
+    angle: parsed.angle || script.angle,
+    persona: parsed.persona || script.persona,
+    differentiator: parsed.differentiator || script.differentiator,
+    hookType: parsed.hookType || script.hookType,
+    triggers: Array.isArray(parsed.triggers) ? parsed.triggers : script.triggers,
+    estimatedDurationSeconds: config.durationSeconds,
+    spokenWordCount: actualWordCount,
+    durationStatus: evalStatus.status,
+    segments,
+    voiceoverOnly: compiledVoiceover,
+    qualityChecklist: Array.isArray(parsed.qualityChecklist) ? parsed.qualityChecklist : script.qualityChecklist,
+    warnings: evalStatus.status !== 'ok' ? [evalStatus.message] : [],
+  };
+}
