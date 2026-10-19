@@ -31,8 +31,11 @@ import { HistorySession } from './types';
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with databaseId from config
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore (support default or custom databaseId)
+const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = firestoreDbId && firestoreDbId !== '(default)'
+  ? getFirestore(app, firestoreDbId)
+  : getFirestore(app);
 
 // Initialize Auth
 export const auth = getAuth(app);

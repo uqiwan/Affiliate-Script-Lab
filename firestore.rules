@@ -19,15 +19,23 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Connection testing endpoint
+    match /test/{docId} {
+      allow read: if true;
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId) && isValidId(userId);
+      allow get, create, update, delete: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
 
       match /settings/{settingId} {
-        allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+        allow get, create, update, delete: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+        allow list: if isOwner(userId) && isValidId(userId);
       }
 
       match /history/{sessionId} {
-        allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+        allow get, create, update, delete: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId) && isValidId(userId);
       }
     }
   }

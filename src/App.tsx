@@ -14,7 +14,22 @@ import { ManualCopyModal } from './components/ManualCopyModal';
 import { ProcessingModal } from './components/ProcessingModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ResetConfirmModal } from './components/ResetConfirmModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { AuthWarningModal } from './components/AuthWarningModal';
+import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
 import { InfoTooltip } from './components/InfoTooltip';
+import {
+  auth,
+  loginWithGoogle,
+  logoutUser,
+  loadUserApiKey,
+  saveUserApiKey,
+  deleteUserApiKey,
+  loadUserHistoryFromFirestore,
+  saveSessionToFirestore,
+  deleteSessionFromFirestore,
+} from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ProductBrief,
   GenerationConfig,
@@ -224,6 +239,132 @@ export default function App() {
   const [isRefining, setIsRefining] = useState<boolean>(false);
   const [activeInputMode, setActiveInputMode] = useState<InputMode>('images');
 
+  // Auth & API Key State
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(false);
+  const [authWarningModalOpen, setAuthWarningModalOpen] = useState<boolean>(false);
+  const [unauthorizedDomainModalOpen, setUnauthorizedDomainModalOpen] = useState<boolean>(false);
+  const [serverHasKey, setServerHasKey] = useState<boolean>(false);
+  const [apiKey, setApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('affiliate_script_lab_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Active user: authenticated Google user or local session if API key is active
+  const activeUser = user || (apiKey ? ({
+    uid: 'local-session',
+    displayName: 'Pengguna Mandiri',
+    email: 'Sesi API Key Lokal',
+    photoURL: '',
+  } as unknown as User) : null);
+
+  // Check server API key status on boot
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.hasApiKey) {
+          setServerHasKey(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Sync auth and Firestore settings/history
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        try {
+          const cloudKey = await loadUserApiKey(currentUser.uid);
+          if (cloudKey) {
+            setApiKey(cloudKey);
+            localStorage.setItem('affiliate_script_lab_api_key', cloudKey);
+          }
+          const cloudHistory = await loadUserHistoryFromFirestore(currentUser.uid);
+          if (cloudHistory && cloudHistory.length > 0) {
+            setHistory((prev) => {
+              const merged = [...cloudHistory];
+              prev.forEach((item) => {
+                if (!merged.some((m) => m.id === item.id)) {
+                  merged.push(item);
+                }
+              });
+              merged.sort((a, b) => b.timestamp - a.timestamp);
+              return merged.slice(0, 30);
+            });
+          }
+        } catch (err) {
+          console.warn('Error loading user data from Firestore:', err);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const loggedUser = await loginWithGoogle();
+      showToast(`Selamat datang, ${loggedUser.displayName || 'Pengguna'}!`, 'success');
+    } catch (err: any) {
+      const errMsg = err?.message || '';
+      const errCode = err?.code || '';
+      if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) {
+        setUnauthorizedDomainModalOpen(true);
+      } else if (!errMsg.includes('popup-closed-by-user')) {
+        showToast('Gagal masuk dengan Google: ' + (errMsg || 'Coba lagi'), 'error');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      if (user) {
+        await logoutUser();
+      }
+      setUser(null);
+      setApiKey('');
+      localStorage.removeItem('affiliate_script_lab_api_key');
+      showToast('Berhasil keluar dari akun.', 'info');
+    } catch {
+      showToast('Gagal keluar dari akun.', 'error');
+    }
+  };
+
+  const handleSaveApiKey = async (newKey: string): Promise<boolean> => {
+    setApiKey(newKey);
+    localStorage.setItem('affiliate_script_lab_api_key', newKey);
+    if (user) {
+      try {
+        await saveUserApiKey(user.uid, newKey);
+      } catch (err) {
+        console.error('Failed to sync api key to Firestore:', err);
+      }
+    }
+    showToast('API Key berhasil disimpan!', 'success');
+    return true;
+  };
+
+  const handleDeleteApiKey = async (): Promise<void> => {
+    setApiKey('');
+    localStorage.removeItem('affiliate_script_lab_api_key');
+    if (user) {
+      try {
+        await deleteUserApiKey(user.uid);
+      } catch (err) {
+        console.error('Failed to delete api key from Firestore:', err);
+      }
+    }
+    showToast('API Key dihapus.', 'info');
+  };
+
   // Modals & Feedback
   const [safeZoneOpen, setSafeZoneOpen] = useState<boolean>(false);
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
@@ -256,7 +397,7 @@ export default function App() {
     return SAMPLE_HISTORY;
   });
 
-  // Save history to localStorage
+  // Save history to localStorage & Firestore if logged in
   const saveSessionToHistory = (newSession: HistorySession) => {
     setHistory((prev) => {
       const filtered = prev.filter((s) => s.id !== newSession.id);
@@ -268,6 +409,11 @@ export default function App() {
       }
       return updated;
     });
+    if (user) {
+      saveSessionToFirestore(user.uid, newSession).catch((err) =>
+        console.warn('Failed to save session to Firestore:', err)
+      );
+    }
   };
 
   const handleDeleteHistorySession = (id: string) => {
@@ -280,6 +426,11 @@ export default function App() {
       }
       return updated;
     });
+    if (user) {
+      deleteSessionFromFirestore(user.uid, id).catch((err) =>
+        console.warn('Failed to delete session from Firestore:', err)
+      );
+    }
     showToast('Sesi riwayat berhasil dihapus.', 'info');
   };
 
@@ -411,7 +562,10 @@ export default function App() {
     try {
       const response = await fetch('/api/extract-product', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+        },
         body: JSON.stringify(data),
       });
 
@@ -462,6 +616,16 @@ export default function App() {
 
   // 3. Generate scripts: Unlocks Step 4 (Skrip) & Archives to History
   const handleGenerateScripts = async () => {
+    // Protection guard: user must be authenticated AND have an API key set
+    if (!activeUser || !apiKey) {
+      setAuthWarningModalOpen(true);
+      showToast(
+        'Harap login dan atur API Key Google AI Studio Anda terlebih dahulu di menu profil (kanan atas).',
+        'error'
+      );
+      return;
+    }
+
     if (!productBrief.name && !productBrief.description) {
       setGlobalError('Harap lengkapi minimal Nama Produk sebelum membuat skrip.');
       return;
@@ -473,7 +637,10 @@ export default function App() {
     try {
       const response = await fetch('/api/generate-scripts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+        },
         body: JSON.stringify({
           productBrief,
           config,
@@ -528,7 +695,10 @@ export default function App() {
     try {
       const response = await fetch('/api/refine-script', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+        },
         body: JSON.stringify({
           script: targetScript,
           productBrief,
@@ -627,13 +797,18 @@ export default function App() {
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-purple-500 animate-pulse shadow-xs" />
       )}
 
-      {/* App Header with always-active Reset and new Riwayat button */}
+      {/* App Header with user auth, API key settings, Safe Zone, and Riwayat */}
       <Header
-        onReset={() => setResetConfirmOpen(true)}
+        user={activeUser}
+        onLogin={handleGoogleLogin}
+        onLogout={handleGoogleLogout}
+        onOpenApiKey={() => setApiKeyModalOpen(true)}
         onOpenSafeZone={() => setSafeZoneOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
+        onReset={() => setResetConfirmOpen(true)}
         historyCount={history.length}
-        hasData={hasData}
+        hasApiKey={Boolean(apiKey || serverHasKey)}
+        isLoggingIn={isLoggingIn}
       />
 
       {/* Toast Notification */}
@@ -756,6 +931,9 @@ export default function App() {
                 disabled={isAnalyzing}
                 productBrief={productBrief}
                 onBackToBrief={() => setCurrentStep(2)}
+                user={activeUser}
+                hasApiKey={Boolean(apiKey)}
+                onRequireAuthOrKey={() => setAuthWarningModalOpen(true)}
               />
             </div>
           )}
@@ -919,6 +1097,35 @@ export default function App() {
         activeInputMode={activeInputMode}
         config={config}
         productName={productBrief.name}
+      />
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isOpen={apiKeyModalOpen}
+        onClose={() => setApiKeyModalOpen(false)}
+        currentApiKey={apiKey}
+        onSave={handleSaveApiKey}
+        onDelete={handleDeleteApiKey}
+      />
+
+      {/* Script Generator Protection Warning Modal */}
+      <AuthWarningModal
+        isOpen={authWarningModalOpen}
+        onClose={() => setAuthWarningModalOpen(false)}
+        user={activeUser}
+        hasApiKey={Boolean(apiKey)}
+        onLogin={handleGoogleLogin}
+        onOpenApiKey={() => setApiKeyModalOpen(true)}
+      />
+
+      {/* Unauthorized Domain Guide & Fallback Modal */}
+      <UnauthorizedDomainModal
+        isOpen={unauthorizedDomainModalOpen}
+        onClose={() => setUnauthorizedDomainModalOpen(false)}
+        onUseLocalApiKey={() => {
+          setUnauthorizedDomainModalOpen(false);
+          setApiKeyModalOpen(true);
+        }}
       />
     </div>
   );

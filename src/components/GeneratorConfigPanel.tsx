@@ -12,7 +12,11 @@ import {
   Wand2,
   ArrowLeft,
   ArrowRight,
+  Lock,
+  AlertCircle,
+  ShieldAlert,
 } from 'lucide-react';
+import { User } from 'firebase/auth';
 import {
   GenerationConfig,
   ScriptDuration,
@@ -31,6 +35,9 @@ interface GeneratorConfigPanelProps {
   disabled?: boolean;
   productBrief: ProductBrief;
   onBackToBrief?: () => void;
+  user: User | null;
+  hasApiKey: boolean;
+  onRequireAuthOrKey: () => void;
 }
 
 // Gaya Penyampaian dengan simbol berwarna-warni
@@ -70,9 +77,14 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
   disabled = false,
   productBrief,
   onBackToBrief,
+  user,
+  hasApiKey,
+  onRequireAuthOrKey,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [showAngleLibrary, setShowAngleLibrary] = useState<boolean>(false);
+
+  const isAuthLocked = !user || !hasApiKey;
 
   // Custom persona handling
   const isCustomSelected =
@@ -389,6 +401,43 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         />
       </div>
 
+      {/* Script Generator Protection Warning Box */}
+      {isAuthLocked && (
+        <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1.5">
+            <div className="font-bold text-amber-950 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Proteksi Fitur Generator Skrip</span>
+            </div>
+            <p className="text-amber-800 leading-relaxed font-medium">
+              Harap login dan atur API Key Google AI Studio Anda terlebih dahulu di menu profil (kanan atas).
+            </p>
+            <div className="pt-0.5 flex flex-wrap items-center gap-2">
+              {!user ? (
+                <button
+                  type="button"
+                  onClick={onRequireAuthOrKey}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-all cursor-pointer"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Masuk dengan Google</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRequireAuthOrKey}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-all cursor-pointer"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Atur API Key Sekarang</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons: Kembali & Tombol 'Buat Skrip' */}
       <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         {onBackToBrief && (
@@ -404,15 +453,31 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
 
         <button
           type="button"
-          onClick={onGenerate}
-          disabled={disabled || isGenerating || !productBrief.name}
+          onClick={() => {
+            if (isAuthLocked) {
+              onRequireAuthOrKey();
+              return;
+            }
+            onGenerate();
+          }}
+          disabled={disabled || isGenerating || !productBrief.name || isAuthLocked}
           className={`flex-1 min-h-[46px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            disabled || isGenerating || !productBrief.name
+            disabled || isGenerating || !productBrief.name || isAuthLocked
               ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200/80'
               : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md hover:shadow-lg ring-4 ring-emerald-500/20 active:scale-[0.99] cursor-pointer'
           }`}
+          title={
+            isAuthLocked
+              ? 'Harap login dan atur API Key Google AI Studio Anda terlebih dahulu di menu profil (kanan atas).'
+              : undefined
+          }
         >
-          {isGenerating ? (
+          {isAuthLocked ? (
+            <>
+              <Lock className="w-4 h-4 text-amber-500" />
+              <span>Generator Terkunci (Perlu Login & API Key)</span>
+            </>
+          ) : isGenerating ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               <span>Membuat {config.scriptCount} Skrip...</span>

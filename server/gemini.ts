@@ -32,23 +32,51 @@ const GEMINI_MODEL = 'gemini-3.8-flash';
  * Verifies a Google AI Studio API Key by attempting a quick lightweight ping.
  */
 export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-  try {
-    const testAi = new GoogleGenAI({
-      apiKey: apiKey.trim(),
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+  const testModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  let lastError: any;
+
+  for (const model of testModels) {
+    try {
+      const testAi = new GoogleGenAI({
+        apiKey: apiKey.trim(),
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
         },
-      },
-    });
-    await testAi.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: 'Ping',
-    });
-    return { valid: true };
-  } catch (err: any) {
-    return { valid: false, error: err?.message || 'Gagal memverifikasi API Key' };
+      });
+      await testAi.models.generateContent({
+        model,
+        contents: 'Ping',
+      });
+      return { valid: true };
+    } catch (err: any) {
+      lastError = err;
+      const rawMsg = err?.message || '';
+      if (
+        rawMsg.includes('API_KEY_INVALID') ||
+        rawMsg.includes('API key not valid') ||
+        rawMsg.includes('INVALID_ARGUMENT') ||
+        rawMsg.includes('PERMISSION_DENIED')
+      ) {
+        return { valid: false, error: 'API Key tidak valid. Pastikan Anda menyalin API Key yang benar dari Google AI Studio.' };
+      }
+      // If transient 503 / high demand spike, continue to next candidate model
+      continue;
+    }
   }
+
+  let errorText = lastError?.message || 'Gagal memverifikasi API Key.';
+  try {
+    if (typeof errorText === 'string' && errorText.startsWith('{')) {
+      const parsed = JSON.parse(errorText);
+      if (parsed.error?.message) {
+        errorText = parsed.error.message;
+      }
+    }
+  } catch {}
+
+  return { valid: false, error: errorText };
 }
 
 /**
