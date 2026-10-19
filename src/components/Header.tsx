@@ -25,6 +25,7 @@ interface HeaderProps {
   onOpenApiKey: () => void;
   onOpenHistory: () => void;
   onOpenSafeZone: () => void;
+  onOpenApkModal?: () => void;
   onReset: () => void;
   historyCount: number;
   hasApiKey: boolean;
@@ -38,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenApiKey,
   onOpenHistory,
   onOpenSafeZone,
+  onOpenApkModal,
   onReset,
   historyCount,
   hasApiKey,
@@ -105,6 +107,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <Smartphone className="w-3.5 h-3.5 text-zinc-500" />
                 <span className="hidden sm:inline">Panduan Zona</span>
               </button>
+
+              {onOpenApkModal && (
+                <button
+                  type="button"
+                  onClick={onOpenApkModal}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 shadow-2xs transition-all cursor-pointer"
+                  title="Bungkus APK Android & Mode Melayang"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="hidden sm:inline">APK Android</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -273,7 +287,24 @@ export const Header: React.FC<HeaderProps> = ({
                       <span className="text-[10px] text-zinc-400">9:16</span>
                     </button>
 
-                    {/* 4. Reset Sesi */}
+                    {/* 4. Bungkus APK Android (.APK) */}
+                    {onOpenApkModal && (
+                      <button
+                        type="button"
+                        onClick={() => handleMenuAction(onOpenApkModal)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 rounded-xl transition-colors cursor-pointer text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Smartphone className="w-4 h-4 text-amber-600" />
+                          <span>Bungkus APK Android (.APK)</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Siap
+                        </span>
+                      </button>
+                    )}
+
+                    {/* 5. Reset Sesi */}
                     <button
                       type="button"
                       onClick={() => handleMenuAction(onReset)}

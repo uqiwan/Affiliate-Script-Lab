@@ -83,23 +83,45 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
+/**
+ * Recursively cleans an object for Firestore by omitting keys with undefined values,
+ * because Firestore setDoc/updateDoc throws an error on undefined values.
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === undefined) {
+    return null as unknown as T;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .map((item) => sanitizeForFirestore(item))
+      .filter((item) => item !== undefined) as unknown as T;
+  }
+  const cleanObj: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
+    if (value !== undefined) {
+      cleanObj[key] = sanitizeForFirestore(value);
+    }
+  }
+  return cleanObj as T;
+}
+
 // Auth Helpers
 export async function loginWithGoogle(): Promise<User> {
   const res = await signInWithPopup(auth, googleProvider);
   // Sync basic user profile
   try {
     const userRef = doc(db, 'users', res.user.uid);
-    await setDoc(
-      userRef,
-      {
-        userId: res.user.uid,
-        email: res.user.email || '',
-        displayName: res.user.displayName || '',
-        photoURL: res.user.photoURL || '',
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    const profileData = sanitizeForFirestore({
+      userId: res.user.uid,
+      email: res.user.email || '',
+      displayName: res.user.displayName || '',
+      photoURL: res.user.photoURL || '',
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(userRef, profileData, { merge: true });
   } catch (err) {
     console.error('Failed to sync user profile:', err);
   }
@@ -128,11 +150,12 @@ export async function loadUserApiKey(userId: string): Promise<string> {
 export async function saveUserApiKey(userId: string, apiKey: string): Promise<void> {
   const path = `users/${userId}/settings/gemini`;
   try {
-    await setDoc(doc(db, 'users', userId, 'settings', 'gemini'), {
+    const rawData = {
       userId,
-      apiKey: apiKey.trim(),
+      apiKey: (apiKey || '').trim(),
       updatedAt: new Date().toISOString(),
-    });
+    };
+    await setDoc(doc(db, 'users', userId, 'settings', 'gemini'), sanitizeForFirestore(rawData));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -171,11 +194,12 @@ export async function saveSessionToFirestore(
 ): Promise<void> {
   const path = `users/${userId}/history/${session.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'history', session.id), {
+    const rawData = {
       ...session,
       userId,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    await setDoc(doc(db, 'users', userId, 'history', session.id), sanitizeForFirestore(rawData));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }

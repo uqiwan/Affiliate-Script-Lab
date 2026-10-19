@@ -14,6 +14,8 @@ import {
   ChevronUp,
   Info,
   Check,
+  MonitorPlay,
+  PictureInPicture2,
 } from 'lucide-react';
 import { ScriptItem } from '../types';
 import { formatScriptAsText } from '../utils/exportTxt';
@@ -31,6 +33,8 @@ interface ScriptCardProps {
   onRegenerate: (script: ScriptItem) => void;
   onRefine: (script: ScriptItem, refinementType: any, customInstruction?: string) => void;
   isRefining: boolean;
+  onOpenPrompter?: (script: ScriptItem, index: number) => void;
+  onOpenFloatingPrompter?: (script: ScriptItem, index: number) => void;
 }
 
 function cleanDialogueText(text: string): string {
@@ -56,6 +60,8 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   onRegenerate,
   onRefine,
   isRefining,
+  onOpenPrompter,
+  onOpenFloatingPrompter,
 }) => {
   const [showConceptInfo, setShowConceptInfo] = useState<boolean>(false);
   const [internalShowVisual, setInternalShowVisual] = useState<boolean>(false);
@@ -170,6 +176,30 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
             <Copy className="w-3.5 h-3.5 text-zinc-500" />
             <span>Salin Lengkap</span>
           </button>
+
+          {onOpenPrompter && (
+            <button
+              type="button"
+              onClick={() => onOpenPrompter(script, index)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 transition-all cursor-pointer shadow-2xs"
+              title={`Buka Layar Teleprompter khusus Konsep #${index + 1}`}
+            >
+              <MonitorPlay className="w-3.5 h-3.5 text-amber-600" />
+              <span>Prompter</span>
+            </button>
+          )}
+
+          {onOpenFloatingPrompter && (
+            <button
+              type="button"
+              onClick={() => onOpenFloatingPrompter(script, index)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer shadow-2xs"
+              title={`Buka Mode Melayang (Floating Widget) khusus Konsep #${index + 1}`}
+            >
+              <PictureInPicture2 className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Melayang</span>
+            </button>
+          )}
         </div>
       </div>
 

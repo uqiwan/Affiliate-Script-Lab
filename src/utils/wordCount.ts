@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DURATION_WORD_TARGETS } from './constants';
-import { ScriptDuration } from '../types';
+import { DURATION_WORD_TARGETS } from './constants.ts';
+import type { ScriptDuration } from '../types/index.ts';
 
 /**
  * Counts spoken words in a narrative dialogue string.

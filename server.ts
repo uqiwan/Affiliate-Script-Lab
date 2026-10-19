@@ -3,18 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { safeFetchProductPage, ScrapedPageResult } from './server/ssrf';
+import { safeFetchProductPage } from './server/ssrf.ts';
+import type { ScrapedPageResult } from './server/ssrf.ts';
 import {
   extractProductBrief,
   generateScripts,
   refineSingleScript,
   testGeminiApiKey,
-} from './server/gemini';
-import {
+} from './server/gemini.ts';
+import type {
   ExtractProductRequest,
   ExtractProductResponse,
   GenerateScriptsRequest,
@@ -22,7 +24,7 @@ import {
   RefineScriptRequest,
   RefineScriptResponse,
   ProductBrief,
-} from './src/types';
+} from './src/types/index.ts';
 
 dotenv.config();
 
@@ -260,7 +262,7 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
     // Generate scripts using Gemini with timeout
     const scripts = await withTimeout(
       generateScripts({ productBrief, config, customApiKey }),
-      75000,
+      160000,
       'Pembuatan skrip melebihi batas waktu (timeout). Silakan kurangi jumlah skrip atau coba kembali.'
     );
 
@@ -384,9 +386,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Affiliate Script Lab] Server running on port ${PORT}`);
   });
+  server.timeout = 180000;
+  server.keepAliveTimeout = 65000;
 }
 
 startServer().catch((err) => {

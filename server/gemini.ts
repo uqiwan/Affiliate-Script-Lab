@@ -4,9 +4,9 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } from '../src/types';
-import { ScrapedPageResult } from './ssrf';
-import { countWords, evaluateDurationStatus } from '../src/utils/wordCount';
+import type { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } from '../src/types/index.ts';
+import type { ScrapedPageResult } from './ssrf.ts';
+import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
 
 // Initialize GoogleGenAI SDK helper with user agent as per aistudio-build guidelines
 function getAiClient(customApiKey?: string): GoogleGenAI {
@@ -130,7 +130,7 @@ const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 async function callGeminiWithRetry(
   options: any,
   customApiKey?: string,
-  timeoutPerCallMs = 28000
+  timeoutPerCallMs = 45000
 ): Promise<any> {
   let lastError: any;
   const client = getAiClient(customApiKey);
@@ -462,8 +462,321 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
   };
 }
 
+const DEFAULT_20_ANGLES = [
+  'Problem-Solution (Solusi Masalah)',
+  'Personal Story (Kisah Nyata)',
+  'Bold Claim (Klaim Menghentak)',
+  'Myth-Busting (Bongkar Mitos)',
+  'Outcome-First (Hasil di Awal)',
+  'Common Mistakes (Hindari Salah)',
+  'Price/Value (Bandingkan Nilai)',
+  'Social Proof (Bukti Sosial)',
+  'Unboxing/ASMR (First Impression)',
+  'Educational/How-To (Tutorial Cepat)',
+  'Skeptic-to-Believer (Awalnya Ragu)',
+  'Routine/Day in the Life (POV Rutinitas)',
+  'Feature Deep-Dive (Bedah Fitur)',
+  'Relatable Humor (Situasi Lucu)',
+  'Urgency/Scarcity (Momen Terbatas)',
+  'Before-After Transformation (Transformasi Nyata)',
+  'Comparison vs Alternative (Adu Kualitas)',
+  'Hidden Gem/Secret Hack (Trik Rahasia)',
+  'Gift/Recommendation (Rekomendasi Hadiah)',
+  'Behind the Scenes (Di Balik Layar)',
+];
+
 /**
- * Generates TikTok affiliate scripts based on verified brief and configuration.
+ * Assigns distinct angles across scripts, prioritizing user selected angles or cycling through default 20 angles.
+ */
+function getAssignedAngles(
+  startIndex: number,
+  count: number,
+  selectedAngles?: string[]
+): string[] {
+  const angles: string[] = [];
+  const sourceAngles =
+    selectedAngles && selectedAngles.length > 0 ? selectedAngles : DEFAULT_20_ANGLES;
+
+  for (let i = 0; i < count; i++) {
+    const angleIndex = (startIndex - 1 + i) % sourceAngles.length;
+    angles.push(sourceAngles[angleIndex]);
+  }
+  return angles;
+}
+
+/**
+ * Simple concurrency runner to execute tasks in controlled parallel batches.
+ */
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < items.length) {
+      const idx = currentIndex++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Generates a focused batch of up to 5 scripts with specific assigned angles and structured segments.
+ */
+async function generateBatchOfScripts(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  batchNumber: number;
+  startIndex: number;
+  batchCount: number;
+  assignedAngles: string[];
+  targetWords: { min: number; max: number };
+  systemPrompt: string;
+  customApiKey?: string;
+}): Promise<ScriptItem[]> {
+  const {
+    productBrief,
+    config,
+    batchNumber,
+    startIndex,
+    batchCount,
+    assignedAngles,
+    targetWords,
+    systemPrompt,
+    customApiKey,
+  } = params;
+
+  const endIndex = startIndex + batchCount - 1;
+
+  const userPrompt = `
+TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA.
+Nomor urut konsep dalam batch ini: Konsep #${startIndex} sampai #${endIndex} (Total tepat ${batchCount} konsep).
+
+DATA PRODUK (SUMBER RESMI TERVERIFIKASI):
+- Nama Produk: ${productBrief.name}
+- Kategori: ${productBrief.category}
+- Ringkasan: ${productBrief.description}
+- Fitur Terverifikasi: ${productBrief.features.join(', ') || 'Sesuai deskripsi'}
+- Manfaat Wajar: ${productBrief.benefits.join(', ') || 'Sesuai deskripsi'}
+- Target Persona: ${productBrief.audience}
+- Pain Points: ${productBrief.painPoints.join(', ') || 'Kebutuhan fungsional'}
+- Harga Sekarang: ${productBrief.currentPrice || 'Tidak disebutkan (JANGAN MENGARANG ANGKA HARGA)'}
+- Harga Pembanding: ${productBrief.referencePrice || 'Tidak disebutkan'}
+- Promo/Voucher: ${productBrief.promoDetails || 'Tidak disebutkan'}
+- Stok/Deadline: ${productBrief.stockOrDeadline || 'Tidak disebutkan (JANGAN BUAT SCARCITY PALSU)'}
+- Social Proof: ${productBrief.socialProof || 'Tidak disebutkan (JANGAN SEBUT ANGKA PENJUALAN PALSU)'}
+- Pengalaman Kreator: ${productBrief.creatorExperience || 'Belum mencoba langsung (Gunakan sudut pandang demonstrasi/informasi, bukan testimoni palsu)'}
+- Batasan/Hal Dilarang: ${productBrief.restrictions.join(', ') || 'Hindari overclaim'}
+
+KONFIGURASI BATCH:
+- Target Durasi: ${config.durationSeconds} detik (WAJIB ${targetWords.min}–${targetWords.max} kata dialog narasi lisan)
+- Gaya Penyampaian: ${config.style}
+- Persona Audiens: ${config.audiencePersona}
+- Metode Demo: ${config.demoMethod}
+- Pendekatan CTA: ${config.ctaType} (Wajib netral: "keranjang kiri bawah" / "keranjang bawah video ini", DILARANG "keranjang kuning")
+- Intensitas Penjualan: ${config.sellingIntensity}
+- Price Anchoring: ${config.priceAnchoringEnabled && productBrief.currentPrice ? 'Gunakan data harga' : 'NONAKTIFKAN'}
+- Sapaan/Pronoun: ${config.pronouns}
+- Instruksi Tambahan Pengguna: ${config.extraInstructions || '-'}
+
+DAFTAR PENUGASAN WAJIB ${batchCount} KONSEP PADA BATCH INI:
+${assignedAngles
+  .map(
+    (ang, i) =>
+      `* Konsep #${startIndex + i} (id: "skrip-${startIndex + i}"): WAJIB gunakan Angle "${ang}". Buat judul spesifik, skenario unik, dan hook yang relevan dengan angle ini.`
+  )
+  .join('\n')}
+
+ATURAN OUTPUT JSON MUTLAK:
+1. Array JSON WAJIB berisi TEPAT ${batchCount} objek skrip lengkap sesuai daftar penugasan di atas. DILARANG MERINGKAS ATAU HANYA MEMBUAT 1 SKRIP!
+2. Setiap objek skrip harus memiliki id unik ("skrip-${startIndex}", "skrip-${startIndex + 1}", dst).
+3. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
+4. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
+
+FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchCount} objek skrip):
+[
+  {
+    "id": "skrip-${startIndex}",
+    "title": "Judul Kreatif Konsep #${startIndex}",
+    "angle": "${assignedAngles[0] || 'Problem-Solution'}",
+    "persona": "${config.audiencePersona}",
+    "differentiator": "Pembeda utama konsep ini dibanding konsep lain",
+    "hookType": "${config.hookType}",
+    "triggers": ["Pattern Interrupt", "Curiosity Loop", "Demo Proof"],
+    "estimatedDurationSeconds": ${config.durationSeconds},
+    "spokenWordCount": ${Math.round((targetWords.min + targetWords.max) / 2)},
+    "durationStatus": "ok",
+    "segments": [
+      {
+        "timeRange": "0-3 detik",
+        "segmentName": "HOOK",
+        "visualDirection": "Arahan visual & B-roll detail (bisa dieksekusi sendiri dengan HP)",
+        "spokenDialogue": "Dialog narasi lisan Bahasa Indonesia yang mengalir",
+        "overlayText": "Teks singkat kontras di safe zone",
+        "strategyNote": "Catatan strategi/psikologi"
+      },
+      {
+        "timeRange": "3-8 detik",
+        "segmentName": "PROBLEM",
+        "visualDirection": "Arahan visual konteks masalah",
+        "spokenDialogue": "Dialog kelanjutan masalah penonton",
+        "overlayText": "Teks singkat masalah",
+        "strategyNote": "Membangun rasa relate"
+      },
+      {
+        "timeRange": "8-20 detik",
+        "segmentName": "DEMO",
+        "visualDirection": "Close-up demonstrasi produk nyata",
+        "spokenDialogue": "Penjelasan solusi dan fitur utama secara natural",
+        "overlayText": "Highlight fitur",
+        "strategyNote": "Bukti visual meyakinkan"
+      },
+      {
+        "timeRange": "20-25 detik",
+        "segmentName": "VALUE",
+        "visualDirection": "Tunjukkan produk utuh dan kemasan",
+        "spokenDialogue": "Penegasan nilai guna dan manfaat nyata",
+        "overlayText": "Nilai guna produk",
+        "strategyNote": "Menghilangkan keraguan"
+      },
+      {
+        "timeRange": "25-30 detik",
+        "segmentName": "CTA",
+        "visualDirection": "Arahkan gestur ke sudut kiri bawah layar smartphone",
+        "spokenDialogue": "Langsung cek detailnya di keranjang kiri bawah sekarang ya!",
+        "overlayText": "Cek Keranjang Kiri Bawah ⬇️",
+        "strategyNote": "Ajakan bertindak netral tanpa manipulasi"
+      }
+    ],
+    "voiceoverOnly": "Seluruh dialog lisan spokenDialogue digabung siap rekam",
+    "qualityChecklist": ["Hook 3 detik pertama", "Fakta produk akurat", "Safe zone overlay", "Durasi sesuai target"],
+    "warnings": []
+  }
+]`;
+
+  const response = await callGeminiWithRetry(
+    {
+      model: GEMINI_MODEL,
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.7,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+      },
+    },
+    customApiKey,
+    42000
+  );
+
+  const rawText = response.text || '[]';
+  let rawScripts: any[] = [];
+  try {
+    rawScripts = JSON.parse(cleanJsonString(rawText));
+  } catch {
+    try {
+      const cleaned = cleanJsonString(rawText);
+      rawScripts = JSON.parse(cleaned);
+    } catch {
+      const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (match) {
+        try {
+          rawScripts = JSON.parse(match[0]);
+        } catch {}
+      }
+    }
+  }
+
+  if (!Array.isArray(rawScripts)) {
+    if (typeof rawScripts === 'object' && Array.isArray((rawScripts as any).scripts)) {
+      rawScripts = (rawScripts as any).scripts;
+    } else if (rawScripts && typeof rawScripts === 'object') {
+      rawScripts = [rawScripts];
+    } else {
+      rawScripts = [];
+    }
+  }
+
+  return rawScripts.map((s, index) => {
+    const itemIndex = startIndex + index;
+    const assignedAngle = assignedAngles[index] || s.angle || 'Problem-Solution';
+    const id = s.id || `script-${Date.now()}-${itemIndex}`;
+    const rawSegments = Array.isArray(s.segments) ? s.segments : [];
+
+    const segments = rawSegments.map((seg: any, sIdx: number) => {
+      const cleanDialogue = sanitizeCrossPlatformText(seg.spokenDialogue || '');
+      const cleanOverlay = sanitizeCrossPlatformText(seg.overlayText || '');
+      const cleanVisual = sanitizeCrossPlatformText(seg.visualDirection || '');
+
+      return {
+        timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
+        segmentName: seg.segmentName || (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
+        visualDirection: cleanVisual || 'Tampilkan produk ke kamera',
+        spokenDialogue: cleanDialogue,
+        overlayText: cleanOverlay,
+        strategyNote: seg.strategyNote || '',
+      };
+    });
+
+    const rawVoiceover =
+      s.voiceoverOnly && typeof s.voiceoverOnly === 'string'
+        ? s.voiceoverOnly
+        : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+
+    const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
+    const actualWordCount = countWords(compiledVoiceover);
+    const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
+
+    const warnings: string[] = Array.isArray(s.warnings) ? [...s.warnings] : [];
+    if (evalStatus.status !== 'ok') {
+      warnings.push(evalStatus.message);
+    }
+
+    const cleanTitle = sanitizeCrossPlatformText(
+      s.title || `Konsep #${itemIndex}: ${assignedAngle}`
+    );
+
+    return {
+      id,
+      title: cleanTitle,
+      angle: assignedAngle,
+      persona: s.persona || config.audiencePersona,
+      differentiator: s.differentiator || `Pendekatan unik berbasis angle ${assignedAngle}`,
+      hookType: s.hookType || config.hookType,
+      triggers: Array.isArray(s.triggers) && s.triggers.length > 0
+        ? s.triggers
+        : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
+      estimatedDurationSeconds: config.durationSeconds,
+      spokenWordCount: actualWordCount,
+      durationStatus: evalStatus.status,
+      segments,
+      voiceoverOnly: compiledVoiceover,
+      qualityChecklist: Array.isArray(s.qualityChecklist) && s.qualityChecklist.length > 0
+        ? s.qualityChecklist.map((q: string) => sanitizeCrossPlatformText(q))
+        : [
+            'Hook 3 detik pertama',
+            'Fakta produk akurat',
+            'Safe zone overlay',
+            `Target kata ${targetWords.min}-${targetWords.max} kata`,
+          ],
+      warnings,
+    };
+  });
+}
+
+/**
+ * Generates TikTok & multi-platform affiliate scripts based on verified brief and configuration.
+ * Generates exact requested count (1, 5, 10, 20, 30) using optimized concurrent batches and distinct angles.
  */
 export async function generateScripts(params: {
   productBrief: ProductBrief;
@@ -522,161 +835,106 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
    - Tulis pemicu di kolom catatan strategi, BUKAN diucapkan dalam dialog narasi.
 `;
 
-  const userPrompt = `
-BUAT ${config.scriptCount} SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA.
-INGAT: Video ini akan di-mirror ke Shopee & TikTok. DILARANG sebut nama platform dan DILARANG gunakan istilah 'keranjang kuning'. Gunakan 'keranjang kiri bawah' atau 'keranjang bawah video ini'.
-
-DATA PRODUK (SUMBER RESMI):
-- Nama Produk: ${productBrief.name}
-- Kategori: ${productBrief.category}
-- Ringkasan: ${productBrief.description}
-- Fitur Terverifikasi: ${productBrief.features.join(', ') || 'Sesuai deskripsi'}
-- Manfaat Wajar: ${productBrief.benefits.join(', ') || 'Sesuai deskripsi'}
-- Target Persona: ${productBrief.audience}
-- Pain Points: ${productBrief.painPoints.join(', ') || 'Kebutuhan fungsional'}
-- Harga Sekarang: ${productBrief.currentPrice || 'Tidak disebutkan (JANGAN MENGARANG)'}
-- Harga Pembanding: ${productBrief.referencePrice || 'Tidak disebutkan'}
-- Promo/Voucher: ${productBrief.promoDetails || 'Tidak disebutkan'}
-- Stok/Deadline: ${productBrief.stockOrDeadline || 'Tidak disebutkan (JANGAN BUAT SCARCITY PALSU)'}
-- Social Proof: ${productBrief.socialProof || 'Tidak disebutkan (JANGAN SEBUT ANGKA PENJUALAN PALSU)'}
-- Pengalaman Kreator: ${productBrief.creatorExperience || 'Belum mencoba langsung (Gunakan sudut pandang demonstrasi/informasi, bukan testimoni palsu)'}
-- Batasan/Hal Dilarang: ${productBrief.restrictions.join(', ') || 'Hindari overclaim'}
-
-KONFIGURASI GENERASI:
-- Jumlah Skrip: ${config.scriptCount} konsep
-- Target Durasi: ${config.durationSeconds} detik (WAJIB ${targetWords.min}–${targetWords.max} kata dialog narasi)
-- Gaya Penyampaian: ${config.style}
-- Persona Audiens: ${config.audiencePersona}
-- Angle Mode: ${config.angleMode}
-- Selected Angles: ${config.selectedAngles.length > 0 ? config.selectedAngles.join(', ') : 'Pilih otomatis dari 20 angle terbaik'}
-- Tipe Hook: ${config.hookType}
-- Metode Demo: ${config.demoMethod}
-- Pendekatan CTA: ${config.ctaType} (Wajib netral multi-platform: keranjang kiri bawah / keranjang bawah video ini)
-- Intensitas Penjualan: ${config.sellingIntensity}
-- Price Anchoring: ${config.priceAnchoringEnabled && productBrief.currentPrice ? 'Gunakan data harga' : 'NONAKTIFKAN'}
-- Sapaan/Pronoun: ${config.pronouns}
-- Instruksi Tambahan Pengguna: ${config.extraInstructions || '-'}
-
-FORMAT OUTPUT JSON (Array skrip murni tanpa markdown):
-[
-  {
-    "id": "skrip-1",
-    "title": "Judul Konsep Kreatif",
-    "angle": "Nama Angle (dari 20 angle)",
-    "persona": "Persona audiens yang disasar",
-    "differentiator": "Pembeda utama konsep ini dibanding konsep lain",
-    "hookType": "Tipe hook yang dipakai",
-    "triggers": ["Pattern Interrupt", "Curiosity Loop", "Demo Proof"],
-    "estimatedDurationSeconds": ${config.durationSeconds},
-    "spokenWordCount": 68,
-    "durationStatus": "ok",
-    "segments": [
-      {
-        "timeRange": "0-3 detik",
-        "segmentName": "HOOK",
-        "visualDirection": "Arahan visual & B-roll detail (bisa dieksekusi sendiri dengan HP)",
-        "spokenDialogue": "Dialog narasi lisan Bahasa Indonesia yang mengalir",
-        "overlayText": "Teks singkat kontras di safe zone",
-        "strategyNote": "Catatan strategi/psikologi"
-      }
-    ],
-    "voiceoverOnly": "Gabungan seluruh dialog spokenDialogue saja agar siap direkam",
-    "qualityChecklist": ["Hook 3 detik pertama", "Fakta produk akurat", "Safe zone overlay", "Durasi sesuai target"],
-    "warnings": []
+  // Determine batch plan based on total scriptCount (max 5 scripts per batch for optimal depth & no token truncations)
+  const totalCount = Math.max(1, Math.min(30, config.scriptCount));
+  const maxBatchSize = 5;
+  const batchCounts: number[] = [];
+  let remaining = totalCount;
+  while (remaining > 0) {
+    const size = Math.min(remaining, maxBatchSize);
+    batchCounts.push(size);
+    remaining -= size;
   }
-]`;
 
-  const response = await callGeminiWithRetry(
-    {
-      model: GEMINI_MODEL,
-      contents: userPrompt,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.7,
-        responseMimeType: 'application/json',
-      },
-    },
-    customApiKey
+  // Build batch tasks with calculated start indices and assigned distinct angles
+  let currentStart = 1;
+  const batchTasks: {
+    batchNumber: number;
+    startIndex: number;
+    batchCount: number;
+    assignedAngles: string[];
+  }[] = [];
+
+  for (let b = 0; b < batchCounts.length; b++) {
+    const bCount = batchCounts[b];
+    const assignedAngles = getAssignedAngles(currentStart, bCount, config.selectedAngles);
+    batchTasks.push({
+      batchNumber: b + 1,
+      startIndex: currentStart,
+      batchCount: bCount,
+      assignedAngles,
+    });
+    currentStart += bCount;
+  }
+
+  // Execute batches with concurrency of 2 to optimize speed and stay well within API limits
+  const batchResults = await runWithConcurrency(
+    batchTasks,
+    2,
+    async (task) => {
+      return await generateBatchOfScripts({
+        productBrief,
+        config,
+        batchNumber: task.batchNumber,
+        startIndex: task.startIndex,
+        batchCount: task.batchCount,
+        assignedAngles: task.assignedAngles,
+        targetWords,
+        systemPrompt,
+        customApiKey,
+      });
+    }
   );
 
-  const rawText = response.text || '[]';
-  let rawScripts: any[] = [];
-  try {
-    rawScripts = JSON.parse(cleanJsonString(rawText));
-  } catch (err) {
-    // Attempt one repair
-    const cleaned = cleanJsonString(rawText);
-    rawScripts = JSON.parse(cleaned);
-  }
-
-  if (!Array.isArray(rawScripts)) {
-    if (typeof rawScripts === 'object' && Array.isArray((rawScripts as any).scripts)) {
-      rawScripts = (rawScripts as any).scripts;
-    } else {
-      rawScripts = [rawScripts];
+  let combinedScripts: ScriptItem[] = [];
+  for (const bRes of batchResults) {
+    if (Array.isArray(bRes)) {
+      combinedScripts.push(...bRes);
     }
   }
 
-  // Post-process, sanitize cross-platform terms, and verify word counts accurately in code
-  const validatedScripts: ScriptItem[] = rawScripts.map((s, index) => {
-    const id = s.id || `script-${Date.now()}-${index + 1}`;
-    const rawSegments = Array.isArray(s.segments) ? s.segments : [];
+  // Verification & Top-Up: If any batch produced fewer than requested, generate the missing ones!
+  if (combinedScripts.length < totalCount) {
+    const missingCount = totalCount - combinedScripts.length;
+    const topUpStartIndex = combinedScripts.length + 1;
+    const topUpAngles = getAssignedAngles(topUpStartIndex, missingCount, config.selectedAngles);
 
-    const segments = rawSegments.map((seg: any, sIdx: number) => {
-      const cleanDialogue = sanitizeCrossPlatformText(seg.spokenDialogue || '');
-      const cleanOverlay = sanitizeCrossPlatformText(seg.overlayText || '');
-      const cleanVisual = sanitizeCrossPlatformText(seg.visualDirection || '');
-
-      return {
-        timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
-        segmentName: seg.segmentName || (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
-        visualDirection: cleanVisual || 'Tampilkan produk ke kamera',
-        spokenDialogue: cleanDialogue,
-        overlayText: cleanOverlay,
-        strategyNote: seg.strategyNote || '',
-      };
-    });
-
-    // Compile voiceover text from spokenDialogue if not provided or to ensure accuracy
-    const rawVoiceover =
-      s.voiceoverOnly && typeof s.voiceoverOnly === 'string'
-        ? s.voiceoverOnly
-        : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
-
-    const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
-    const actualWordCount = countWords(compiledVoiceover);
-    const evalStatus = evaluateDurationStatus(actualWordCount, config.durationSeconds);
-
-    const warnings: string[] = Array.isArray(s.warnings) ? [...s.warnings] : [];
-    if (evalStatus.status !== 'ok') {
-      warnings.push(evalStatus.message);
+    try {
+      const topUpScripts = await generateBatchOfScripts({
+        productBrief,
+        config,
+        batchNumber: batchTasks.length + 1,
+        startIndex: topUpStartIndex,
+        batchCount: missingCount,
+        assignedAngles: topUpAngles,
+        targetWords,
+        systemPrompt,
+        customApiKey,
+      });
+      if (Array.isArray(topUpScripts)) {
+        combinedScripts.push(...topUpScripts);
+      }
+    } catch (topUpErr) {
+      console.warn('Top-up script generation notice:', topUpErr);
     }
+  }
 
-    const cleanTitle = sanitizeCrossPlatformText(s.title || `Konsep #${index + 1}: ${s.angle || 'Affiliate Video'}`);
+  // Final trim in case of any overflow
+  if (combinedScripts.length > totalCount) {
+    combinedScripts = combinedScripts.slice(0, totalCount);
+  }
 
+  // Normalize sequential numbering and titles
+  const validatedScripts = combinedScripts.map((s, idx) => {
+    const itemNum = idx + 1;
+    let title = s.title;
+    if (!title || !title.toLowerCase().startsWith('konsep #')) {
+      title = `Konsep #${itemNum}: ${s.angle || 'Affiliate'}`;
+    }
     return {
-      id,
-      title: cleanTitle,
-      angle: s.angle || 'Problem-Solution / PAS',
-      persona: s.persona || config.audiencePersona,
-      differentiator: s.differentiator || 'Pendekatan konten unik untuk segmen ini',
-      hookType: s.hookType || config.hookType,
-      triggers: Array.isArray(s.triggers) ? s.triggers : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
-      estimatedDurationSeconds: config.durationSeconds,
-      spokenWordCount: actualWordCount,
-      durationStatus: evalStatus.status,
-      segments,
-      voiceoverOnly: compiledVoiceover,
-      qualityChecklist: Array.isArray(s.qualityChecklist) && s.qualityChecklist.length > 0
-        ? s.qualityChecklist.map((q: string) => sanitizeCrossPlatformText(q))
-        : [
-            'Hook kuat di 0-3 detik',
-            'Tanpa overclaim atau urgensi palsu',
-            'CTA netral aman untuk multi-platform (Shopee & TikTok)',
-            'Overlay aman di safe zone 9:16',
-            `Target kata ${targetWords.min}-${targetWords.max} kata tercapai`,
-          ],
-      warnings,
+      ...s,
+      id: `script-${Date.now()}-${itemNum}`,
+      title: sanitizeCrossPlatformText(title),
     };
   });
 

@@ -18,6 +18,9 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { AuthWarningModal } from './components/AuthWarningModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
 import { InfoTooltip } from './components/InfoTooltip';
+import { TeleprompterModal } from './components/TeleprompterModal';
+import { FloatingTeleprompter } from './components/FloatingTeleprompter';
+import { AndroidOverlayModal } from './components/AndroidOverlayModal';
 import {
   auth,
   loginWithGoogle,
@@ -55,6 +58,8 @@ import {
   Sliders,
   FileText,
   Eye,
+  MonitorPlay,
+  PictureInPicture2,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -399,6 +404,39 @@ export default function App() {
   const [safeZoneOpen, setSafeZoneOpen] = useState<boolean>(false);
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
+  const [teleprompterState, setTeleprompterState] = useState<{
+    isOpen: boolean;
+    initialConceptIndex: number;
+  }>({
+    isOpen: false,
+    initialConceptIndex: -1,
+  });
+
+  const handleOpenAllTeleprompter = () => {
+    setTeleprompterState({
+      isOpen: true,
+      initialConceptIndex: -1,
+    });
+  };
+
+  const handleOpenSingleTeleprompter = (script: ScriptItem, index: number) => {
+    setTeleprompterState({
+      isOpen: true,
+      initialConceptIndex: index,
+    });
+  };
+
+  // State untuk Teleprompter Melayang (Floating Widget) & Dialog Izin/APK Android
+  const [floatingPrompterState, setFloatingPrompterState] = useState<{
+    isOpen: boolean;
+    conceptIndex: number;
+  }>({
+    isOpen: false,
+    conceptIndex: -1,
+  });
+
+  const [androidOverlayModalOpen, setAndroidOverlayModalOpen] = useState<boolean>(false);
+
   const [manualCopy, setManualCopy] = useState<{ isOpen: boolean; text: string; title: string }>({
     isOpen: false,
     text: '',
@@ -855,6 +893,7 @@ export default function App() {
         onOpenApiKey={() => setApiKeyModalOpen(true)}
         onOpenSafeZone={() => setSafeZoneOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
+        onOpenApkModal={() => setAndroidOverlayModalOpen(true)}
         onReset={() => setResetConfirmOpen(true)}
         historyCount={history.length}
         hasApiKey={Boolean(apiKey || serverHasKey)}
@@ -1058,6 +1097,34 @@ export default function App() {
                     </button>
                   </div>
 
+                  {/* Teleprompter Utama: Tepat di sebelah tombol Salin Semua */}
+                  <div className="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleOpenAllTeleprompter}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-xs hover:shadow-sm transition-all cursor-pointer border border-amber-400"
+                      title="Buka Mode Teleprompter Layar Penuh untuk membaca seluruh skrip saat merekam"
+                    >
+                      <MonitorPlay className="w-3.5 h-3.5 fill-black/15 text-black" />
+                      <span>Teleprompter</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFloatingPrompterState({
+                          isOpen: true,
+                          conceptIndex: -1,
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-2xs transition-all cursor-pointer"
+                      title="Mode Melayang: Widget melayang di atas layar (Always on Top)"
+                    >
+                      <PictureInPicture2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Melayang</span>
+                    </button>
+                  </div>
+
                   {/* Unduh Options: Narasi vs Skrip */}
                   <div className="inline-flex items-center rounded-xl bg-zinc-900 p-0.5 shadow-2xs">
                     <button
@@ -1097,6 +1164,13 @@ export default function App() {
                     onRegenerate={handleRegenerateScript}
                     onRefine={handleRefineScript}
                     isRefining={isRefining}
+                    onOpenPrompter={handleOpenSingleTeleprompter}
+                    onOpenFloatingPrompter={(_script, index) => {
+                      setFloatingPrompterState({
+                        isOpen: true,
+                        conceptIndex: index,
+                      });
+                    }}
                   />
                 ))}
               </div>
@@ -1109,6 +1183,49 @@ export default function App() {
       <SafeZoneModal
         isOpen={safeZoneOpen}
         onClose={() => setSafeZoneOpen(false)}
+      />
+
+      {/* Teleprompter Modal Khusus Affiliator */}
+      <TeleprompterModal
+        isOpen={teleprompterState.isOpen}
+        onClose={() => setTeleprompterState((prev) => ({ ...prev, isOpen: false }))}
+        scripts={scripts}
+        initialConceptIndex={teleprompterState.initialConceptIndex}
+        productBrief={productBrief}
+        onOpenFloatingPrompter={(idx) => {
+          setFloatingPrompterState({
+            isOpen: true,
+            conceptIndex: idx ?? -1,
+          });
+        }}
+      />
+
+      {/* Floating Teleprompter (Draggable, Resizable, Always-on-top Widget) */}
+      <FloatingTeleprompter
+        isOpen={floatingPrompterState.isOpen}
+        onClose={() => setFloatingPrompterState({ isOpen: false, conceptIndex: -1 })}
+        onExpandToFull={() => {
+          const idx = floatingPrompterState.conceptIndex;
+          setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+          setTeleprompterState({ isOpen: true, initialConceptIndex: idx });
+        }}
+        scripts={scripts}
+        conceptIndex={floatingPrompterState.conceptIndex}
+        productBrief={productBrief}
+        onOpenPermissionGuide={() => setAndroidOverlayModalOpen(true)}
+      />
+
+      {/* Android Overlay Permission & APK Wrapper Modal */}
+      <AndroidOverlayModal
+        isOpen={androidOverlayModalOpen}
+        onClose={() => setAndroidOverlayModalOpen(false)}
+        onStartFloatingWidget={() => {
+          setAndroidOverlayModalOpen(false);
+          setFloatingPrompterState({
+            isOpen: true,
+            conceptIndex: teleprompterState.initialConceptIndex ?? -1,
+          });
+        }}
       />
 
       {/* History Modal */}

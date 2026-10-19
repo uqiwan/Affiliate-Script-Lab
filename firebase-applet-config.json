@@ -1,12 +1,12 @@
 {
-  "projectId": "affiliate-script-lab",
-  "appId": "1:282660723167:web:0889b04ff57061c9fd4c6a",
-  "apiKey": "AIzaSyB_9nO3zVNHwOjjzjkW1dMnv2PPjJFuwRE",
-  "authDomain": "affiliate-script-lab.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "affiliate-script-lab.firebasestorage.app",
-  "messagingSenderId": "282660723167",
+  "projectId": "manuskrip-a2ed2",
+  "appId": "1:705363788623:web:cd984acc160fc62a4dfb3a",
+  "apiKey": "AIzaSyDOHeL-rfZm1zVtleJw4ASZ1vgYuoDfHxg",
+  "authDomain": "manuskrip-a2ed2.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-affiliatescriptl-c80707c5-4f71-4323-8336-8cf1b11d8672",
+  "storageBucket": "manuskrip-a2ed2.firebasestorage.app",
+  "messagingSenderId": "705363788623",
   "measurementId": "",
-  "oAuthClientId": "",
+  "oAuthClientId": "705363788623-sc8u8a8ii0mj7l7knqo573pnhkmjdrfp.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
