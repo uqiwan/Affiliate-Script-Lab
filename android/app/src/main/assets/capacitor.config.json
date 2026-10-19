@@ -1,0 +1,14 @@
+{
+	"appId": "com.manuskrip.affiliatescript",
+	"appName": "Manuskrip Teleprompter",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https",
+		"cleartext": true
+	},
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
+}
