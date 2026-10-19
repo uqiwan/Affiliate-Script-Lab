@@ -145,9 +145,17 @@ export const ProductBriefEditor: React.FC<ProductBriefEditorProps> = ({
             )}
           </div>
           <ul className="list-disc list-inside space-y-1 text-zinc-700">
-            {conflicts.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
+            {conflicts.map((c: any, i: number) => {
+              const text =
+                typeof c === 'string'
+                  ? c
+                  : typeof c === 'object' && c !== null
+                  ? c.field && c.detail
+                    ? `${c.field}: ${c.detail}`
+                    : c.detail || c.conflict || c.description || c.message || JSON.stringify(c)
+                  : String(c);
+              return <li key={i}>{text}</li>;
+            })}
           </ul>
         </div>
       )}

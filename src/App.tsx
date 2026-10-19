@@ -54,6 +54,7 @@ import {
   Check,
   Sliders,
   FileText,
+  Eye,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -222,6 +223,35 @@ const SAMPLE_HISTORY: HistorySession[] = [
     ],
   },
 ];
+
+async function parseResponseError(response: Response, defaultMessage: string): Promise<string> {
+  try {
+    const data = await response.json();
+    return data.error || defaultMessage;
+  } catch {
+    try {
+      const text = await response.text();
+      if (text && text.length < 250 && !text.includes('<!doctype') && !text.includes('<html')) {
+        return text;
+      }
+    } catch {}
+    return defaultMessage;
+  }
+}
+
+function getFriendlyErrorMessage(err: any, fallbackMessage: string): string {
+  const msg = err?.message || '';
+  if (err?.name === 'AbortError' || msg.includes('timeout') || msg.includes('504')) {
+    return 'Permintaan ke layanan AI melebihi batas waktu (timeout). Silakan periksa koneksi internet Anda atau coba kembali.';
+  }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return 'Koneksi ke internet terputus. Pastikan perangkat Anda terhubung ke internet.';
+  }
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+    return 'Koneksi ke server terputus. Pastikan perangkat Anda terhubung ke internet dan coba kembali.';
+  }
+  return msg || fallbackMessage;
+}
 
 export default function App() {
   const [productBrief, setProductBrief] = useState<ProductBrief>(INITIAL_BRIEF);
@@ -444,39 +474,39 @@ export default function App() {
     showToast('Seluruh riwayat berhasil dikosongkan.', 'info');
   };
 
-  const [voiceoverModes, setVoiceoverModes] = useState<Record<number, boolean>>({});
+  const [visualModes, setVisualModes] = useState<Record<number, boolean>>({});
 
   const handleLoadSession = (session: HistorySession) => {
     setProductBrief(session.productBrief);
     setConfig(session.config);
     setScripts(session.scripts);
-    setVoiceoverModes({});
+    setVisualModes({});
     setIsBriefApproved(true);
     setCurrentStep(4); // Advance directly to Step 4: Skrip
     setGlobalError(null);
     showToast(`Skrip "${session.productName}" berhasil dimuat dari riwayat!`, 'success');
   };
 
-  const isAllVoiceover =
-    scripts.length > 0 && scripts.every((_, idx) => Boolean(voiceoverModes[idx]));
+  const isAllVisuals =
+    scripts.length > 0 && scripts.every((_, idx) => Boolean(visualModes[idx]));
 
-  const handleToggleAllVoiceover = () => {
-    const nextMode = !isAllVoiceover;
+  const handleToggleAllVisuals = () => {
+    const nextMode = !isAllVisuals;
     const updated: Record<number, boolean> = {};
     scripts.forEach((_, idx) => {
       updated[idx] = nextMode;
     });
-    setVoiceoverModes(updated);
+    setVisualModes(updated);
     showToast(
       nextMode
-        ? 'Semua konsep dialihkan ke versi Narasi Saja'
-        : 'Semua konsep dialihkan ke versi Visual Lengkap',
+        ? 'Arahan visual ditampilkan untuk semua konsep'
+        : 'Arahan visual disembunyikan untuk semua konsep',
       'info'
     );
   };
 
-  const handleToggleSingleVoiceover = (index: number) => {
-    setVoiceoverModes((prev) => ({
+  const handleToggleSingleVisual = (index: number) => {
+    setVisualModes((prev) => ({
       ...prev,
       [index]: !prev[index],
     }));
@@ -570,13 +600,27 @@ export default function App() {
       });
 
       if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || `HTTP error ${response.status}`);
+        const errorText = await parseResponseError(
+          response,
+          `Gagal memproses informasi produk (${response.status})`
+        );
+        throw new Error(errorText);
       }
 
       const resData = (await response.json()) as ExtractProductResponse;
       const isSingle = data.inputMode !== 'mixed';
-      const finalConflicts = isSingle ? [] : (resData.conflictsFound || []);
+      const rawConflicts = resData.conflictsFound || [];
+      const finalConflicts: string[] = isSingle
+        ? []
+        : rawConflicts.map((c: any) => {
+            if (typeof c === 'string') return c;
+            if (typeof c === 'object' && c !== null) {
+              if (c.field && c.detail) return `${c.field}: ${c.detail}`;
+              return c.detail || c.conflict || c.description || c.message || JSON.stringify(c);
+            }
+            return String(c);
+          });
+
       const cleanBrief: ProductBrief = {
         ...resData.productBrief,
         conflicts: finalConflicts,
@@ -597,7 +641,7 @@ export default function App() {
 
       showToast(`Brief "${cleanBrief.name}" berhasil disiapkan!`, 'success');
     } catch (err: any) {
-      setGlobalError(err.message || 'Gagal memproses informasi produk.');
+      setGlobalError(getFriendlyErrorMessage(err, 'Gagal memproses informasi produk.'));
     } finally {
       setIsAnalyzing(false);
     }
@@ -648,14 +692,17 @@ export default function App() {
       });
 
       if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || `HTTP error ${response.status}`);
+        const errorText = await parseResponseError(
+          response,
+          `Gagal membuat skrip (${response.status})`
+        );
+        throw new Error(errorText);
       }
 
       const resData = (await response.json()) as GenerateScriptsResponse;
       const generatedScripts = resData.scripts || [];
       setScripts(generatedScripts);
-      setVoiceoverModes({});
+      setVisualModes({});
       setCurrentStep(4); // Advance to Step 4: Skrip
 
       // Automatically archive this generation session to History
@@ -674,7 +721,7 @@ export default function App() {
 
       showToast(`${generatedScripts.length} skrip berhasil dibuat & disimpan ke riwayat!`, 'success');
     } catch (err: any) {
-      setGlobalError(err.message || 'Terjadi kesalahan saat memproduksi skrip.');
+      setGlobalError(getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproduksi skrip.'));
     } finally {
       setIsGenerating(false);
     }
@@ -709,8 +756,11 @@ export default function App() {
       });
 
       if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || 'Gagal memperbaiki skrip');
+        const errorText = await parseResponseError(
+          response,
+          `Gagal memperbaiki skrip (${response.status})`
+        );
+        throw new Error(errorText);
       }
 
       const resData = (await response.json()) as RefineScriptResponse;
@@ -732,7 +782,7 @@ export default function App() {
 
       showToast('Skrip berhasil disempurnakan!', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Gagal memproses perbaikan', 'error');
+      showToast(getFriendlyErrorMessage(err, 'Gagal memproses perbaikan'), 'error');
     } finally {
       setIsRefining(false);
     }
@@ -743,7 +793,7 @@ export default function App() {
     setProductBrief(INITIAL_BRIEF);
     setConfig(INITIAL_CONFIG);
     setScripts([]);
-    setVoiceoverModes({});
+    setVisualModes({});
     setCurrentStep(1);
     setIsBriefApproved(false);
     setGlobalError(null);
@@ -957,23 +1007,19 @@ export default function App() {
                     </h3>
                   </div>
 
-                  {/* Tombol 'Lihat Narasi Saja' yang mengubah seluruh konsep secara otomatis */}
+                  {/* Tombol yang menampilkan/menyembunyikan arahan visual seluruh konsep secara otomatis */}
                   <button
                     type="button"
-                    onClick={handleToggleAllVoiceover}
+                    onClick={handleToggleAllVisuals}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      isAllVoiceover
+                      isAllVisuals
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs hover:bg-emerald-700'
                         : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
                     }`}
-                    title={
-                      isAllVoiceover
-                        ? 'Klik untuk kembalikan seluruh konsep ke tampilan visual lengkap'
-                        : 'Klik untuk ubah seluruh konsep tampil versi narasi saja sekaligus'
-                    }
+                    title="Beralih menampilkan arahan visual B-Roll untuk seluruh konsep"
                   >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>{isAllVoiceover ? 'Tampilkan Visual Lengkap' : 'Lihat Narasi Saja'}</span>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{isAllVisuals ? 'Sembunyikan Arahan Visual' : 'Lihat Arahan Visual'}</span>
                   </button>
                 </div>
 
@@ -1045,8 +1091,8 @@ export default function App() {
                     script={script}
                     index={idx}
                     totalScripts={scripts.length}
-                    isVoiceoverOnly={Boolean(voiceoverModes[idx])}
-                    onToggleVoiceoverOnly={() => handleToggleSingleVoiceover(idx)}
+                    showVisualDetails={Boolean(visualModes[idx])}
+                    onToggleVisualDetails={() => handleToggleSingleVisual(idx)}
                     onCopyText={handleCopyText}
                     onRegenerate={handleRegenerateScript}
                     onRefine={handleRefineScript}

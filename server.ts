@@ -33,6 +33,32 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Production Security Headers
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Helper for timeout handling
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs = 60000,
+  errorMsg = 'Permintaan ke layanan AI melebihi batas waktu (timeout). Silakan coba kembali.'
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        const err: any = new Error(errorMsg);
+        err.status = 504;
+        reject(err);
+      }, timeoutMs);
+    }),
+  ]);
+}
+
 // Increase body limit for base64 images (up to 25MB total payload)
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
@@ -161,17 +187,30 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
       (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
 
     // Call Gemini for multimodal & text extraction with explicit inputMode
-    const { brief, notes, conflicts } = await extractProductBrief({
-      inputMode,
-      textDescription: rawText,
-      urlData,
-      images: validatedImages,
-      customApiKey,
-    });
+    const { brief, notes, conflicts } = await withTimeout(
+      extractProductBrief({
+        inputMode,
+        textDescription: rawText,
+        urlData,
+        images: validatedImages,
+        customApiKey,
+      }),
+      75000,
+      'Ekstraksi brief produk melebihi batas waktu (timeout). Silakan periksa koneksi internet atau coba kembali.'
+    );
 
     // Zero out conflicts if user explicitly ran extraction from a single-source tab (images, url, text)
     const isSingleSource = inputMode === 'images' || inputMode === 'url' || inputMode === 'text';
-    const finalConflicts = isSingleSource ? [] : conflicts;
+    const finalConflicts: string[] = isSingleSource
+      ? []
+      : (conflicts || []).map((c: any) => {
+          if (typeof c === 'string') return c;
+          if (typeof c === 'object' && c !== null) {
+            if (c.field && c.detail) return `${c.field}: ${c.detail}`;
+            return c.detail || c.conflict || c.description || c.message || JSON.stringify(c);
+          }
+          return String(c);
+        });
     brief.conflicts = finalConflicts;
     brief.activeSourceMode = inputMode;
 
@@ -218,8 +257,12 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
     // Clamp scriptCount between 1 and 30
     config.scriptCount = Math.max(1, Math.min(30, Math.floor(config.scriptCount)));
 
-    // Generate scripts using Gemini
-    const scripts = await generateScripts({ productBrief, config, customApiKey });
+    // Generate scripts using Gemini with timeout
+    const scripts = await withTimeout(
+      generateScripts({ productBrief, config, customApiKey }),
+      75000,
+      'Pembuatan skrip melebihi batas waktu (timeout). Silakan kurangi jumlah skrip atau coba kembali.'
+    );
 
     const responseData: GenerateScriptsResponse = {
       productBrief,
@@ -246,14 +289,18 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
       });
     }
 
-    const refinedScript = await refineSingleScript({
-      script,
-      productBrief,
-      config,
-      refinementType,
-      customInstruction,
-      customApiKey,
-    });
+    const refinedScript = await withTimeout(
+      refineSingleScript({
+        script,
+        productBrief,
+        config,
+        refinementType,
+        customInstruction,
+        customApiKey,
+      }),
+      45000,
+      'Penyempurnaan skrip melebihi batas waktu (timeout). Silakan coba kembali.'
+    );
 
     const responseData: RefineScriptResponse = {
       script: refinedScript,
@@ -284,11 +331,35 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 
   let message = 'Terjadi kesalahan saat memproses permintaan AI. Silakan coba kembali.';
-  if (rawMsg.includes('503') || rawMsg.includes('high demand') || rawMsg.includes('UNAVAILABLE')) {
-    message = 'Layanan AI sedang mengalami lonjakan antrean sementara (503). Sistem telah mencoba kembali otomatis. Silakan klik tombol sekali lagi dalam beberapa detik.';
-  } else if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED')) {
-    message = 'Batas permintaan API tercapai (429). Harap tunggu beberapa detik sebelum mencoba lagi.';
-  } else if (rawMsg && !rawMsg.includes('API_KEY')) {
+  if (
+    rawMsg.includes('API_KEY_INVALID') ||
+    rawMsg.includes('API key not valid') ||
+    rawMsg.includes('PERMISSION_DENIED')
+  ) {
+    message = 'API Key Google AI Studio tidak valid atau tidak memiliki izin akses. Silakan periksa kembali API Key Anda di menu profil.';
+  } else if (
+    rawMsg.includes('503') ||
+    rawMsg.includes('high demand') ||
+    rawMsg.includes('UNAVAILABLE')
+  ) {
+    message = 'Layanan AI sedang mengalami lonjakan antrean sementara (503). Sistem telah mencoba kembali otomatis. Silakan coba klik tombol sekali lagi dalam beberapa detik.';
+  } else if (
+    rawMsg.includes('429') ||
+    rawMsg.includes('RESOURCE_EXHAUSTED')
+  ) {
+    message = 'Batas permintaan API tercapai (Rate Limit / Quota Habis). Harap tunggu beberapa detik atau gunakan API Key dengan kuota aktif.';
+  } else if (
+    status === 504 ||
+    rawMsg.includes('timeout') ||
+    rawMsg.includes('ETIMEDOUT')
+  ) {
+    message = 'Permintaan ke layanan AI melebihi batas waktu (timeout). Silakan periksa koneksi internet Anda dan coba kembali.';
+  } else if (
+    rawMsg.includes('ECONNREFUSED') ||
+    rawMsg.includes('ENOTFOUND')
+  ) {
+    message = 'Koneksi ke server AI terputus. Pastikan perangkat Anda terhubung ke internet.';
+  } else if (rawMsg && !rawMsg.includes('API_KEY') && !rawMsg.includes('Bearer')) {
     message = rawMsg;
   }
 

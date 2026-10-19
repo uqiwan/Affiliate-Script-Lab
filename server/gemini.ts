@@ -125,40 +125,49 @@ export function sanitizeCrossPlatformText(text: string): string {
 const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 
 /**
- * Executes a Gemini generateContent call with seamless model failover on transient 503 / 429 spikes.
+ * Executes a Gemini generateContent call with per-attempt timeout and seamless failover to faster model.
  */
-async function callGeminiWithRetry(options: any, customApiKey?: string, maxRetries = 2): Promise<any> {
+async function callGeminiWithRetry(
+  options: any,
+  customApiKey?: string,
+  timeoutPerCallMs = 28000
+): Promise<any> {
   let lastError: any;
   const client = getAiClient(customApiKey);
 
   for (const modelName of CANDIDATE_MODELS) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const payload = { ...options, model: modelName };
-        return await client.models.generateContent(payload);
-      } catch (err: any) {
-        lastError = err;
-        const msg = err.message || '';
-        const isTransient =
-          err.status === 503 ||
-          err.status === 429 ||
-          msg.includes('503') ||
-          msg.includes('high demand') ||
-          msg.includes('UNAVAILABLE') ||
-          msg.includes('429') ||
-          msg.includes('RESOURCE_EXHAUSTED');
+    try {
+      const payload = { ...options, model: modelName };
+      
+      // Enforce timeout per candidate call to prevent hanging the server
+      const generatePromise = client.models.generateContent(payload);
+      let timeoutTimer: NodeJS.Timeout;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutTimer = setTimeout(() => {
+          const timeoutErr: any = new Error(`Model ${modelName} melebihi batas waktu respon.`);
+          timeoutErr.status = 504;
+          reject(timeoutErr);
+        }, timeoutPerCallMs);
+      });
 
-        if (isTransient) {
-          if (attempt < maxRetries) {
-            const waitMs = attempt * 800;
-            await new Promise((resolve) => setTimeout(resolve, waitMs));
-            continue;
-          }
-          // Try next candidate model
-          break;
-        }
+      const result = await Promise.race([generatePromise, timeoutPromise]);
+      clearTimeout(timeoutTimer!);
+      return result;
+    } catch (err: any) {
+      lastError = err;
+      const msg = err?.message || '';
+
+      // If API key is explicitly invalid, throw immediately
+      if (
+        msg.includes('API_KEY_INVALID') ||
+        msg.includes('API key not valid') ||
+        msg.includes('PERMISSION_DENIED')
+      ) {
         throw err;
       }
+
+      // If transient 503, 429, or timeout, immediately failover to next candidate model
+      continue;
     }
   }
 
@@ -179,8 +188,10 @@ export async function extractProductBrief(params: {
   const mode = params.inputMode || 'mixed';
 
   // Add images as inlineData parts only if in image mode or mixed mode
+  // Optimize by taking the first 3 images to prevent massive payloads and avoid timeouts
   if ((mode === 'images' || mode === 'mixed') && params.images && params.images.length > 0) {
-    for (const img of params.images) {
+    const selectedImages = params.images.slice(0, 3);
+    for (const img of selectedImages) {
       parts.push({
         inlineData: {
           mimeType: img.mimeType,
@@ -305,7 +316,8 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
           responseMimeType: 'application/json',
         },
       },
-      params.customApiKey
+      params.customApiKey,
+      25000
     );
     rawText = response.text || '{}';
   } catch (err: any) {
@@ -353,9 +365,31 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
     parsed = JSON.parse(fixed);
   }
 
+  function toStringArray(arr: any): string[] {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((item: any) => {
+        if (typeof item === 'string') return item.trim();
+        if (typeof item === 'object' && item !== null) {
+          if (item.field && item.detail) return `${item.field}: ${item.detail}`;
+          return (
+            item.detail ||
+            item.conflict ||
+            item.description ||
+            item.message ||
+            item.name ||
+            item.title ||
+            JSON.stringify(item)
+          );
+        }
+        return String(item).trim();
+      })
+      .filter((t: string) => Boolean(t && t.length > 0));
+  }
+
   let sources: SourceProvenance[] = Array.isArray(parsed.sources) ? parsed.sources : [];
-  // Strictly enforce empty conflicts for non-mixed mode
-  const conflicts: string[] = mode === 'mixed' && Array.isArray(parsed.conflicts) ? parsed.conflicts : [];
+  // Strictly enforce empty conflicts for non-mixed mode and ensure string elements
+  const conflicts: string[] = mode === 'mixed' ? toStringArray(parsed.conflicts) : [];
 
   // Determine final product name
   let finalName = parsed.name && parsed.name !== 'Produk Tanpa Nama' ? parsed.name : '';
@@ -395,10 +429,10 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
     name: finalName,
     category: parsed.category || 'Umum',
     description: parsed.description || (mode === 'url' ? params.urlData?.description : '') || '',
-    features: Array.isArray(parsed.features) ? parsed.features : [],
-    benefits: Array.isArray(parsed.benefits) ? parsed.benefits : [],
-    audience: parsed.audience || 'Umum',
-    painPoints: Array.isArray(parsed.painPoints) ? parsed.painPoints : [],
+    features: toStringArray(parsed.features),
+    benefits: toStringArray(parsed.benefits),
+    audience: typeof parsed.audience === 'string' ? parsed.audience : 'Umum',
+    painPoints: toStringArray(parsed.painPoints),
     currentPrice: parsed.currentPrice || undefined,
     referencePrice: parsed.referencePrice || undefined,
     promoDetails: parsed.promoDetails || undefined,
@@ -407,7 +441,7 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
     creatorExperience: parsed.creatorExperience || undefined,
     platform: mode === 'url' || (mode === 'mixed' && params.urlData) ? params.urlData?.platform : undefined,
     activeSourceMode: mode,
-    restrictions: Array.isArray(parsed.restrictions) ? parsed.restrictions : [],
+    restrictions: toStringArray(parsed.restrictions),
     sources,
     conflicts: mode === 'mixed' ? conflicts : [],
   };

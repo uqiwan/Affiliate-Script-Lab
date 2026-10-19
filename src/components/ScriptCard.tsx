@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Copy,
   RotateCcw,
   Sparkles,
   Layers,
   Eye,
-  MessageSquare,
   ChevronDown,
   ChevronUp,
   Info,
@@ -23,6 +22,9 @@ interface ScriptCardProps {
   script: ScriptItem;
   index: number;
   totalScripts: number;
+  showVisualDetails?: boolean;
+  onToggleVisualDetails?: () => void;
+  // Backwards compatibility
   isVoiceoverOnly?: boolean;
   onToggleVoiceoverOnly?: () => void;
   onCopyText: (text: string, label: string) => void;
@@ -31,10 +33,23 @@ interface ScriptCardProps {
   isRefining: boolean;
 }
 
+function cleanDialogueText(text: string): string {
+  let cleaned = text.trim();
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith('“') && cleaned.endsWith('”'))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
+
 export const ScriptCard: React.FC<ScriptCardProps> = ({
   script,
   index,
   totalScripts,
+  showVisualDetails,
+  onToggleVisualDetails,
   isVoiceoverOnly,
   onToggleVoiceoverOnly,
   onCopyText,
@@ -43,21 +58,47 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   isRefining,
 }) => {
   const [showConceptInfo, setShowConceptInfo] = useState<boolean>(false);
-  const [internalVoiceoverOnly, setInternalVoiceoverOnly] = useState<boolean>(false);
+  const [internalShowVisual, setInternalShowVisual] = useState<boolean>(false);
   const [showRefineMenu, setShowRefineMenu] = useState<boolean>(false);
   const [selectedRefinement, setSelectedRefinement] = useState<string | null>(null);
   const [customRefineText, setCustomRefineText] = useState<string>('');
 
-  const currentIsVoiceover =
-    isVoiceoverOnly !== undefined ? isVoiceoverOnly : internalVoiceoverOnly;
+  // Determine whether visual details are expanded
+  const currentShowVisual =
+    showVisualDetails !== undefined
+      ? showVisualDetails
+      : isVoiceoverOnly !== undefined
+      ? !isVoiceoverOnly
+      : internalShowVisual;
 
-  const handleToggleVoiceover = () => {
-    if (onToggleVoiceoverOnly) {
+  const handleToggleVisual = () => {
+    if (onToggleVisualDetails) {
+      onToggleVisualDetails();
+    } else if (onToggleVoiceoverOnly) {
       onToggleVoiceoverOnly();
     } else {
-      setInternalVoiceoverOnly(!internalVoiceoverOnly);
+      setInternalShowVisual(!internalShowVisual);
     }
   };
+
+  // Ambil setiap bagian dialog dari segmen skrip agar tampil pada paragraf berbeda tanpa label keterangan
+  const scriptParagraphs: string[] = useMemo(() => {
+    if (script.segments && script.segments.length > 0) {
+      const segDialogues = script.segments
+        .map((seg) => (seg.spokenDialogue ? cleanDialogueText(seg.spokenDialogue) : ''))
+        .filter(Boolean);
+      if (segDialogues.length > 0) {
+        return segDialogues;
+      }
+    }
+    if (script.voiceoverOnly) {
+      return script.voiceoverOnly
+        .split('\n')
+        .map((p) => cleanDialogueText(p))
+        .filter(Boolean);
+    }
+    return [];
+  }, [script]);
 
   const handleCopyFull = () => {
     const text = formatScriptAsText(script, index);
@@ -65,7 +106,8 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   };
 
   const handleCopyVoiceover = () => {
-    onCopyText(script.voiceoverOnly, `Narasi Konsep #${index + 1}`);
+    const textToCopy = scriptParagraphs.join('\n\n');
+    onCopyText(textToCopy, `Narasi Konsep #${index + 1}`);
   };
 
   const handleApplyRefine = () => {
@@ -107,7 +149,7 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
           </button>
         </div>
 
-        {/* Rata Kanan Sejajar: Tombol "Icon Salin + Narasi" & "Icon Salin + Skrip" (Warna Sama) */}
+        {/* Rata Kanan Sejajar: Tombol "Icon Salin + Narasi" & "Icon Salin + Skrip" */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
@@ -116,7 +158,7 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
             title="Salin teks narasi suara saja"
           >
             <Copy className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Narasi</span>
+            <span>Salin Narasi</span>
           </button>
 
           <button
@@ -126,7 +168,7 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
             title="Salin skrip visual + narasi lengkap"
           >
             <Copy className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Skrip</span>
+            <span>Salin Lengkap</span>
           </button>
         </div>
       </div>
@@ -168,99 +210,64 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
         </div>
       )}
 
-      {/* Konten Utama: Struktur Siap Rekam (Langsung Tampil di Bawah Menu Konsep) */}
-      <div className="p-3.5 sm:p-5 space-y-3.5">
-        {/* Toggle Mode: Segmen Visual vs Narasi Saja */}
-        <div className="flex items-center justify-between pb-1">
-          <h4 className="text-xs font-bold text-zinc-800 uppercase tracking-wider flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-            STRUKTUR SIAP REKAM
-          </h4>
-
-          <button
-            type="button"
-            onClick={handleToggleVoiceover}
-            className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold underline cursor-pointer"
-          >
-            {currentIsVoiceover ? 'Tampilkan Visual Lengkap' : 'Lihat Narasi Saja'}
-          </button>
+      {/* Konten Utama Skrip: Ditulis langsung pada kotak luar, tanpa kotak dalam, teks lebih lega */}
+      <div className="p-4 sm:p-6 space-y-5">
+        {/* Paragraf Skrip: Setiap bagian ditulis pada paragraf berbeda tanpa keterangan label */}
+        <div className="space-y-4 sm:space-y-5">
+          {scriptParagraphs.map((paragraph, pIdx) => (
+            <p
+              key={pIdx}
+              className="text-zinc-800 text-base sm:text-[17px] leading-relaxed sm:leading-loose font-normal selection:bg-emerald-100"
+            >
+              {paragraph}
+            </p>
+          ))}
         </div>
 
-        {/* View Mode 1: Narasi Suara Saja */}
-        {currentIsVoiceover ? (
-          <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-700">Teks Naskah Suara (Siap Dibaca):</span>
-              <span className="text-xs font-mono text-zinc-500">{script.spokenWordCount} kata</span>
+        {/* Panel Arahan Visual B-Roll & Safe Zone (Bila Diaktifkan Pengguna) */}
+        {currentShowVisual && (
+          <div className="pt-4 border-t border-zinc-100 space-y-3">
+            <h5 className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Arahan Visual B-Roll & Safe Zone per Bagian</span>
+            </h5>
+            <div className="space-y-2.5">
+              {script.segments.map((seg, sIdx) => (
+                <div
+                  key={sIdx}
+                  className="p-3 rounded-xl bg-zinc-50/80 border border-zinc-200 text-xs text-zinc-700 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-bold text-zinc-600">
+                    <span className="font-mono bg-zinc-200/80 px-2 py-0.5 rounded text-zinc-700">
+                      Bagian {sIdx + 1} ({seg.timeRange})
+                    </span>
+                    {seg.overlayText && (
+                      <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-semibold">
+                        Overlay: {seg.overlayText}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-zinc-600 text-xs leading-normal">
+                    {seg.visualDirection}
+                  </p>
+                </div>
+              ))}
             </div>
-            <p className="text-sm font-medium text-zinc-900 leading-relaxed italic bg-white p-3 rounded-lg border border-zinc-200">
-              "{script.voiceoverOnly}"
-            </p>
-          </div>
-        ) : (
-          /* View Mode 2: Segmen B-Roll + Dialog Lengkap */
-          <div className="space-y-2.5">
-            {script.segments.map((seg, sIdx) => (
-              <div
-                key={sIdx}
-                className="p-3 rounded-xl border border-zinc-200 bg-white hover:border-zinc-300 transition-colors space-y-2"
-              >
-                {/* Segment Header */}
-                <div className="flex items-center justify-between text-xs pb-1.5 border-b border-zinc-100">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-zinc-100 text-zinc-700">
-                      {seg.timeRange}
-                    </span>
-                    <span className="font-bold text-zinc-900 text-xs">
-                      {seg.segmentName}
-                    </span>
-                  </div>
-                  {seg.strategyNote && (
-                    <span className="text-[10px] text-zinc-400 italic hidden sm:inline">
-                      {seg.strategyNote}
-                    </span>
-                  )}
-                </div>
-
-                {/* Dialog Narasi Lisan */}
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    Dialog Narasi:
-                  </span>
-                  <p className="font-semibold text-zinc-900 text-xs sm:text-sm leading-relaxed">
-                    "{seg.spokenDialogue}"
-                  </p>
-                </div>
-
-                {/* Visual / B-Roll */}
-                <div className="space-y-0.5 text-xs">
-                  <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                    Visual / B-Roll:
-                  </span>
-                  <p className="text-zinc-600 leading-relaxed flex items-start gap-1.5 text-xs">
-                    <Eye className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
-                    <span>{seg.visualDirection}</span>
-                  </p>
-                </div>
-
-                {/* Overlay Text Safe Zone if any */}
-                {seg.overlayText && (
-                  <div className="pt-1 flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
-                      Overlay:
-                    </span>
-                    <span className="inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
-                      {seg.overlayText}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         )}
 
-        {/* Footer Area: Sempurnakan Skrip Ini */}
-        <div className="pt-2 flex items-center justify-between border-t border-zinc-100">
+        {/* Footer Area: Toggle Arahan Visual + Sempurnakan Skrip */}
+        <div className="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100">
+          <button
+            type="button"
+            onClick={handleToggleVisual}
+            className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer py-1"
+          >
+            <Eye className="w-3.5 h-3.5 text-zinc-400" />
+            <span>{currentShowVisual ? 'Sembunyikan Arahan Visual' : 'Lihat Arahan Visual B-Roll'}</span>
+            {currentShowVisual ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+
           <button
             type="button"
             onClick={() => setShowRefineMenu(!showRefineMenu)}
@@ -272,7 +279,7 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
           </button>
         </div>
 
-        {/* Panel Sempurnakan Skrip: Tidak langsung memproses sebelum tombol Terapkan diklik */}
+        {/* Panel Sempurnakan Skrip */}
         {showRefineMenu && (
           <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 animate-in fade-in duration-150">
             <div className="flex items-center justify-between">
@@ -289,7 +296,7 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
               </button>
             </div>
 
-            {/* Pilihan Refinement: Saat diklik hanya memilih (highlight), tidak langsung mengeksekusi */}
+            {/* Pilihan Refinement */}
             <div className="flex flex-wrap gap-1.5">
               {[
                 { id: 'hook_stronger', label: '⚡ Hook Lebih Kuat' },
