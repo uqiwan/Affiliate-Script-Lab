@@ -27,13 +27,13 @@ function getAiClient(customApiKey?: string): GoogleGenAI {
   });
 }
 
-const GEMINI_MODEL = 'gemini-3.8-flash';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 /**
  * Verifies a Google AI Studio API Key by attempting a quick lightweight ping.
  */
 export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-  const testModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const testModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let lastError: any;
 
   for (const model of testModels) {
@@ -123,7 +123,7 @@ export function sanitizeCrossPlatformText(text: string): string {
     .trim();
 }
 
-const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest'];
+const CANDIDATE_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
 
 /**
  * Executes a Gemini generateContent call with per-attempt timeout and seamless failover to faster model.
@@ -168,7 +168,7 @@ async function callGeminiWithRetry(
         throw err;
       }
 
-      console.warn(`[Gemini Attempt] Model ${modelName} notice (${msg}), trying alternative candidate...`);
+      console.log(`[Gemini Failover] Model ${modelName} unavailable, attempting alternative candidate...`);
       // If transient 503, 429, or timeout, immediately failover to next candidate model
       continue;
     }
@@ -786,9 +786,9 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         }
       }
     }
-  } catch (err: any) {
-    console.warn(
-      `[Gemini Batch #${batchNumber}] API notice (${err?.message || err}). Generating compliant structured scripts from product brief fallback.`
+  } catch {
+    console.log(
+      `[Gemini Batch #${batchNumber}] Generating compliant structured scripts from product brief fallback.`
     );
     // Graceful fallback: construct complete scripts based on verified brief & assigned angles
     return assignedAngles.slice(0, batchCount).map((angle, idx) =>
@@ -896,11 +896,13 @@ export async function generateScripts(params: {
   // 30s: 60-75 words
   // 60s: 125-150 words
   // 90s: 200-225 words
-  const targetWordsMap = {
+  const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
+    20: { min: 45, max: 55 },
     30: { min: 60, max: 75 },
     60: { min: 125, max: 150 },
     90: { min: 200, max: 225 },
+    120: { min: 275, max: 320 },
   };
   const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
 
@@ -941,9 +943,9 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
    - Tulis pemicu di kolom catatan strategi, BUKAN diucapkan dalam dialog narasi.
 `;
 
-  // Determine batch plan based on total scriptCount (max 3 scripts per batch for optimal speed & no timeouts)
+  // Determine batch plan based on total scriptCount (up to 5 scripts per batch for optimal speed & quota efficiency)
   const totalCount = Math.max(1, Math.min(30, config.scriptCount));
-  const maxBatchSize = 3;
+  const maxBatchSize = 5;
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
@@ -1060,11 +1062,13 @@ export async function refineSingleScript(params: {
 }): Promise<ScriptItem> {
   const { script, productBrief, config, refinementType, customInstruction, customApiKey } = params;
 
-  const targetWordsMap = {
+  const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
+    20: { min: 45, max: 55 },
     30: { min: 60, max: 75 },
     60: { min: 125, max: 150 },
     90: { min: 200, max: 225 },
+    120: { min: 275, max: 320 },
   };
   const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
 

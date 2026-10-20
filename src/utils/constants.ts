@@ -156,9 +156,11 @@ export const CONTENT_ANGLES: ContentAngle[] = [
 
 export const DURATION_WORD_TARGETS = {
   15: { min: 30, max: 40, label: '15 detik (30–40 kata narasi)' },
+  20: { min: 45, max: 55, label: '20 detik (45–55 kata narasi)' },
   30: { min: 60, max: 75, label: '30 detik (60–75 kata narasi)' },
   60: { min: 125, max: 150, label: '60 detik (125–150 kata narasi)' },
   90: { min: 200, max: 225, label: '90 detik (200–225 kata narasi)' },
+  120: { min: 275, max: 320, label: '120 detik (275–320 kata narasi)' },
 } as const;
 
 export const SAFE_ZONE_GUIDE = {

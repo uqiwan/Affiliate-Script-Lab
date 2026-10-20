@@ -37,7 +37,7 @@ export interface ProductBrief {
   unknowns?: string[];
 }
 
-export type ScriptDuration = 15 | 30 | 60 | 90;
+export type ScriptDuration = 15 | 20 | 30 | 60 | 90 | 120;
 
 export type DeliveryStyle =
   | 'Natural conversational'

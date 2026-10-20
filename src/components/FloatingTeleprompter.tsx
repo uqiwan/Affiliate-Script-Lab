@@ -22,6 +22,8 @@ import {
   SlidersHorizontal,
   Check,
   Smartphone,
+  Timer,
+  RotateCw,
 } from 'lucide-react';
 import { ScriptItem, ProductBrief } from '../types';
 import {
@@ -42,7 +44,7 @@ interface FloatingTeleprompterProps {
   onOpenPermissionGuide?: () => void;
 }
 
-type BottomTabId = 'teks' | 'kecepatan' | 'layar' | null;
+export type SettingsTabId = 'teks' | 'countdown' | 'layar';
 
 // Kurva kecepatan yang jauh lebih lambat (Speed 1 sangat santai: 2.5 px/detik)
 const SPEED_CURVE = [2.5, 4.5, 7.5, 11, 16, 23, 32, 43, 56, 72];
@@ -62,8 +64,9 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [opacity, setOpacity] = useState<number>(85); // 10% - 100% (Berlaku untuk seluruh tampilan)
 
-  // Tab panel bawah aktif ('teks' | 'kecepatan' | 'layar' | null)
-  const [activeBottomTab, setActiveBottomTab] = useState<BottomTabId>(null);
+  // Menu setelan terbuka & sub-tab aktif
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>('teks');
 
   // Kontrol pembacaan prompter
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -75,10 +78,11 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const [speed, setSpeed] = useState<number>(3); // Range 1 - 10 (Speed 1 sangat lambat)
   const [fontSize, setFontSize] = useState<number>(18); // Range 7 - 48 px (Mulai dari 7)
   const [isMirrored, setIsMirrored] = useState<boolean>(false);
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0); // Rotasi manual 0, 90, 180, 270 derajat
   const [selectedConceptIdx, setSelectedConceptIdx] = useState<number>(conceptIndex);
 
-  // Preset Subtitle (5 Gaya Subtitle)
-  const [activePresetId, setActivePresetId] = useState<SubtitlePresetId>('tiktok_yellow');
+  // Preset Subtitle (#1 Standard Read sebagai DEFAULT)
+  const [activePresetId, setActivePresetId] = useState<SubtitlePresetId>('standard_read');
 
   // Fokus Tatap Mata (Hanya garis & angka persen, teks 'fokus mata' dihapus)
   const [showFocusGuide, setShowFocusGuide] = useState<boolean>(true);
@@ -112,6 +116,45 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   useEffect(() => {
     setSelectedConceptIdx(conceptIndex);
   }, [conceptIndex]);
+
+  // Selalu pastikan posisi & ukuran teleprompter berada di area layar hp (baik mode portrait maupun landscape)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const clampToScreen = () => {
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 640;
+
+      const maxW = Math.max(200, vw - 16);
+      const maxH = Math.max(160, vh - 16);
+
+      setSize((prevSize) => {
+        const clampedW = Math.min(Math.max(200, prevSize.width), maxW);
+        const clampedH = Math.min(Math.max(160, prevSize.height), maxH);
+        return { width: clampedW, height: clampedH };
+      });
+
+      setPosition((prevPos) => {
+        const curW = isMinimized ? 160 : Math.min(340, maxW);
+        const curH = isMinimized ? 50 : Math.min(440, maxH);
+        const maxX = Math.max(8, vw - curW - 8);
+        const maxY = Math.max(8, vh - curH - 8);
+        return {
+          x: Math.min(Math.max(8, prevPos.x), maxX),
+          y: Math.min(Math.max(8, prevPos.y), maxY),
+        };
+      });
+    };
+
+    window.addEventListener('resize', clampToScreen);
+    window.addEventListener('orientationchange', clampToScreen);
+    clampToScreen();
+
+    return () => {
+      window.removeEventListener('resize', clampToScreen);
+      window.removeEventListener('orientationchange', clampToScreen);
+    };
+  }, [isOpen, isMinimized]);
 
   // Format skrip
   const productKeywords = React.useMemo(() => {
@@ -233,8 +276,10 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
     if (!isResizingRef.current) return;
     const dx = e.clientX - resizeStartRef.current.startX;
     const dy = e.clientY - resizeStartRef.current.startY;
-    const newW = Math.min(Math.max(200, resizeStartRef.current.startW + dx), window.innerWidth - 10);
-    const newH = Math.min(Math.max(180, resizeStartRef.current.startH + dy), window.innerHeight - 10);
+    const maxAvailableW = Math.max(200, window.innerWidth - position.x - 8);
+    const maxAvailableH = Math.max(160, window.innerHeight - position.y - 8);
+    const newW = Math.min(Math.max(200, resizeStartRef.current.startW + dx), maxAvailableW);
+    const newH = Math.min(Math.max(160, resizeStartRef.current.startH + dy), maxAvailableH);
     setSize({ width: newW, height: newH });
   };
 
@@ -286,7 +331,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
       setTimeout(() => setTapFeedback(null), 500);
     } else {
       triggerPlay();
-      setActiveBottomTab(null);
+      setIsSettingsOpen(false);
     }
   };
 
@@ -408,10 +453,10 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         top: `${position.y}px`,
         width: `${size.width}px`,
         height: `${size.height}px`,
-        backgroundColor: `rgba(0, 0, 0, ${opacity / 100})`, // Opasitas untuk seluruh tampilan widget
+        backgroundColor: `rgba(0, 0, 0, ${opacity / 100})`, // Opasitas murni untuk seluruh tampilan widget (tanpa blur buram)
         touchAction: 'none',
       }}
-      className="fixed z-[9999] flex flex-col rounded-2xl border border-zinc-700/80 shadow-2xl backdrop-blur-md select-none overflow-hidden transition-colors"
+      className="fixed z-[9999] flex flex-col rounded-2xl border border-zinc-700/80 shadow-2xl select-none overflow-hidden transition-colors"
     >
       {/* 
         BAGIAN ATAS: STRIP TIPIS DRAG HANDLE (TANPA TOMBOL BESAR / PENGHAMBAT)
@@ -483,106 +528,148 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         {/* Kontainer Teks Bergulir */}
         <div
           ref={scrollContainerRef}
-          style={{
-            transform: isMirrored ? 'scaleX(-1)' : 'none',
-          }}
           className="w-full h-full overflow-y-auto px-3 pt-1 pb-16 scroll-smooth select-none"
         >
-          {activeConcepts.map((concept, cIdx) => (
-            <div key={concept.id || cIdx} className="space-y-2.5 mb-6">
-              {/* Badge Judul Konsep Ringkas */}
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/80 text-[10px] font-bold text-amber-400">
-                <span>Konsep {concept.conceptNumber}:</span>
-                <span className="text-zinc-200">{concept.title}</span>
-              </div>
+          <div
+            style={{
+              transform: `${rotation !== 0 ? `rotate(${rotation}deg)` : ''} ${isMirrored ? 'scaleX(-1)' : ''}`.trim() || undefined,
+              transformOrigin: 'center center',
+            }}
+            className="transition-transform duration-200"
+          >
+            {activeConcepts.map((concept, cIdx) => (
+              <div key={concept.id || cIdx} className="space-y-2.5 mb-6">
+                {/* Badge Judul Konsep Ringkas */}
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/80 text-[10px] font-bold text-amber-400">
+                  <span>Konsep {concept.conceptNumber}:</span>
+                  <span className="text-zinc-200">{concept.title}</span>
+                </div>
 
-              {/* Baris Dialog dengan Gaya Subtitle Aktif */}
-              <div className="space-y-2">
-                {concept.lines.map((line, lIdx) => (
-                  <div
-                    key={line.id || lIdx}
-                    style={{
-                      fontSize: `${fontSize}px`,
-                      lineHeight: '1.45',
-                      color: activePreset.textColor,
-                      textShadow: activePreset.textShadow,
-                      fontWeight: activePreset.fontWeight,
-                      backgroundColor: activePreset.pillBg || 'transparent',
-                    }}
-                    className={`transition-all duration-150 ${
-                      activePreset.pillBg ? 'px-2.5 py-1 rounded-xl ' + (activePreset.borderClass || '') : ''
-                    }`}
-                  >
-                    {line.tokens.map((token, tIdx) => {
-                      if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
-                        return (
-                          <span
-                            key={tIdx}
-                            style={{
-                              color: activePreset.highlightColor,
-                              textDecorationColor: activePreset.highlightColor,
-                            }}
-                            className="underline decoration-2 underline-offset-2 font-black"
-                          >
-                            {token.text}{' '}
-                          </span>
-                        );
-                      }
-                      if (token.type === 'pause-short') {
-                        return (
-                          <span key={tIdx} className="opacity-60 mx-1">
-                            /
-                          </span>
-                        );
-                      }
-                      if (token.type === 'pause-long') {
-                        return (
-                          <span key={tIdx} className="opacity-75 mx-1 font-bold">
-                            //
-                          </span>
-                        );
-                      }
-                      return <span key={tIdx}>{token.text} </span>;
-                    })}
-                  </div>
-                ))}
+                {/* Baris Dialog dengan Gaya Subtitle Aktif */}
+                <div className="space-y-2">
+                  {concept.lines.map((line, lIdx) => (
+                    <div
+                      key={line.id || lIdx}
+                      style={{
+                        fontSize: `${fontSize}px`,
+                        lineHeight: '1.45',
+                        color: activePreset.textColor,
+                        textShadow: activePreset.textShadow,
+                        fontWeight: activePreset.fontWeight,
+                        backgroundColor: activePreset.pillBg || 'transparent',
+                      }}
+                      className={`transition-all duration-150 ${
+                        activePreset.pillBg ? 'px-2.5 py-1 rounded-xl ' + (activePreset.borderClass || '') : ''
+                      }`}
+                    >
+                      {line.tokens.map((token, tIdx) => {
+                        if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
+                          return (
+                            <span
+                              key={tIdx}
+                              style={{
+                                color: activePreset.highlightColor,
+                              }}
+                              className="font-black uppercase tracking-wider"
+                            >
+                              {token.text}{' '}
+                            </span>
+                          );
+                        }
+                        if (token.type === 'pause-short') {
+                          return (
+                            <span key={tIdx} className="opacity-60 mx-1">
+                              /
+                            </span>
+                          );
+                        }
+                        if (token.type === 'pause-long') {
+                          return (
+                            <span key={tIdx} className="opacity-75 mx-1 font-bold">
+                              //
+                            </span>
+                          );
+                        }
+                        return <span key={tIdx}>{token.text} </span>;
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
+            ))}
+
+            {/* Buffer bawah */}
+            <div className="h-44 flex items-center justify-center text-[10px] text-zinc-500 font-medium">
+              - Selesai Membaca -
             </div>
-          ))}
-
-          {/* Buffer bawah */}
-          <div className="h-44 flex items-center justify-center text-[10px] text-zinc-500 font-medium">
-            - Selesai Membaca -
           </div>
         </div>
       </div>
 
       {/* 
-        PANEL PENGATURAN TERKELOMPOK (Buka Berdasarkan Tab Bawah: Teks / Kecepatan / Layar)
+        PANEL PENGATURAN TERPADU TELEPROMPTER MENGAMBANG (TEKS & SUBTITLE, HITUNG MUNDUR, LAYAR)
       */}
-      {activeBottomTab && !isPlaying && (
-        <div className="no-tap-toggle absolute bottom-24 left-2 right-2 z-40 bg-zinc-950/95 border border-zinc-700 rounded-2xl p-3 shadow-2xl space-y-2.5 text-xs text-zinc-300 animate-in slide-in-from-bottom-2 duration-150 backdrop-blur-md">
+      {isSettingsOpen && !isPlaying && (
+        <div className="no-tap-toggle absolute bottom-16 left-2 right-2 z-40 bg-zinc-950/95 border border-zinc-700/80 rounded-2xl p-3 shadow-2xl space-y-2.5 text-xs text-zinc-300 animate-in slide-in-from-bottom-2 duration-150 backdrop-blur-md max-h-[75%] overflow-y-auto">
           {/* Header Panel */}
           <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
             <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
-              {activeBottomTab === 'teks' && <Type className="w-3.5 h-3.5" />}
-              {activeBottomTab === 'kecepatan' && <Gauge className="w-3.5 h-3.5" />}
-              {activeBottomTab === 'layar' && <SlidersHorizontal className="w-3.5 h-3.5" />}
-              {activeBottomTab === 'teks' && 'Pengaturan Teks & Subtitle'}
-              {activeBottomTab === 'kecepatan' && 'Pengaturan Kecepatan & Hitung Mundur'}
-              {activeBottomTab === 'layar' && 'Pengaturan Tampilan & Fokus Layar'}
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Pengaturan Teleprompter</span>
             </span>
             <button
               type="button"
-              onClick={() => setActiveBottomTab(null)}
-              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
+              onClick={() => setIsSettingsOpen(false)}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
+          {/* Sub-tabs Minimalis: Teks, Hitung Mundur, Layar */}
+          <div className="flex items-center gap-1 p-0.5 bg-zinc-900 rounded-xl border border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setSettingsTab('teks')}
+              className={`flex-1 flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                settingsTab === 'teks'
+                  ? 'bg-amber-500 text-black font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Type className="w-3 h-3" />
+              <span>Teks</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSettingsTab('countdown')}
+              className={`flex-1 flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                settingsTab === 'countdown'
+                  ? 'bg-amber-500 text-black font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Timer className="w-3 h-3" />
+              <span>Countdown</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSettingsTab('layar')}
+              className={`flex-1 flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                settingsTab === 'layar'
+                  ? 'bg-amber-500 text-black font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3 h-3" />
+              <span>Layar</span>
+            </button>
+          </div>
+
           {/* TAB 1: TEKS & SUBTITLE */}
-          {activeBottomTab === 'teks' && (
+          {settingsTab === 'teks' && (
             <div className="space-y-3">
               {/* Ukuran Font (Mulai dari 7px!) */}
               <div className="space-y-1">
@@ -602,10 +689,10 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                 </div>
               </div>
 
-              {/* 5 Preset Subtitle */}
+              {/* 10 Preset Subtitle */}
               <div className="space-y-1">
-                <span className="text-[11px] text-zinc-400 block">Pilih 5 Gaya Subtitle:</span>
-                <div className="grid grid-cols-1 gap-1 max-h-40 overflow-y-auto pr-1">
+                <span className="text-[11px] text-zinc-400 block font-medium">Pilih 10 Gaya Subtitle Siap Rekam:</span>
+                <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto pr-1">
                   {SUBTITLE_PRESETS.map((preset) => {
                     const isSelected = preset.id === activePresetId;
                     return (
@@ -641,50 +728,31 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             </div>
           )}
 
-          {/* TAB 2: KECEPATAN & COUNTDOWN */}
-          {activeBottomTab === 'kecepatan' && (
-            <div className="space-y-3">
-              {/* Kecepatan Gulir (Speed 1 sangat santai & lambat) */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-zinc-400">Kecepatan Gulir (1 = Paling Lambat):</span>
-                  <span className="font-mono font-bold text-amber-400">{speed}x</span>
+          {/* TAB 2: HITUNG MUNDUR (COUNTDOWN) */}
+          {settingsTab === 'countdown' && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Timer className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] text-zinc-300 font-semibold">Hitung Mundur (Countdown):</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg accent-amber-500 cursor-pointer"
-                  />
-                </div>
-                <p className="text-[10px] text-zinc-500">
-                  Speed 1 telah diperlambat (2.5px/detik) agar membaca santai dan natural.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setCountdownEnabled((e) => !e)}
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                    countdownEnabled
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                  }`}
+                >
+                  {countdownEnabled ? 'Aktif' : 'Nonaktif'}
+                </button>
               </div>
 
-              {/* Setelan Hitung Mundur (Aktif/Nonaktif & 3/5/10 Detik) */}
-              <div className="pt-2 border-t border-zinc-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-zinc-400 font-semibold">Hitung Mundur (Countdown):</span>
-                  <button
-                    type="button"
-                    onClick={() => setCountdownEnabled((e) => !e)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
-                      countdownEnabled
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                    }`}
-                  >
-                    {countdownEnabled ? 'Aktif' : 'Nonaktif'}
-                  </button>
-                </div>
-
-                {countdownEnabled && (
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[10px] text-zinc-500">Durasi:</span>
+              {countdownEnabled && (
+                <div className="space-y-1.5 pt-2 border-t border-zinc-800">
+                  <span className="text-[10px] text-zinc-400 block font-medium">Pilih Durasi:</span>
+                  <div className="flex items-center gap-1.5">
                     {([3, 5, 10] as const).map((sec) => (
                       <button
                         key={sec}
@@ -700,13 +768,13 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* TAB 3: TAMPILAN & FOKUS MATA */}
-          {activeBottomTab === 'layar' && (
+          {settingsTab === 'layar' && (
             <div className="space-y-3">
               {/* Slider Transparansi Menyeluruh */}
               <div className="space-y-1">
@@ -724,7 +792,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                 />
               </div>
 
-              {/* Posisi Garis Fokus Mata (Hanya Garis & Persen) */}
+              {/* Posisi Garis Fokus Mata */}
               <div className="space-y-1 pt-1.5 border-t border-zinc-800">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-zinc-400">Garis Panduan Kamera:</span>
@@ -777,34 +845,73 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
       )}
 
       {/* 
-        BAGIAN BAWAH: NAVIGASI UTAMA DENGAN BOTTOM TAB BAR (Requirement 6, 7, 8, 9)
-        - Tombol Melayang ditempatkan DI DEPAN (UTAMA) (Requirement 2)
-        - Area ini dapat ditarik untuk menggeser posisi teleprompter di layar HP (Requirement 3)
-        - Otomatis sembunyi saat teks jalan, muncul kembali saat jeda
+        BAGIAN BAWAH: NAVIGASI UTAMA TELEPROMPTER MENGAMBANG (SINGLE CLEAN DOCK)
+        - Speed Stepper (+ -) ditempatkan sejajar langsung dengan Mulai dan tombol Full
+        - Countdown dan Teks digabungkan di Menu Pengaturan sebelah kanan
+        - Menu dibuat dalam bentuk ikon minimalis, konsisten, dan mudah dikenali
       */}
       <div
         onPointerDown={handlePointerDownDrag}
         onPointerMove={handlePointerMoveDrag}
         onPointerUp={handlePointerUpDrag}
-        className={`no-tap-toggle w-full px-2 pt-1.5 pb-2 bg-zinc-950/95 border-t border-zinc-800/80 text-white shrink-0 transition-all duration-300 cursor-grab active:cursor-grabbing ${
+        className={`no-tap-toggle w-full px-2 py-1.5 bg-zinc-950/80 border-t border-zinc-800/80 text-white shrink-0 transition-all duration-300 cursor-grab active:cursor-grabbing ${
           isPlaying
             ? 'opacity-0 translate-y-12 pointer-events-none'
             : 'opacity-100 translate-y-0 pointer-events-auto'
         }`}
       >
-        {/* BARIS UTAMA (ACTION ROW): Simetris, Rapi, & Tombol Melayang di Depan */}
         <div className="flex items-center justify-between gap-1.5">
+          {/* Tombol Rotasi Manual di sebelah kiri tombol Reset */}
+          <button
+            type="button"
+            onClick={() => setRotation((prev) => ((prev + 90) % 360) as 0 | 90 | 180 | 270)}
+            className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0 relative"
+            title={`Rotasi Manual Teks (${rotation}°)`}
+          >
+            <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+            {rotation !== 0 && (
+              <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1 rounded-full leading-tight">
+                {rotation}°
+              </span>
+            )}
+          </button>
+
           {/* Tombol Reset */}
           <button
             type="button"
             onClick={handleReset}
-            className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0"
+            className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0"
             title="Kembalikan Teks ke Paling Atas (Reset)"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
-          {/* TOMBOL HERO: PLAY / PAUSE */}
+          {/* Stepper Speed (+ -) Sejajar dengan Mulai & Full */}
+          <div className="flex items-center bg-zinc-900 rounded-xl border border-zinc-800 p-0.5 shadow-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => setSpeed((prev) => Math.max(1, prev - 1))}
+              disabled={speed <= 1}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              title="Perlambat Kecepatan"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+            <span className="font-mono font-bold text-xs px-1 text-amber-400 min-w-[24px] text-center" title="Kecepatan Gulir">
+              {speed}x
+            </span>
+            <button
+              type="button"
+              onClick={() => setSpeed((prev) => Math.min(10, prev + 1))}
+              disabled={speed >= 10}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              title="Percepat Kecepatan"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* TOMBOL HERO: PLAY / PAUSE (ICON ONLY) */}
           <button
             type="button"
             onClick={() => {
@@ -814,94 +921,52 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                 triggerPlay();
               }
             }}
-            className="flex-1 max-w-[130px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
+            className="p-1.5 sm:p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95 shrink-0"
             title={isPlaying ? 'Jeda Teks' : 'Mulai Jalankan Teks'}
           >
             {isPlaying ? (
-              <>
-                <Pause className="w-3.5 h-3.5 fill-black" />
-                <span>Jeda</span>
-              </>
+              <Pause className="w-3.5 h-3.5 fill-black" />
             ) : (
-              <>
-                <Play className="w-3.5 h-3.5 fill-black ml-0.5" />
-                <span>Mulai</span>
-              </>
+              <Play className="w-3.5 h-3.5 fill-black ml-0.5" />
             )}
           </button>
 
-          {/* TOMBOL MELAYANG (PIP OS / ANDROID) - DI TEMPATKAN DI DEPAN (UTAMA) */}
-          <button
-            type="button"
-            onClick={handleActivateFloating}
-            className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs transition-all cursor-pointer shadow-xs shrink-0"
-            title="Aktifkan Mode Melayang (Tetap aktif saat diminimalkan di atas aplikasi lain)"
-          >
-            <PictureInPicture2 className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden xs:inline">Melayang</span>
-          </button>
-
-          {/* Tombol Layar Penuh */}
+          {/* TOMBOL FULL (ICON ONLY) */}
           <button
             type="button"
             onClick={onExpandToFull}
-            className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer shrink-0"
-            title="Layar Penuh"
+            className="p-1.5 sm:p-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold transition-all cursor-pointer shadow-xs shrink-0"
+            title="Kembali ke Mode Teleprompter Layar Penuh (Full)"
           >
-            <Maximize2 className="w-4 h-4" />
+            <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
           </button>
 
-          {/* Tombol Tutup */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl bg-zinc-900 hover:bg-red-500/20 border border-zinc-800 text-zinc-400 hover:text-red-400 transition-all cursor-pointer shrink-0"
-            title="Tutup Teleprompter"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+          {/* SISI KANAN: MENU PENGATURAN & TUTUP (IKON MINIMALIS & KONSISTEN) */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Ikon Menu Pengaturan (Teks, Hitung Mundur, Layar) */}
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen((prev) => !prev)}
+              className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                isSettingsOpen
+                  ? 'bg-amber-500 text-black border-amber-500 shadow-xs'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
+              }`}
+              title="Menu Pengaturan (Teks, Hitung Mundur, Layar)"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
 
-        {/* BOTTOM TAB BAR: Ikon Minimalis & Label Singkat Rapi (Requirement 6, 7, 8, 9) */}
-        <div className="flex items-center justify-between gap-1 mt-1.5 pt-1.5 border-t border-zinc-800/60">
-          <button
-            type="button"
-            onClick={() => setActiveBottomTab((prev) => (prev === 'teks' ? null : 'teks'))}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-              activeBottomTab === 'teks'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-            }`}
-          >
-            <Type className="w-3.5 h-3.5" />
-            <span>Teks ({fontSize}px)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveBottomTab((prev) => (prev === 'kecepatan' ? null : 'kecepatan'))}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-              activeBottomTab === 'kecepatan'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-            }`}
-          >
-            <Gauge className="w-3.5 h-3.5" />
-            <span>Speed ({speed}x)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveBottomTab((prev) => (prev === 'layar' ? null : 'layar'))}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-              activeBottomTab === 'layar'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Layar ({opacity}%)</span>
-          </button>
+            {/* Tombol Tutup */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-red-500/20 border border-zinc-800 text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
+              title="Tutup Teleprompter"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

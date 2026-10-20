@@ -13,14 +13,16 @@ import {
   ArrowLeft,
   ArrowRight,
   Lock,
-  Sliders,
   Sparkles,
-  Tag,
+  Sliders,
+  Minus,
+  Plus,
   Clock,
   User as UserIcon,
   MessageSquare,
   Flame,
-  Volume2,
+  ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import {
@@ -54,20 +56,20 @@ interface GeneratorConfigPanelProps {
 interface DeliveryStyleOption {
   value: DeliveryStyle;
   label: string;
-  symbol: string;
+  badge: string;
 }
 
-const DELIVERY_STYLES_WITH_SYMBOLS: DeliveryStyleOption[] = [
-  { value: 'Natural conversational', symbol: '💬', label: 'Natural conversational (Santai)' },
-  { value: 'Soft selling', symbol: '🍃', label: 'Soft selling (Halus & Edukasi)' },
-  { value: 'Persuasif langsung tetapi etis', symbol: '🎯', label: 'Persuasif langsung (Direct CTA)' },
-  { value: 'Storytelling/pengalaman', symbol: '📖', label: 'Storytelling / Pengalaman Pribadi' },
-  { value: 'UGC review/demo', symbol: '📱', label: 'UGC Review / Demo Pemakaian' },
-  { value: 'Edukatif/tutorial', symbol: '🎓', label: 'Edukatif / Mini Tutorial' },
-  { value: 'Humor ringan/relatable', symbol: '😄', label: 'Humor ringan / Relatable' },
-  { value: 'POV/rutinitas', symbol: '👤', label: 'POV / Rutinitas Harian' },
-  { value: 'Unboxing/first impression', symbol: '📦', label: 'Unboxing & First Impression' },
-  { value: 'Komparasi/value', symbol: '⚖️', label: 'Komparasi / Value for Money' },
+const DELIVERY_STYLES: DeliveryStyleOption[] = [
+  { value: 'Natural conversational', label: 'Natural conversational (Santai & Mengalir)', badge: 'Rekomendasi' },
+  { value: 'Soft selling', label: 'Soft selling (Halus, Ramah & Berbagi)', badge: 'Edukasi' },
+  { value: 'Persuasif langsung tetapi etis', label: 'Persuasif langsung (Direct CTA & Meyakinkan)', badge: 'Konversi' },
+  { value: 'Storytelling/pengalaman', label: 'Storytelling / Pengalaman Pribadi Nyata', badge: 'Emosi' },
+  { value: 'UGC review/demo', label: 'UGC Review / Demo Pemakaian Jujur', badge: 'Populer' },
+  { value: 'Edukatif/tutorial', label: 'Edukatif / Mini Tutorial Langkah Demi Langkah', badge: 'Tutorial' },
+  { value: 'Humor ringan/relatable', label: 'Humor ringan / Relatable', badge: 'Hiburan' },
+  { value: 'POV/rutinitas', label: 'POV / Rutinitas Keseharian', badge: 'Lifestyle' },
+  { value: 'Unboxing/first impression', label: 'Unboxing & First Impression Saat Paket Tiba', badge: 'Unboxing' },
+  { value: 'Komparasi/value', label: 'Komparasi / Value for Money', badge: 'Perbandingan' },
 ];
 
 const STANDARD_PERSONAS: AudiencePersona[] = [
@@ -148,389 +150,269 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
     onChange({ ...config, durationSeconds: dur });
   };
 
-  const handleScriptCountChange = (count: number) => {
-    onChange({ ...config, scriptCount: Math.max(1, Math.min(30, count)) });
-  };
-
-  const handlePersonaSelect = (selected: string) => {
-    if (selected === 'Custom') {
-      onChange({ ...config, audiencePersona: customPersonaValue.trim() || 'Custom' });
-    } else {
-      onChange({ ...config, audiencePersona: selected });
-    }
-  };
-
-  const handleCustomPersonaChange = (val: string) => {
-    setCustomPersonaValue(val);
-    onChange({ ...config, audiencePersona: val.trim() || 'Custom' });
+  const handleScriptCountChange = (val: number) => {
+    const clamped = Math.max(1, Math.min(30, val));
+    onChange({ ...config, scriptCount: clamped });
   };
 
   const toggleAngle = (angleLabel: string) => {
-    let next: string[];
-    if (config.selectedAngles.includes(angleLabel)) {
-      next = config.selectedAngles.filter((a) => a !== angleLabel);
-    } else {
-      next = [...config.selectedAngles, angleLabel];
-    }
+    const current = config.selectedAngles || [];
+    const exists = current.includes(angleLabel);
+    const updated = exists ? current.filter((a) => a !== angleLabel) : [...current, angleLabel];
     onChange({
       ...config,
-      angleMode: next.length > 0 ? 'manual' : 'auto',
-      selectedAngles: next,
+      angleMode: updated.length > 0 ? 'manual' : 'auto',
+      selectedAngles: updated,
     });
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-zinc-200/80 shadow-xs p-4 sm:p-5 space-y-4">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
-            3
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center tracking-tight">
-              <span>Pengaturan Generator Skrip</span>
-              <InfoTooltip
-                title="Pengaturan Generator"
-                content="Tentukan jumlah variasi konsep, durasi rekaman, dan gaya penyampaian. Setiap skrip memiliki hook 3 detik, arahan B-roll visual, dan safe-zone teleprompter."
-              />
-            </h2>
-            <p className="text-[11px] text-zinc-400 font-medium">Konfigurasi formula konten video affiliate</p>
-          </div>
-        </div>
-        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
-          Tahap 3
-        </span>
-      </div>
-
+    <div className="space-y-4 max-w-4xl mx-auto pb-10">
       {/* ========================================================= */}
-      {/* KELOMPOK 1: PENGATURAN UTAMA (Prioritas Teratas)           */}
+      {/* 1. KELOMPOK UTAMA (FITUR PALING PENTING)                  */}
       {/* ========================================================= */}
-      <div className="space-y-3.5">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 px-1">
-          Pengaturan Utama
-        </div>
-
-        {/* Baris 1: Jumlah Skrip & Durasi Video (iOS Segmented Controls) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Jumlah Skrip */}
-          <div className="p-3 bg-zinc-50/70 border border-zinc-200/70 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-zinc-800">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Jumlah Konsep Skrip</span>
-              </span>
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                {config.scriptCount} konsep
-              </span>
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
+        {/* Section Header */}
+        <div className="px-5 py-4 border-b border-[#F2F2F7] dark:border-[#2C2C2E] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-[10px] bg-[#5856D6]/10 text-[#5856D6] flex items-center justify-center shrink-0">
+              <SlidersHorizontal className="w-4 h-4" />
             </div>
-
-            {/* iOS Segmented Selector */}
-            <div className="grid grid-cols-5 gap-1 p-1 bg-zinc-200/60 rounded-xl shadow-inner">
-              {[1, 3, 5, 10, 20].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleScriptCountChange(num)}
-                  className={`py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer active:scale-95 ${
-                    config.scriptCount === num
-                      ? 'bg-white text-zinc-950 shadow-xs'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Durasi Video */}
-          <div className="p-3 bg-zinc-50/70 border border-zinc-200/70 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-zinc-800">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-teal-600" />
-                <span>Durasi Target</span>
-              </span>
-              <span className="text-[11px] text-zinc-500 font-medium">
-                {config.durationSeconds === 15 && '40–55 kata'}
-                {config.durationSeconds === 30 && '75–100 kata'}
-                {config.durationSeconds === 60 && '140–180 kata'}
-                {config.durationSeconds === 90 && '200–250 kata'}
-              </span>
-            </div>
-
-            {/* iOS Segmented Selector */}
-            <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-200/60 rounded-xl shadow-inner">
-              {([15, 30, 60, 90] as ScriptDuration[]).map((dur) => (
-                <button
-                  key={dur}
-                  type="button"
-                  onClick={() => handleDurationSelect(dur)}
-                  className={`py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer active:scale-95 ${
-                    config.durationSeconds === dur
-                      ? 'bg-white text-zinc-950 shadow-xs'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  {dur}s
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Baris 2: Gaya Penyampaian & Target Persona */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Gaya Penyampaian */}
-          <div className="p-3 bg-zinc-50/70 border border-zinc-200/70 rounded-2xl space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-800 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
-              <span>Gaya Penyampaian Narasi</span>
-            </label>
-            <select
-              value={config.style}
-              onChange={(e) => onChange({ ...config, style: e.target.value as DeliveryStyle })}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold text-zinc-800 shadow-2xs"
-            >
-              {DELIVERY_STYLES_WITH_SYMBOLS.map((st) => (
-                <option key={st.value} value={st.value}>
-                  {st.symbol} {st.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Target Persona */}
-          <div className="p-3 bg-zinc-50/70 border border-zinc-200/70 rounded-2xl space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-zinc-800 flex items-center gap-1.5">
-                <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                <span>Target Persona Audiens</span>
-              </label>
-              {isCustomSelected && (
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200/60">
-                  Kustom
-                </span>
-              )}
-            </div>
-            <select
-              value={isCustomSelected ? 'Custom' : config.audiencePersona}
-              onChange={(e) => handlePersonaSelect(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold text-zinc-800 shadow-2xs"
-            >
-              {STANDARD_PERSONAS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-              <option value="Custom">✏️ Custom (Tulis Target Sendiri)</option>
-            </select>
-
-            {isCustomSelected && (
-              <div className="pt-1 animate-in fade-in duration-150">
-                <input
-                  type="text"
-                  value={customPersonaValue}
-                  onChange={(e) => handleCustomPersonaChange(e.target.value)}
-                  placeholder="Tuliskan target audiens (misal: Ibu baru melahirkan, Atlet lari)..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-emerald-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 placeholder:text-zinc-400 font-medium"
-                  autoFocus
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5 tracking-tight">
+                <span>Parameter Inti Skrip</span>
+                <InfoTooltip
+                  title="Konfigurasi Generator"
+                  content="Gagaswara menyesuaikan rasio kata per detik secara otomatis agar pas dengan durasi rekaman."
                 />
+              </h2>
+              <p className="text-[11px] text-[#8E8E93] font-medium">
+                Tentukan format utama sebelum membuat skrip video
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Item 1: Target Durasi Video (iOS Segmented Control) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                Target Durasi Video
+              </label>
+              <span className="text-[11px] text-[#8E8E93] tabular-nums">
+                {config.durationSeconds === 20 && '~45-55 kata (Hook Cepat)'}
+                {config.durationSeconds === 30 && '~65-80 kata (Standar Affiliate)'}
+                {config.durationSeconds === 60 && '~130-160 kata (Deep Review)'}
+                {config.durationSeconds === 90 && '~200-240 kata (Tutorial / Story)'}
+                {config.durationSeconds === 120 && '~280-320 kata (Long Form)'}
+              </span>
+            </div>
+
+            <div className="bg-[#767680]/12 dark:bg-[#767680]/24 p-[3px] rounded-[12px] flex items-center gap-1 overflow-x-auto">
+              {([20, 30, 60, 90, 120] as ScriptDuration[]).map((dur) => {
+                const isSelected = config.durationSeconds === dur;
+                return (
+                  <button
+                    key={dur}
+                    type="button"
+                    onClick={() => handleDurationSelect(dur)}
+                    className={`flex-1 py-2 px-2 sm:px-3 rounded-[9px] text-xs font-semibold transition-all duration-150 flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-white dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_1px_rgba(0,0,0,0.04)] font-bold'
+                        : 'text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{dur}d</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Item 2: Jumlah Skrip Konsep (Pilihan Segmented Tunggal 2, 5, 10, 20, 30) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                Jumlah Skrip yang Dibuat
+              </label>
+              <span className="text-[11px] text-[#007AFF] font-bold tabular-nums">
+                {config.scriptCount} Variasi Konsep
+              </span>
+            </div>
+
+            <div className="bg-[#767680]/12 dark:bg-[#767680]/24 p-[3px] rounded-[12px] flex items-center gap-1">
+              {[2, 5, 10, 20, 30].map((cnt) => {
+                const isSelected = config.scriptCount === cnt;
+                return (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => handleScriptCountChange(cnt)}
+                    className={`flex-1 py-2 px-2 rounded-[9px] text-xs font-semibold transition-all duration-150 flex items-center justify-center cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#007AFF] text-white shadow-xs font-bold'
+                        : 'text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white'
+                    }`}
+                  >
+                    {cnt} Skrip
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Item 3: Gaya Pembawaan (iOS Grouped Dropdown Picker) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                Gaya Pembawaan Narasi
+              </label>
+              <span className="text-[11px] text-[#8E8E93]">Tone & Vibe</span>
+            </div>
+
+            <div className="relative">
+              <select
+                value={config.style}
+                onChange={(e) => onChange({ ...config, style: e.target.value as DeliveryStyle })}
+                className="w-full h-11 px-3.5 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent focus:border-[#007AFF] focus:bg-white dark:focus:bg-[#1C1C1E] text-xs font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer transition-all pr-10 focus:outline-none"
+              >
+                {DELIVERY_STYLES.map((st) => (
+                  <option key={st.value} value={st.value}>
+                    {st.label}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#8E8E93]">
+                <ChevronDown className="w-4 h-4" />
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* KELOMPOK 2: PENGATURAN LANJUTAN (Advanced Options Submenu) */}
+      {/* 2. KELOMPOK TARGET AUDIENS & SUDUT PANDANG                */}
       {/* ========================================================= */}
-      <div className="border border-zinc-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#F2F2F7] dark:border-[#2C2C2E] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-[#5856D6]/15 text-[#5856D6] flex items-center justify-center font-bold text-xs">
+              <UserIcon className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white">
+                Target Persona Audiens
+              </h3>
+              <p className="text-[11px] text-[#8E8E93]">
+                Bahasa disesuaikan dengan sasaran penonton
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {/* Persona Selection Pills */}
+          <div className="flex flex-wrap gap-1.5">
+            {STANDARD_PERSONAS.map((p) => {
+              const isSelected = config.audiencePersona === p && !isCustomSelected;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onChange({ ...config, audiencePersona: p })}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#5856D6] text-white shadow-xs'
+                      : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#1C1C1E]'
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => {
+                onChange({ ...config, audiencePersona: 'Custom' });
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                isCustomSelected
+                  ? 'bg-[#5856D6] text-white shadow-xs'
+                  : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#1C1C1E]'
+              }`}
+            >
+              + Kustom
+            </button>
+          </div>
+
+          {/* Custom Persona Text Input */}
+          {isCustomSelected && (
+            <div className="pt-1">
+              <input
+                type="text"
+                value={customPersonaValue}
+                onChange={(e) => {
+                  setCustomPersonaValue(e.target.value);
+                  onChange({ ...config, audiencePersona: e.target.value || 'Custom' });
+                }}
+                placeholder="Misal: Fotografer pemula, pecinta kucing, atlet lari..."
+                className="w-full h-10 px-3.5 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent focus:border-[#5856D6] focus:bg-white dark:focus:bg-[#1C1C1E] text-xs text-[#1C1C1E] dark:text-white focus:outline-none transition-all"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 3. PENGATURAN LANJUTAN (COLLAPSIBLE ADVANCED MENU)        */}
+      {/* ========================================================= */}
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
+        {/* Collapsible Accordion Header */}
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-between p-3.5 bg-zinc-50/60 hover:bg-zinc-100/60 transition-colors text-xs font-bold text-zinc-800 cursor-pointer select-none"
+          className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[#F2F2F7]/50 active:bg-[#F2F2F7] transition-colors cursor-pointer select-none"
         >
-          <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-zinc-500" />
-            <span>Pengaturan Lanjutan (Advanced)</span>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              Hook, Demo, CTA, Scarcity & Angles
-            </span>
-            {config.selectedAngles.length > 0 && (
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                {config.selectedAngles.length} Angle
-              </span>
-            )}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center">
+              <Sliders className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white">
+                Pengaturan Lanjutan & Formula (Advanced)
+              </div>
+              <div className="text-[11px] text-[#8E8E93]">
+                {showAdvanced ? 'Sembunyikan opsi lanjutan' : 'Pustaka 20 angle, hook, demo, CTA, & switch promo'}
+              </div>
+            </div>
           </div>
-          <div className="text-zinc-400">
+          <div className="w-7 h-7 rounded-full bg-[#F2F2F7] dark:bg-[#2C2C2E] flex items-center justify-center text-[#8E8E93]">
             {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
         </button>
 
         {showAdvanced && (
-          <div className="p-4 border-t border-zinc-200/70 space-y-4 bg-white animate-in fade-in duration-150">
-            {/* Grid Opsi Lanjutan: Formula Hook & Demo Method */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-zinc-700 flex items-center gap-1">
-                  <Flame className="w-3 h-3 text-amber-500" />
-                  <span>Formula Hook 3 Detik</span>
-                </label>
-                <select
-                  value={config.hookType || 'Auto'}
-                  onChange={(e) => onChange({ ...config, hookType: e.target.value as HookType })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-zinc-200 bg-white"
-                >
-                  {HOOK_OPTIONS.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-zinc-700 flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-emerald-500" />
-                  <span>Metode Demo Visual</span>
-                </label>
-                <select
-                  value={config.demoMethod || 'Auto'}
-                  onChange={(e) => onChange({ ...config, demoMethod: e.target.value as DemoMethod })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-zinc-200 bg-white"
-                >
-                  {DEMO_OPTIONS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Grid: CTA & Selling Intensity */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-zinc-700 flex items-center gap-1">
-                  <Volume2 className="w-3 h-3 text-teal-500" />
-                  <span>Format Call to Action (CTA)</span>
-                </label>
-                <select
-                  value={config.ctaType || 'Auto'}
-                  onChange={(e) => onChange({ ...config, ctaType: e.target.value as CtaType })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-zinc-200 bg-white"
-                >
-                  {CTA_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-zinc-700 block">
-                  Intensitas Penjualan & Kata Ganti
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={config.sellingIntensity || 'Balanced'}
-                    onChange={(e) =>
-                      onChange({ ...config, sellingIntensity: e.target.value as SellingIntensity })
-                    }
-                    className="px-2 py-1.5 text-xs rounded-xl border border-zinc-200 bg-white"
-                    title="Intensitas Penjualan"
-                  >
-                    {INTENSITY_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={config.pronouns || 'aku/saya'}
-                    onChange={(e) => onChange({ ...config, pronouns: e.target.value as PronounType })}
-                    className="px-2 py-1.5 text-xs rounded-xl border border-zinc-200 bg-white"
-                    title="Kata Ganti Narator"
-                  >
-                    {PRONOUN_OPTIONS.map((pr) => (
-                      <option key={pr} value={pr}>
-                        {pr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* iOS Sakelar / Toggle Switch: Anchoring Harga & Urgensi */}
-            <div className="pt-1 space-y-2">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                Fitur Penjualan Cerdas (iOS Switches)
-              </div>
-
-              {/* iOS Switch 1: Anchoring Harga */}
-              <div className="p-3 bg-zinc-50/80 rounded-2xl border border-zinc-200/60 flex items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-zinc-900">
-                    Anchoring Perbandingan Harga
-                  </div>
-                  <p className="text-[11px] text-zinc-500">
-                    Menonjolkan nilai hemat / perbandingan worth-it secara transparan
-                  </p>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(config.priceAnchoringEnabled)}
-                    onChange={(e) => onChange({ ...config, priceAnchoringEnabled: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner" />
-                </label>
-              </div>
-
-              {/* iOS Switch 2: Urgensi & Kelangkaan */}
-              <div className="p-3 bg-zinc-50/80 rounded-2xl border border-zinc-200/60 flex items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-zinc-900">
-                    Urgensi & Batas Promo (Scarcity)
-                  </div>
-                  <p className="text-[11px] text-zinc-500">
-                    Menekankan batas waktu flash sale atau stok hanya jika ada data valid
-                  </p>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(config.urgencyEnabled)}
-                    onChange={(e) => onChange({ ...config, urgencyEnabled: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner" />
-                </label>
-              </div>
-            </div>
-
+          <div className="p-5 border-t border-[#F2F2F7] dark:border-[#2C2C2E] space-y-5 animate-in fade-in duration-200">
             {/* Pustaka 20 Angle Konten */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-zinc-800">Pustaka 20 Angle Konten:</span>
+                <span className="font-semibold text-[#1C1C1E] dark:text-white">
+                  Formula Sudut Pandang (Angle)
+                </span>
                 <button
                   type="button"
                   onClick={() => setShowAngleLibrary(!showAngleLibrary)}
-                  className="text-emerald-700 font-bold hover:underline cursor-pointer text-[11px]"
+                  className="text-[#007AFF] font-semibold hover:underline cursor-pointer text-[11px]"
                 >
-                  {showAngleLibrary ? 'Tutup Pustaka' : 'Pilih Angle Spesifik'}
+                  {showAngleLibrary ? 'Tutup Pustaka' : 'Pilih dari 20 Pustaka Angle'}
                 </button>
               </div>
 
               {showAngleLibrary && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto p-2 bg-zinc-50 rounded-2xl border border-zinc-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto p-2 bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px]">
                   {CONTENT_ANGLES.map((ang) => {
                     const isSelected =
                       config.selectedAngles.includes(ang.label) ||
@@ -541,10 +423,10 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
                         key={ang.id}
                         type="button"
                         onClick={() => toggleAngle(ang.label)}
-                        className={`text-left p-2 rounded-xl text-[11px] transition-all flex items-center justify-between cursor-pointer border ${
+                        className={`text-left p-2.5 rounded-[12px] text-[11px] transition-all flex items-center justify-between cursor-pointer border ${
                           isSelected
-                            ? 'bg-emerald-600 text-white font-semibold border-emerald-600 shadow-xs'
-                            : 'bg-white text-zinc-700 hover:bg-zinc-100 border-zinc-200/80'
+                            ? 'bg-[#007AFF] text-white font-semibold border-transparent shadow-xs'
+                            : 'bg-white dark:bg-[#1C1C1E] text-[#1C1C1E] dark:text-white hover:bg-[#E5E5EA]/70 border-black/5 dark:border-white/5'
                         }`}
                         title={ang.description}
                       >
@@ -557,106 +439,234 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
               )}
             </div>
 
-            {/* Instruksi Khusus */}
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-semibold text-zinc-700 block">
-                Instruksi Khusus untuk AI (Opsional)
+            {/* Intensitas Jualan (iOS Segmented Control) */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                Intensitas Jualan (Selling Intensity)
+              </label>
+              <div className="bg-[#767680]/12 dark:bg-[#767680]/24 p-[3px] rounded-[12px] flex items-center gap-1">
+                {INTENSITY_OPTIONS.map((intOpt) => {
+                  const isSelected = config.sellingIntensity === intOpt;
+                  return (
+                    <button
+                      key={intOpt}
+                      type="button"
+                      onClick={() => onChange({ ...config, sellingIntensity: intOpt })}
+                      className={`flex-1 py-1.5 px-3 rounded-[9px] text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        isSelected
+                          ? 'bg-white dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white shadow-sm'
+                          : 'text-[#8E8E93] hover:text-[#1C1C1E]'
+                      }`}
+                    >
+                      {intOpt === 'Soft' && 'Soft (Halus)'}
+                      {intOpt === 'Balanced' && 'Balanced (Seimbang)'}
+                      {intOpt === 'Direct' && 'Direct (Tegas)'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hook & Demo Dropdowns in 2-column Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                  Tipe Hook 3 Detik Awal
+                </label>
+                <div className="relative">
+                  <select
+                    value={config.hookType}
+                    onChange={(e) => onChange({ ...config, hookType: e.target.value as HookType })}
+                    className="w-full h-10 px-3 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-8"
+                  >
+                    {HOOK_OPTIONS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                  Metode Demo Produk (B-Roll)
+                </label>
+                <div className="relative">
+                  <select
+                    value={config.demoMethod}
+                    onChange={(e) => onChange({ ...config, demoMethod: e.target.value as DemoMethod })}
+                    className="w-full h-10 px-3 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-8"
+                  >
+                    {DEMO_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* CTA & Kata Ganti in 2-column Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                  Ajakan Bertindak (CTA)
+                </label>
+                <div className="relative">
+                  <select
+                    value={config.ctaType}
+                    onChange={(e) => onChange({ ...config, ctaType: e.target.value as CtaType })}
+                    className="w-full h-10 px-3 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-8"
+                  >
+                    {CTA_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                  Kata Ganti (Pronoun)
+                </label>
+                <div className="relative">
+                  <select
+                    value={config.pronouns}
+                    onChange={(e) => onChange({ ...config, pronouns: e.target.value as PronounType })}
+                    className="w-full h-10 px-3 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-8"
+                  >
+                    {PRONOUN_OPTIONS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* iOS Grouped List with Authentic iOS Toggle Switches */}
+            <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px] overflow-hidden divide-y divide-[#E5E5EA] dark:divide-[#38383A]">
+              {/* Switch 1: Price Anchoring */}
+              <div className="p-3.5 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                    Sorot Perbandingan Harga (Price Anchoring)
+                  </div>
+                  <div className="text-[11px] text-[#8E8E93]">
+                    Bandingkan harga coret vs promo untuk menegaskan hemat
+                  </div>
+                </div>
+
+                {/* Authentic iOS Switch */}
+                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(config.priceAnchoringEnabled)}
+                    onChange={(e) => onChange({ ...config, priceAnchoringEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-[51px] h-[31px] bg-[#E9E9EA] dark:bg-[#39393D] peer-checked:bg-[#34C759] rounded-full transition-colors duration-200 relative">
+                    <div className="w-[27px] h-[27px] bg-white rounded-full shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.06)] absolute top-[2px] left-[2px] transition-transform duration-200 peer-checked:translate-x-[20px]" />
+                  </div>
+                </label>
+              </div>
+
+              {/* Switch 2: Urgensi & Batas Promo */}
+              <div className="p-3.5 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                    Urgensi & Batas Promo (Scarcity)
+                  </div>
+                  <div className="text-[11px] text-[#8E8E93]">
+                    Menekankan batas waktu promo hanya jika ada data valid
+                  </div>
+                </div>
+
+                {/* Authentic iOS Switch */}
+                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(config.urgencyEnabled)}
+                    onChange={(e) => onChange({ ...config, urgencyEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-[51px] h-[31px] bg-[#E9E9EA] dark:bg-[#39393D] peer-checked:bg-[#34C759] rounded-full transition-colors duration-200 relative">
+                    <div className="w-[27px] h-[27px] bg-white rounded-full shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.06)] absolute top-[2px] left-[2px] transition-transform duration-200 peer-checked:translate-x-[20px]" />
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Instruksi Khusus untuk AI */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#1C1C1E] dark:text-white block">
+                Instruksi Khusus Tambahan (Opsional)
               </label>
               <textarea
                 rows={2}
                 value={config.extraInstructions || ''}
                 onChange={(e) => onChange({ ...config, extraInstructions: e.target.value })}
-                placeholder="Contoh: Fokus pada variasi warna pastel, sebutkan garansi 1 tahun..."
-                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                placeholder="Contoh: Fokus pada variasi warna pastel, sebutkan promo gajian..."
+                className="w-full px-3.5 py-2.5 rounded-[12px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent focus:border-[#007AFF] text-xs text-[#1C1C1E] dark:text-white focus:outline-none transition-all"
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Compliance Notice */}
-      <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between gap-2 text-xs text-emerald-900">
+      {/* Compliance Badge */}
+      <div className="px-4 py-3 bg-[#34C759]/10 rounded-[16px] flex items-center justify-between gap-3 text-xs text-[#34C759]">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span className="font-semibold text-[11px]">
-            Kepatuhan Multi-Platform & Etika Aktif (Shopee Video, TikTok, Tokopedia)
+          <ShieldCheck className="w-4 h-4 text-[#34C759] shrink-0" />
+          <span className="font-semibold text-[11px] text-[#1C1C1E] dark:text-white">
+            Kepatuhan Multi-Platform & Etika Aktif (Shopee Video, TikTok, Tokopedia, Reels)
           </span>
         </div>
-        <InfoTooltip
-          title="Kepatuhan Multi-Platform & Etika"
-          content="Skrip otomatis netral tanpa sebutan satu platform tertentu, siap direkam untuk TikTok, Shopee Video, maupun Reels."
-        />
       </div>
 
       {/* Script Generator Protection Warning Box */}
       {isAuthLocked && (
-        <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
-          <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="p-4 bg-[#FF9500]/10 border border-[#FF9500]/30 rounded-[18px] text-xs flex items-start gap-3">
+          <Lock className="w-4 h-4 text-[#FF9500] shrink-0 mt-0.5" />
           <div className="flex-1 space-y-1.5">
-            <div className="font-bold text-amber-950">Proteksi Fitur Generator Skrip</div>
-            <p className="text-amber-800 leading-relaxed font-medium text-[11px]">
-              Harap login akun Google atau masukkan API Key Google AI Studio Anda terlebih dahulu.
+            <div className="font-bold text-[#1C1C1E] dark:text-white">Proteksi Generator Skrip</div>
+            <p className="text-[#8E8E93] leading-relaxed text-[11px]">
+              Harap masuk akun Google atau masukkan API Key Google AI Studio Anda terlebih dahulu untuk memulai pembuatan skrip.
             </p>
             <button
               type="button"
               onClick={onRequireAuthOrKey}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-all cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#FF9500] text-white hover:bg-[#F28B00] active:scale-95 transition-all cursor-pointer shadow-xs"
             >
               <Lock className="w-3 h-3" />
-              <span>Masuk / Atur API Key Sekarang</span>
+              <span>Masuk / Atur API Key</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Action Buttons: Kembali & Tombol 'Buat Skrip' */}
-      <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        {onBackToBrief && (
+      {/* Action Bar: Navigasi Kembali */}
+      {onBackToBrief && (
+        <div className="pt-2 flex items-center justify-start">
           <button
             type="button"
             onClick={onBackToBrief}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors cursor-pointer active:scale-95"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-[12px] text-xs font-semibold text-[#8E8E93] hover:text-[#1C1C1E] bg-[#E5E5EA]/70 dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] transition-all cursor-pointer active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Kembali ke Brief</span>
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => {
-            if (isAuthLocked) {
-              onRequireAuthOrKey();
-              return;
-            }
-            onGenerate();
-          }}
-          disabled={disabled || isGenerating || !productBrief.name || isAuthLocked}
-          className={`flex-1 min-h-[46px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            disabled || isGenerating || !productBrief.name || isAuthLocked
-              ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200/80'
-              : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg ring-4 ring-emerald-500/20 active:scale-[0.99] cursor-pointer'
-          }`}
-        >
-          {isAuthLocked ? (
-            <>
-              <Lock className="w-4 h-4 text-amber-500" />
-              <span>Generator Terkunci (Perlu Login / API Key)</span>
-            </>
-          ) : isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Membuat {config.scriptCount} Skrip...</span>
-            </>
-          ) : (
-            <>
-              <Wand2 className="w-4 h-4" />
-              <span>Buat Skrip ({config.scriptCount} Konsep · {config.durationSeconds}s)</span>
-              <ArrowRight className="w-4 h-4 ml-0.5" />
-            </>
-          )}
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

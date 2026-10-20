@@ -68,6 +68,7 @@ import {
   Eye,
   MonitorPlay,
   PictureInPicture2,
+  Film,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -288,6 +289,7 @@ export default function App() {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(false);
   const [authWarningModalOpen, setAuthWarningModalOpen] = useState<boolean>(false);
   const [unauthorizedDomainModalOpen, setUnauthorizedDomainModalOpen] = useState<boolean>(false);
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState<boolean>(false);
   const [serverHasKey, setServerHasKey] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>(() => {
     try {
@@ -878,13 +880,13 @@ export default function App() {
   const visibleSteps = allStepsDefinitions.filter((s) => s.visible);
 
   return (
-    <div className="min-h-screen bg-zinc-100/70 text-zinc-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F2F2F7] dark:bg-[#000000] text-[#1C1C1E] dark:text-white flex flex-col font-sans transition-colors">
       {/* Top Processing Ambient Indicator */}
       {(isAnalyzing || isGenerating) && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-purple-500 animate-pulse shadow-xs" />
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-[#007AFF] via-[#5856D6] to-[#34C759] animate-pulse shadow-xs" />
       )}
 
-      {/* App Header with user auth, API key settings, Safe Zone, and Riwayat */}
+      {/* App Header with user auth and profile popover */}
       <Header
         user={activeUser}
         onLogin={handleGoogleLogin}
@@ -897,15 +899,19 @@ export default function App() {
         historyCount={history.length}
         hasApiKey={Boolean(apiKey || serverHasKey)}
         isLoggingIn={isLoggingIn}
+        settingsSheetOpen={settingsSheetOpen}
+        onToggleSettingsSheet={setSettingsSheetOpen}
       />
 
-      {/* Toast Notification */}
+      {/* Toast Notification (iOS Capsule Style) */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border text-xs sm:text-sm font-semibold transition-all transform animate-bounce bg-white border-zinc-200 text-zinc-900">
-          {toastMessage.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
-          {toastMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600" />}
-          {toastMessage.type === 'info' && <Sparkles className="w-4 h-4 text-teal-600" />}
-          <span>{toastMessage.text}</span>
+        <div className="fixed top-16 sm:top-20 inset-x-0 mx-auto max-w-sm z-50 flex items-center justify-center pointer-events-none px-4">
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-2xl border border-black/5 dark:border-white/10 text-xs sm:text-sm font-semibold bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-xl text-[#1C1C1E] dark:text-white pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
+            {toastMessage.type === 'success' && <CheckCircle className="w-4 h-4 text-[#34C759]" />}
+            {toastMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-[#FF3B30]" />}
+            {toastMessage.type === 'info' && <Sparkles className="w-4 h-4 text-[#007AFF]" />}
+            <span>{toastMessage.text}</span>
+          </div>
         </div>
       )}
 
@@ -928,54 +934,8 @@ export default function App() {
         )}
 
         {/* ========================================================= */}
-        {/* PROGRESSIVE STAGE NAVIGATION (Hanya Menu Terbuka yg Tampil) */}
+        {/* TAHAP AKTIF: Tampil Utuh 1 Halaman Sesuai Tahap           */}
         {/* ========================================================= */}
-        <div className="mb-3.5 bg-white rounded-2xl border border-zinc-200 shadow-xs p-1.5 sm:p-2">
-          <div
-            className={`grid gap-1 sm:gap-2 ${
-              visibleSteps.length === 1
-                ? 'grid-cols-1'
-                : visibleSteps.length === 2
-                ? 'grid-cols-2'
-                : visibleSteps.length === 3
-                ? 'grid-cols-3'
-                : 'grid-cols-4'
-            }`}
-          >
-            {visibleSteps.map((s) => {
-              const isActive = currentStep === s.num;
-
-              return (
-                <button
-                  key={s.num}
-                  type="button"
-                  onClick={() => setCurrentStep(s.num)}
-                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : s.completed
-                      ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100/80'
-                      : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
-                  }`}
-                  title={`Buka ${s.fullLabel}`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                      isActive
-                        ? 'bg-white text-emerald-700 font-extrabold'
-                        : s.completed
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-zinc-200 text-zinc-600'
-                    }`}
-                  >
-                    {s.completed && !isActive ? <Check className="w-2.5 h-2.5" /> : s.num}
-                  </span>
-                  <span className="truncate">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* ========================================================= */}
         {/* TAHAP AKTIF: Tampil Utuh 1 Halaman Sesuai Tahap           */}
@@ -1034,122 +994,86 @@ export default function App() {
           {currentStep === 4 && isScriptsUnlocked && (
             <div className="animate-in fade-in duration-150 space-y-3.5">
               {/* Toolbar Aksi Skrip */}
-              <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                      4
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs p-4 sm:p-5 space-y-3">
+                {/* Header Info */}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[12px] bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center shrink-0">
+                    <Film className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5 tracking-tight">
                       <span>{scripts.length} Konsep Skrip Siap Rekam</span>
                       <InfoTooltip
                         title="Hasil Skrip Siap Rekam"
                         content="Daftar konsep skrip video tersusun vertikal ke bawah dengan hook 3 detik, arahan visual B-roll, batas kata aman, dan ajakan bertindak (CTA) netral multi-platform."
                       />
                     </h3>
+                    <p className="text-[11px] text-[#8E8E93] font-medium">Siap diekspor atau dibaca di teleprompter</p>
                   </div>
+                </div>
 
-                  {/* Tombol yang menampilkan/menyembunyikan arahan visual seluruh konsep secara otomatis */}
+                {/* 1. Tombol Arahan Visual Seluruh Konsep: Memanjang Penuh Rata Kiri-Kanan */}
+                <button
+                  type="button"
+                  onClick={handleToggleAllVisuals}
+                  className={`w-full flex items-center justify-between h-10 px-4 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    isAllVisuals
+                      ? 'bg-[#34C759] text-white border-[#34C759] shadow-xs hover:bg-[#30B753]'
+                      : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border-[#E5E5EA] dark:border-[#38383A]'
+                  }`}
+                  title={isAllVisuals ? 'Sembunyikan arahan visual semua konsep' : 'Tampilkan arahan visual semua konsep'}
+                >
+                  <span className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-[#34C759] dark:text-[#30D158]" />
+                    <span>Arahan visual untuk semua konsep</span>
+                  </span>
+                  <span className="text-[11px] font-medium opacity-80">
+                    {isAllVisuals ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                </button>
+
+                {/* 2. Tombol Salin: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
+                <div className="grid grid-cols-2 gap-2.5 w-full">
                   <button
                     type="button"
-                    onClick={handleToggleAllVisuals}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      isAllVisuals
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs hover:bg-emerald-700'
-                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-                    }`}
-                    title="Beralih menampilkan arahan visual B-Roll untuk seluruh konsep"
+                    onClick={handleCopyAllVoiceovers}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
+                    title="Salin seluruh teks narasi suara saja"
                   >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>{isAllVisuals ? 'Sembunyikan Arahan Visual' : 'Lihat Arahan Visual'}</span>
+                    <Copy className="w-3.5 h-3.5 text-[#007AFF]" />
+                    <span>Semua Narasi</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyAllScripts}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
+                    title="Salin seluruh skrip lengkap (visual + dialog + overlay)"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-[#34C759]" />
+                    <span>Semua Skrip</span>
                   </button>
                 </div>
 
-                {/* Batch Action Buttons: Salin Semua & Unduh TXT Terpisah */}
-                <div className="flex flex-wrap items-center gap-2">
+                {/* 3. Tombol Unduh: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
+                <div className="grid grid-cols-2 gap-2.5 w-full">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(3)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-colors cursor-pointer border border-zinc-200"
-                    title="Ubah pengaturan durasi atau gaya"
+                    onClick={handleDownloadVoiceoversTxt}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+                    title="Unduh file .txt teks narasi suara saja"
                   >
-                    <Sliders className="w-3.5 h-3.5 text-zinc-500" />
-                    <span>Ubah Setelan</span>
+                    <Download className="w-3.5 h-3.5 text-[#34C759]" />
+                    <span>Semua Narasi</span>
                   </button>
-
-                  {/* Salin Options: Narasi vs Skrip */}
-                  <div className="inline-flex items-center rounded-xl bg-zinc-100 p-0.5 border border-zinc-200">
-                    <button
-                      type="button"
-                      onClick={handleCopyAllVoiceovers}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-zinc-700 hover:text-emerald-700 hover:bg-white transition-all cursor-pointer"
-                      title="Salin seluruh teks narasi suara saja dari semua konsep"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Salin Semua Narasi</span>
-                    </button>
-                    <span className="text-zinc-300">|</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyAllScripts}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-zinc-700 hover:text-emerald-700 hover:bg-white transition-all cursor-pointer"
-                      title="Salin seluruh naskah lengkap (visual + dialog + overlay) dari semua konsep"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-teal-600" />
-                      <span>Salin Semua Skrip</span>
-                    </button>
-                  </div>
-
-                  {/* Teleprompter Utama: Tepat di sebelah tombol Salin Semua */}
-                  <div className="inline-flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={handleOpenAllTeleprompter}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-xs hover:shadow-sm transition-all cursor-pointer border border-amber-400"
-                      title="Buka Mode Teleprompter Layar Penuh untuk membaca seluruh skrip saat merekam"
-                    >
-                      <MonitorPlay className="w-3.5 h-3.5 fill-black/15 text-black" />
-                      <span>Teleprompter</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFloatingPrompterState({
-                          isOpen: true,
-                          conceptIndex: -1,
-                        });
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-2xs transition-all cursor-pointer"
-                      title="Mode Melayang: Widget melayang di atas layar (Always on Top)"
-                    >
-                      <PictureInPicture2 className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Melayang</span>
-                    </button>
-                  </div>
-
-                  {/* Unduh Options: Narasi vs Skrip */}
-                  <div className="inline-flex items-center rounded-xl bg-zinc-900 p-0.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={handleDownloadVoiceoversTxt}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-200 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
-                      title="Unduh file .txt teks narasi suara saja"
-                    >
-                      <Download className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Unduh Narasi</span>
-                    </button>
-                    <span className="text-zinc-700">|</span>
-                    <button
-                      type="button"
-                      onClick={handleDownloadScriptsTxt}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:bg-zinc-800 transition-all cursor-pointer"
-                      title="Unduh file .txt naskah skrip visual & dialog lengkap"
-                    >
-                      <Download className="w-3.5 h-3.5 text-teal-400" />
-                      <span>Unduh Skrip</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadScriptsTxt}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+                    title="Unduh file .txt naskah skrip lengkap"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#007AFF]" />
+                    <span>Semua Skrip</span>
+                  </button>
                 </div>
               </div>
 
@@ -1216,7 +1140,7 @@ export default function App() {
           })
         }
         onCopyAllScripts={handleCopyAllScripts}
-        onOpenSettings={() => setHistoryOpen(true)}
+        onOpenSettings={() => setSettingsSheetOpen(true)}
       />
 
       {/* Safe Zone Modal */}

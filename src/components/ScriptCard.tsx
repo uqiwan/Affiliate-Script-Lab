@@ -16,6 +16,11 @@ import {
   Check,
   MonitorPlay,
   PictureInPicture2,
+  Zap,
+  Feather,
+  Scissors,
+  Target,
+  RefreshCw,
 } from 'lucide-react';
 import { ScriptItem } from '../types';
 import { formatScriptAsText } from '../utils/exportTxt';
@@ -127,64 +132,64 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   const canApplyRefine = Boolean(selectedRefinement || customRefineText.trim());
 
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs overflow-hidden transition-all hover:border-emerald-200">
+    <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden transition-all">
       {/* Header Bar: Rata Kiri Konsep + Info Button, Rata Kanan Tombol Narasi & Skrip */}
-      <div className="p-3.5 sm:p-4 border-b border-zinc-100 bg-zinc-50/60 flex flex-wrap items-center justify-between gap-2.5">
+      <div className="p-3 sm:p-3.5 border-b border-[#F2F2F7] dark:border-[#2C2C2E] bg-[#F2F2F7]/50 dark:bg-[#2C2C2E]/30 flex flex-wrap items-center justify-between gap-2.5">
         {/* Rata Kiri: Judul Konsep + Tombol Info */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-zinc-900 text-white shrink-0">
+          <span className="h-8 px-3 rounded-[10px] text-xs font-bold bg-[#1C1C1E] dark:bg-white text-white dark:text-[#1C1C1E] flex items-center shrink-0">
             Konsep #{index + 1}
           </span>
 
           <button
             type="button"
             onClick={() => setShowConceptInfo(!showConceptInfo)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+            className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
               showConceptInfo
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : 'bg-white text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border-zinc-200'
+                ? 'bg-[#007AFF] text-white shadow-xs'
+                : 'bg-white dark:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white border border-black/5 dark:border-white/10'
             }`}
           >
-            <Info className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Info tentang Konsep {index + 1}</span>
+            <Info className="w-3.5 h-3.5" />
+            <span>Info</span>
             {showConceptInfo ? (
-              <ChevronUp className="w-3 h-3 text-zinc-400" />
+              <ChevronUp className="w-3 h-3" />
             ) : (
-              <ChevronDown className="w-3 h-3 text-zinc-400" />
+              <ChevronDown className="w-3 h-3" />
             )}
           </button>
         </div>
 
-        {/* Rata Kanan Sejajar: Tombol "Icon Salin + Narasi" & "Icon Salin + Skrip" */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Rata Kanan Sejajar: Tombol Narasi, Skrip, Prompter & Melayang */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={handleCopyVoiceover}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 transition-colors cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-white dark:bg-[#2C2C2E] hover:bg-[#F2F2F7] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95"
             title="Salin teks narasi suara saja"
           >
-            <Copy className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Salin Narasi</span>
+            <Copy className="w-3.5 h-3.5 text-[#007AFF]" />
+            <span>Narasi</span>
           </button>
 
           <button
             type="button"
             onClick={handleCopyFull}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 transition-colors cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-white dark:bg-[#2C2C2E] hover:bg-[#F2F2F7] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95"
             title="Salin skrip visual + narasi lengkap"
           >
-            <Copy className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Salin Lengkap</span>
+            <Copy className="w-3.5 h-3.5 text-[#5856D6]" />
+            <span>Skrip</span>
           </button>
 
           {onOpenPrompter && (
             <button
               type="button"
               onClick={() => onOpenPrompter(script, index)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-[#FF9500] hover:bg-[#F28B00] text-white shadow-xs transition-all cursor-pointer active:scale-95"
               title={`Buka Layar Teleprompter khusus Konsep #${index + 1}`}
             >
-              <MonitorPlay className="w-3.5 h-3.5 text-amber-600" />
+              <MonitorPlay className="w-3.5 h-3.5" />
               <span>Prompter</span>
             </button>
           )}
@@ -193,10 +198,10 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
             <button
               type="button"
               onClick={() => onOpenFloatingPrompter(script, index)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-[#FF9500]/15 hover:bg-[#FF9500]/25 text-[#FF9500] transition-all cursor-pointer active:scale-95"
               title={`Buka Mode Melayang (Floating Widget) khusus Konsep #${index + 1}`}
             >
-              <PictureInPicture2 className="w-3.5 h-3.5 text-amber-600" />
+              <PictureInPicture2 className="w-3.5 h-3.5 text-[#FF9500]" />
               <span className="hidden sm:inline">Melayang</span>
             </button>
           )}
@@ -287,56 +292,61 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
         )}
 
         {/* Footer Area: Toggle Arahan Visual + Sempurnakan Skrip */}
-        <div className="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100">
+        <div className="pt-3.5 flex flex-wrap items-center justify-between gap-2.5 border-t border-[#F2F2F7] dark:border-[#2C2C2E]">
           <button
             type="button"
             onClick={handleToggleVisual}
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer py-1"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[10px] text-xs font-semibold text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-colors cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{currentShowVisual ? 'Sembunyikan Arahan Visual' : 'Lihat Arahan Visual B-Roll'}</span>
+            <Eye className="w-3.5 h-3.5 text-[#8E8E93]" />
+            <span>{currentShowVisual ? 'Sembunyikan Visual' : 'Lihat Arahan Visual'}</span>
             {currentShowVisual ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
 
           <button
             type="button"
             onClick={() => setShowRefineMenu(!showRefineMenu)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-700 hover:text-emerald-700 bg-zinc-100 hover:bg-emerald-50 transition-colors cursor-pointer"
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-[10px] text-xs font-semibold transition-colors cursor-pointer ${
+              showRefineMenu
+                ? 'bg-[#34C759] text-white shadow-xs'
+                : 'text-[#1C1C1E] dark:text-white bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12]'
+            }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Sempurnakan Skrip Ini</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Sempurnakan Skrip</span>
             {showRefineMenu ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
         </div>
 
         {/* Panel Sempurnakan Skrip */}
         {showRefineMenu && (
-          <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-800">
-                Pilih Jenis Penyesuaian (Klik salah satu, lalu tekan Terapkan):
+          <div className="p-3.5 sm:p-4 bg-[#F2F2F7]/60 dark:bg-[#2C2C2E]/40 rounded-[16px] border border-[#E5E5EA] dark:border-[#38383A] space-y-3 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
+                Pilih opsi penyesuaian:
               </span>
               <button
                 type="button"
                 onClick={() => onRegenerate(script)}
                 disabled={isRefining}
-                className="text-xs font-semibold text-zinc-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                className="text-xs font-semibold text-[#007AFF] hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <RotateCcw className="w-3 h-3" /> Buat Ulang Konsep Ini
+                <RotateCcw className="w-3 h-3" /> Buat Ulang
               </button>
             </div>
 
-            {/* Pilihan Refinement */}
+            {/* Pilihan Refinement dengan Ikon Minimalis */}
             <div className="flex flex-wrap gap-1.5">
               {[
-                { id: 'hook_stronger', label: '⚡ Hook Lebih Kuat' },
-                { id: 'more_natural', label: '🌿 Lebih Natural' },
-                { id: 'softer_selling', label: '🍃 Lebih Soft Selling' },
-                { id: 'more_concise', label: '✂️ Lebih Ringkas' },
-                { id: 'clearer_cta', label: '🎯 CTA Lebih Jelas' },
-                { id: 'change_angle', label: '🔄 Ganti Angle' },
+                { id: 'hook_stronger', label: 'Hook Lebih Kuat', icon: Zap },
+                { id: 'more_natural', label: 'Lebih Natural', icon: Feather },
+                { id: 'softer_selling', label: 'Lebih Soft Selling', icon: Sparkles },
+                { id: 'more_concise', label: 'Lebih Ringkas', icon: Scissors },
+                { id: 'clearer_cta', label: 'CTA Lebih Jelas', icon: Target },
+                { id: 'change_angle', label: 'Ganti Angle', icon: RefreshCw },
               ].map((opt) => {
                 const isSelected = selectedRefinement === opt.id;
+                const IconComp = opt.icon;
                 return (
                   <button
                     key={opt.id}
@@ -345,48 +355,49 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
                     onClick={() =>
                       setSelectedRefinement(isSelected ? null : opt.id)
                     }
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[8px] text-xs font-semibold transition-all cursor-pointer border ${
                       isSelected
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-white text-zinc-700 hover:bg-zinc-100 border-zinc-200'
+                        ? 'bg-[#34C759] text-white border-[#34C759] shadow-xs'
+                        : 'bg-white dark:bg-[#1C1C1E] text-[#1C1C1E] dark:text-white hover:bg-[#F2F2F7] dark:hover:bg-[#38383A] border-black/5 dark:border-white/10'
                     }`}
                   >
+                    <IconComp className="w-3 h-3" />
                     <span>{opt.label}</span>
-                    {isSelected && <Check className="w-3 h-3 ml-1 inline" />}
+                    {isSelected && <Check className="w-3 h-3 ml-0.5" />}
                   </button>
                 );
               })}
             </div>
 
             {/* Input Instruksi Kustom + Tombol Terapkan */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex items-center gap-2 pt-1">
               <input
                 type="text"
                 value={customRefineText}
                 onChange={(e) => setCustomRefineText(e.target.value)}
-                placeholder="Atau tuliskan instruksi khusus (misal: tekankan harga hemat)..."
+                placeholder="Atau tuliskan instruksi khusus (misal: tekankan harga promo)..."
                 disabled={isRefining}
-                className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                className="flex-1 h-9 px-3 text-xs rounded-[10px] border border-[#E5E5EA] dark:border-[#38383A] bg-white dark:bg-[#1C1C1E] text-[#1C1C1E] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
 
               <button
                 type="button"
                 disabled={isRefining || !canApplyRefine}
                 onClick={handleApplyRefine}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                className={`h-9 px-3.5 rounded-[10px] text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 ${
                   isRefining || !canApplyRefine
-                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-300/60'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer ring-2 ring-emerald-500/30'
+                    ? 'bg-black/5 dark:bg-white/10 text-[#8E8E93] cursor-not-allowed'
+                    : 'bg-[#34C759] hover:bg-[#30B753] text-white shadow-xs cursor-pointer active:scale-95'
                 }`}
               >
                 {isRefining ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     <span>Menerapkan...</span>
                   </>
                 ) : (
                   <>
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                     <span>Terapkan</span>
                   </>
                 )}

@@ -6,19 +6,11 @@
 import React from 'react';
 import {
   Sparkles,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  Wand2,
-  Lock,
-  MonitorPlay,
-  PictureInPicture2,
-  Copy,
-  Layers,
   FileText,
-  SlidersHorizontal,
-  Film,
-  Settings2,
+  Wand2,
+  MonitorPlay,
+  Check,
+  Lock,
 } from 'lucide-react';
 import { StepNumber } from '../App';
 
@@ -39,24 +31,24 @@ interface FloatingBottomNavProps {
   // Step 2
   onApproveBrief: () => void;
   isBriefValid: boolean;
-  onBackToSource: () => void;
+  onBackToSource?: () => void;
 
   // Step 3
   onGenerate: () => void;
   isGenerating: boolean;
-  scriptCount: number;
-  durationSeconds: number;
-  isAuthLocked: boolean;
-  onRequireAuthOrKey: () => void;
-  onBackToBrief: () => void;
+  scriptCount?: number;
+  durationSeconds?: number;
+  isAuthLocked?: boolean;
+  onRequireAuthOrKey?: () => void;
+  onBackToBrief?: () => void;
 
   // Step 4
   onOpenTeleprompter: () => void;
-  onOpenFloatingPrompter: () => void;
-  onCopyAllScripts: () => void;
+  onOpenFloatingPrompter?: () => void;
+  onCopyAllScripts?: () => void;
 
-  // Global settings modal trigger
-  onOpenSettings: () => void;
+  // Global settings modal trigger (optional)
+  onOpenSettings?: () => void;
 }
 
 export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
@@ -74,287 +66,247 @@ export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
 
   onApproveBrief,
   isBriefValid,
-  onBackToSource,
 
   onGenerate,
   isGenerating,
-  scriptCount,
-  durationSeconds,
-  isAuthLocked,
+  isAuthLocked = false,
   onRequireAuthOrKey,
-  onBackToBrief,
 
   onOpenTeleprompter,
-  onOpenFloatingPrompter,
-  onCopyAllScripts,
-
-  onOpenSettings,
 }) => {
+  // Chevron clip-path lembut (tidak terlalu lancip) dengan nuansa tahap berikutnya yang elegan
+  const getChevronStyle = (index: number) => {
+    const slant = '5px'; // Lembut, modern, tidak tajam/terlalu lancip
+    if (index === 0) {
+      // Tombol pertama: sisi kiri datar/lurus, sisi kanan melancip sangat lembut ke kanan
+      return {
+        clipPath: `polygon(0% 0%, calc(100% - ${slant}) 0%, 100% 50%, calc(100% - ${slant}) 100%, 0% 100%)`,
+      };
+    }
+    if (index === 3) {
+      // Tombol terakhir: sisi kiri cekung lembut mengikuti tombol 3, sisi kanan lurus rapi
+      return {
+        clipPath: `polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, ${slant} 50%)`,
+      };
+    }
+    // Tombol tengah (1 & 2): sisi kiri cekung lembut, sisi kanan melancip sangat lembut
+    return {
+      clipPath: `polygon(0% 0%, calc(100% - ${slant}) 0%, 100% 50%, calc(100% - ${slant}) 100%, 0% 100%, ${slant} 50%)`,
+    };
+  };
+
+  const handleStep1 = () => {
+    if (currentStep === 1) {
+      if (!isAnalyzing && isInputValid) {
+        onAnalyze();
+      }
+    } else {
+      onStepChange(1);
+    }
+  };
+
+  const handleStep2 = () => {
+    if (!isBriefUnlocked) return;
+    if (currentStep === 2) {
+      if (isBriefValid) {
+        onApproveBrief();
+      }
+    } else {
+      onStepChange(2);
+    }
+  };
+
+  const handleStep3 = () => {
+    if (!isConfigUnlocked) return;
+    if (currentStep === 3) {
+      if (isAuthLocked && onRequireAuthOrKey) {
+        onRequireAuthOrKey();
+        return;
+      }
+      if (!isGenerating) {
+        onGenerate();
+      }
+    } else {
+      onStepChange(3);
+    }
+  };
+
+  const handleStep4 = () => {
+    if (!isScriptsUnlocked) return;
+    if (currentStep === 4) {
+      onOpenTeleprompter();
+    } else {
+      onStepChange(4);
+    }
+  };
+
   return (
-    <div className="fixed bottom-2 sm:bottom-4 inset-x-0 mx-auto max-w-xl px-3 z-40 pointer-events-none">
-      <div className="pointer-events-auto flex flex-col gap-2">
+    <div className="fixed bottom-3 sm:bottom-4 inset-x-0 mx-auto max-w-lg px-3 sm:px-4 z-40 pointer-events-none">
+      <nav
+        aria-label="Tahapan Alur Gagaswara"
+        className="pointer-events-auto w-full bg-white/75 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/60 dark:border-white/15 shadow-[0_16px_44px_rgba(0,0,0,0.18),_inset_0_1px_1px_rgba(255,255,255,0.7)] rounded-[22px] p-1.5 flex items-stretch gap-1.5 select-none"
+      >
         {/* ========================================================= */}
-        {/* 1. FLOATING PRIMARY ACTION BAR (Tengah Bawah)             */}
+        {/* 1. TOMBOL ANALISIS (Tahap Sumber Info)                    */}
         {/* ========================================================= */}
-        <div className="flex items-center justify-center">
-          {/* STEP 1: Analisis & Siapkan Brief */}
-          {currentStep === 1 && (
-            <button
-              type="button"
-              onClick={onAnalyze}
-              disabled={isAnalyzing || !isInputValid}
-              className={`w-full max-w-md min-h-[48px] py-3 px-5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 select-none shadow-xl ${
-                isAnalyzing || !isInputValid
-                  ? 'bg-zinc-900/40 backdrop-blur-md text-zinc-300 border border-white/20 cursor-not-allowed opacity-75'
-                  : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white ring-4 ring-emerald-500/25 active:scale-[0.98] cursor-pointer shadow-emerald-950/20'
-              }`}
-              title={
-                !isInputValid
-                  ? 'Harap lengkapi sumber info produk di atas terlebih dahulu'
-                  : 'Klik untuk menganalisis dan menyiapkan Product Brief terverifikasi'
-              }
-            >
-              {isAnalyzing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span className="tracking-wide">Menganalisis & Menyiapkan Brief...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles
-                    className={`w-4 h-4 ${
-                      isInputValid ? 'text-amber-200 animate-pulse' : 'text-zinc-400'
-                    }`}
-                  />
-                  <span>Analisis & Siapkan Brief</span>
-                  {isInputValid ? (
-                    <ArrowRight className="w-4 h-4 ml-0.5 animate-pulse" />
-                  ) : (
-                    <span className="text-[11px] opacity-70 font-normal">(Isi sumber dulu)</span>
-                  )}
-                </>
-              )}
-            </button>
-          )}
-
-          {/* STEP 2: Setujui Brief */}
-          {currentStep === 2 && (
-            <div className="w-full max-w-md flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onBackToSource}
-                className="min-h-[48px] px-3.5 rounded-2xl text-xs font-semibold bg-white/90 hover:bg-white text-zinc-700 border border-zinc-200/80 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-                title="Kembali ke Sumber Info"
-              >
-                <ArrowLeft className="w-4 h-4 text-zinc-500" />
-                <span className="hidden sm:inline">Sumber</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onApproveBrief}
-                disabled={!isBriefValid}
-                className={`flex-1 min-h-[48px] py-3 px-5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 select-none shadow-xl ${
-                  !isBriefValid
-                    ? 'bg-zinc-800/60 backdrop-blur-md text-zinc-400 border border-white/20 cursor-not-allowed'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white ring-4 ring-emerald-500/25 active:scale-[0.98] cursor-pointer shadow-emerald-950/20'
-                }`}
-              >
-                <Check className="w-4 h-4 stroke-[2.5]" />
-                <span>Setujui Brief</span>
-                <ArrowRight className="w-4 h-4 ml-0.5" />
-              </button>
-            </div>
-          )}
-
-          {/* STEP 3: Buat Skrip */}
-          {currentStep === 3 && (
-            <div className="w-full max-w-md flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onBackToBrief}
-                className="min-h-[48px] px-3.5 rounded-2xl text-xs font-semibold bg-white/90 hover:bg-white text-zinc-700 border border-zinc-200/80 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-                title="Kembali ke Product Brief"
-              >
-                <ArrowLeft className="w-4 h-4 text-zinc-500" />
-                <span className="hidden sm:inline">Brief</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (isAuthLocked) {
-                    onRequireAuthOrKey();
-                    return;
-                  }
-                  onGenerate();
-                }}
-                disabled={isGenerating}
-                className={`flex-1 min-h-[48px] py-3 px-5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 select-none shadow-xl ${
-                  isAuthLocked
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white ring-4 ring-amber-500/25 active:scale-[0.98] cursor-pointer shadow-amber-950/20'
-                    : isGenerating
-                    ? 'bg-zinc-800/80 backdrop-blur-md text-zinc-300 border border-white/20 cursor-wait'
-                    : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white ring-4 ring-emerald-500/25 active:scale-[0.98] cursor-pointer shadow-emerald-950/20'
-                }`}
-              >
-                {isAuthLocked ? (
-                  <>
-                    <Lock className="w-4 h-4 text-amber-200" />
-                    <span>Masuk / Atur API Key Dulu</span>
-                  </>
-                ) : isGenerating ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Membuat {scriptCount} Skrip...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-4 h-4 text-amber-200" />
-                    <span>
-                      Buat Skrip ({scriptCount} Konsep · {durationSeconds}s)
-                    </span>
-                    <ArrowRight className="w-4 h-4 ml-0.5" />
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* STEP 4: Aksi Cepat Skrip Siap Rekam & Teleprompter */}
-          {currentStep === 4 && (
-            <div className="w-full max-w-md flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onOpenTeleprompter}
-                className="flex-1 min-h-[48px] py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-xl ring-4 ring-amber-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
-                title="Buka Teleprompter Layar Penuh"
-              >
-                <MonitorPlay className="w-4 h-4 fill-black/20 text-black shrink-0" />
-                <span className="truncate">Teleprompter</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onOpenFloatingPrompter}
-                className="min-h-[48px] px-3.5 rounded-2xl text-xs font-bold bg-white/95 hover:bg-white text-zinc-800 border border-zinc-200/80 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-                title="Mode Melayang (Always on Top)"
-              >
-                <PictureInPicture2 className="w-4 h-4 text-amber-600" />
-                <span className="hidden xs:inline">Melayang</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onCopyAllScripts}
-                className="min-h-[48px] px-3.5 rounded-2xl text-xs font-semibold bg-white/95 hover:bg-white text-zinc-700 border border-zinc-200/80 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-                title="Salin Seluruh Naskah"
-              >
-                <Copy className="w-4 h-4 text-emerald-600" />
-                <span className="hidden sm:inline">Salin</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ========================================================= */}
-        {/* 2. iOS BOTTOM TAB BAR (Dermaga Navigasi)                   */}
-        {/* ========================================================= */}
-        <nav
-          aria-label="Navigasi Utama Gagaswara"
-          className="w-full bg-white/85 backdrop-blur-2xl border border-zinc-200/80 shadow-2xl rounded-2xl sm:rounded-3xl p-1.5 flex items-center justify-around"
+        <button
+          type="button"
+          onClick={handleStep1}
+          style={getChevronStyle(0)}
+          className={`group flex-1 h-13 py-1.5 pl-2.5 pr-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 cursor-pointer rounded-l-[14px] ${
+            currentStep === 1
+              ? isAnalyzing
+                ? 'bg-gradient-to-b from-[#6366F1]/90 via-[#4F46E5]/85 to-[#3B82F6]/90 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(79,70,229,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(30,27,75,0.35)] cursor-wait'
+                : !isInputValid
+                ? 'bg-gradient-to-b from-[#6366F1]/75 via-[#4F46E5]/70 to-[#3B82F6]/75 text-white/90 backdrop-blur-md shadow-[0_4px_12px_rgba(79,70,229,0.25),_inset_0_1px_1px_rgba(255,255,255,0.5),_inset_0_-2px_0px_rgba(30,27,75,0.3)]'
+                : 'bg-gradient-to-b from-[#6366F1]/95 via-[#4F46E5]/90 to-[#3B82F6]/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(79,70,229,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(30,27,75,0.4)] active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(79,70,229,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 active:translate-y-[1px]'
+          }`}
+          title={
+            currentStep === 1
+              ? isInputValid
+                ? 'Klik untuk menganalisis dan menyiapkan brief'
+                : 'Harap isi sumber informasi produk terlebih dahulu'
+              : 'Kembali ke tahap Sumber Info Produk'
+          }
         >
-          {/* Tab 1: Sumber */}
-          <button
-            type="button"
-            onClick={() => onStepChange(1)}
-            className={`flex-1 py-1.5 sm:py-2 px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-150 cursor-pointer ${
-              currentStep === 1
-                ? 'bg-zinc-900 text-white shadow-xs'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/70'
-            }`}
-          >
-            <Layers className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5" />
-            <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight">Sumber</span>
-          </button>
+          {/* 3D Gloss / Sheen Highlight */}
+          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none rounded-t-lg" />
 
-          {/* Tab 2: Brief */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isBriefUnlocked) onStepChange(2);
-            }}
-            disabled={!isBriefUnlocked}
-            className={`flex-1 py-1.5 sm:py-2 px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-150 relative ${
-              !isBriefUnlocked
-                ? 'opacity-40 text-zinc-400 cursor-not-allowed'
-                : currentStep === 2
-                ? 'bg-zinc-900 text-white shadow-xs cursor-pointer'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/70 cursor-pointer'
-            }`}
-          >
-            <FileText className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5" />
-            <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight">Brief</span>
-            {isBriefApproved && (
-              <span className="absolute top-1 right-2 sm:right-3 w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-            )}
-          </button>
+          {isAnalyzing && currentStep === 1 ? (
+            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5 relative z-10" />
+          ) : (
+            <Sparkles
+              className={`w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] ${
+                currentStep === 1 && isInputValid ? 'text-amber-200' : ''
+              }`}
+            />
+          )}
+          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+            {isAnalyzing && currentStep === 1 ? 'Menganalisis' : 'Analisis'}
+          </span>
+        </button>
 
-          {/* Tab 3: Generator */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isConfigUnlocked) onStepChange(3);
-            }}
-            disabled={!isConfigUnlocked}
-            className={`flex-1 py-1.5 sm:py-2 px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-150 ${
-              !isConfigUnlocked
-                ? 'opacity-40 text-zinc-400 cursor-not-allowed'
-                : currentStep === 3
-                ? 'bg-zinc-900 text-white shadow-xs cursor-pointer'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/70 cursor-pointer'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5" />
-            <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight">Setelan</span>
-          </button>
+        {/* ========================================================= */}
+        {/* 2. TOMBOL BRIEF (Tahap Verifikasi Product Brief)          */}
+        {/* ========================================================= */}
+        <button
+          type="button"
+          onClick={handleStep2}
+          disabled={!isBriefUnlocked}
+          style={getChevronStyle(1)}
+          className={`group flex-1 h-13 py-1.5 px-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 ${
+            !isBriefUnlocked
+              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              : currentStep === 2
+              ? 'bg-gradient-to-b from-teal-500/95 via-emerald-600/90 to-teal-700/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(16,185,129,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(6,78,59,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(16,185,129,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              : isBriefApproved
+              ? 'bg-gradient-to-b from-emerald-50/85 via-emerald-100/50 to-emerald-200/35 dark:from-emerald-950/40 dark:via-emerald-900/25 dark:to-emerald-950/15 text-emerald-800 dark:text-emerald-300 backdrop-blur-md shadow-[0_2px_6px_rgba(16,185,129,0.08),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-emerald-100/90 hover:via-emerald-100/60 hover:to-emerald-200/45 dark:hover:from-emerald-900/40 cursor-pointer active:translate-y-[1px]'
+              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+          }`}
+          title={
+            !isBriefUnlocked
+              ? 'Brief terkunci. Lakukan analisis sumber terlebih dahulu.'
+              : currentStep === 2
+              ? 'Klik untuk menyetujui brief dan lanjut ke setelan'
+              : 'Lihat Product Brief'
+          }
+        >
+          {/* 3D Gloss / Sheen Highlight */}
+          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none" />
 
-          {/* Tab 4: Skrip */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isScriptsUnlocked) onStepChange(4);
-            }}
-            disabled={!isScriptsUnlocked}
-            className={`flex-1 py-1.5 sm:py-2 px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-150 relative ${
-              !isScriptsUnlocked
-                ? 'opacity-40 text-zinc-400 cursor-not-allowed'
-                : currentStep === 4
-                ? 'bg-zinc-900 text-white shadow-xs cursor-pointer'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/70 cursor-pointer'
-            }`}
-          >
-            <Film className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5" />
-            <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight">Skrip</span>
-            {scriptsCount > 0 && (
-              <span className="absolute top-1 right-2 sm:right-3 text-[9px] font-bold bg-emerald-600 text-white rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
-                {scriptsCount}
-              </span>
-            )}
-          </button>
+          {isBriefApproved ? (
+            <Check className="w-4 h-4 mb-0.5 text-emerald-300 stroke-[2.5] relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+          ) : (
+            <FileText className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+          )}
+          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+            Brief
+          </span>
+        </button>
 
-          {/* Tab 5: Menu Setelan Aplikasi (Safe Zone, Riwayat, API Key, Reset) */}
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="flex-1 py-1.5 sm:py-2 px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/70 transition-all duration-150 cursor-pointer"
-            title="Buka Menu & Pengaturan Aplikasi"
-          >
-            <Settings2 className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5 text-zinc-600" />
-            <span className="text-[10px] sm:text-[11px] font-semibold tracking-tight">Menu</span>
-          </button>
-        </nav>
-      </div>
+        {/* ========================================================= */}
+        {/* 3. TOMBOL BUAT SKRIP (Tahap Parameter & Generate)         */}
+        {/* ========================================================= */}
+        <button
+          type="button"
+          onClick={handleStep3}
+          disabled={!isConfigUnlocked}
+          style={getChevronStyle(2)}
+          className={`group flex-1 h-13 py-1.5 px-3 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 ${
+            !isConfigUnlocked
+              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              : currentStep === 3
+              ? isGenerating
+                ? 'bg-gradient-to-b from-[#7C3AED]/90 via-[#6366F1]/85 to-[#3B82F6]/90 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(124,58,237,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(46,16,101,0.35)] cursor-wait'
+                : isAuthLocked
+                ? 'bg-gradient-to-b from-amber-500/95 via-orange-500/90 to-amber-600/95 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(249,115,22,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(124,45,18,0.35)] cursor-pointer active:translate-y-[2px]'
+                : 'bg-gradient-to-b from-[#7C3AED]/95 via-[#6366F1]/90 to-[#3B82F6]/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(124,58,237,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(46,16,101,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(124,58,237,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+          }`}
+          title={
+            !isConfigUnlocked
+              ? 'Setelan terkunci. Selesaikan brief terlebih dahulu.'
+              : currentStep === 3
+              ? isAuthLocked
+                ? 'Login atau pasang API Key untuk membuat skrip'
+                : 'Klik untuk membuat konsep skrip video'
+              : 'Lihat Setelan Skrip'
+          }
+        >
+          {/* 3D Gloss / Sheen Highlight */}
+          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none" />
+
+          {isGenerating && currentStep === 3 ? (
+            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5 relative z-10" />
+          ) : isAuthLocked && currentStep === 3 ? (
+            <Lock className="w-4 h-4 mb-0.5 text-white relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+          ) : (
+            <Wand2 className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+          )}
+          <span className="text-[11px] font-bold tracking-tight truncate max-w-full relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+            {isGenerating && currentStep === 3 ? 'Membuat...' : 'Buat Skrip'}
+          </span>
+        </button>
+
+        {/* ========================================================= */}
+        {/* 4. TOMBOL PROMPTER (Tahap Naskah Skrip & Teleprompter)     */}
+        {/* ========================================================= */}
+        <button
+          type="button"
+          onClick={handleStep4}
+          disabled={!isScriptsUnlocked}
+          style={getChevronStyle(3)}
+          className={`group flex-1 h-13 py-1.5 pl-3.5 pr-2.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 rounded-r-[14px] ${
+            !isScriptsUnlocked
+              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              : currentStep === 4
+              ? 'bg-gradient-to-b from-amber-500/95 via-orange-500/90 to-amber-600/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(249,115,22,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(124,45,18,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(249,115,22,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+          }`}
+          title={
+            !isScriptsUnlocked
+              ? 'Skrip belum dibuat. Selesaikan tahap buat skrip terlebih dahulu.'
+              : currentStep === 4
+              ? 'Buka teleprompter layar penuh'
+              : 'Lihat Hasil Skrip'
+          }
+        >
+          {/* 3D Gloss / Sheen Highlight */}
+          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none rounded-t-lg" />
+
+          <MonitorPlay className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+            Prompter
+          </span>
+          {scriptsCount > 0 && (
+            <span className="absolute top-1.5 right-2 text-[9px] font-extrabold bg-gradient-to-b from-white to-amber-100 text-[#FF9500] rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1 shadow-[0_2px_5px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.9)] z-20">
+              {scriptsCount}
+            </span>
+          )}
+        </button>
+      </nav>
     </div>
   );
 };
+

@@ -322,14 +322,7 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
 
 // Global Error Handler - never leak credentials or internal stack traces
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  const status = err.status || 500;
   let rawMsg = err.message || '';
-
-  if (status === 504 || rawMsg.includes('timeout') || rawMsg.includes('melebihi batas waktu')) {
-    console.warn('[Server Timeout Notice]', rawMsg || err);
-  } else {
-    console.error('[Server Error]', rawMsg || err);
-  }
 
   // Parse nested json error if returned by API
   try {
@@ -341,6 +334,18 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     }
   } catch {
     // keep rawMsg
+  }
+
+  const isQuota = rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('Quota exceeded');
+  const isTimeout = err.status === 504 || rawMsg.includes('timeout') || rawMsg.includes('melebihi batas waktu');
+  const status = isQuota ? 429 : (err.status || (isTimeout ? 504 : 500));
+
+  if (isTimeout) {
+    console.log('[Server Timeout Notice] Permintaan melebihi batas waktu.');
+  } else if (isQuota) {
+    console.log('[Server Quota Notice] Batas kuota gratis Gemini tercapai.');
+  } else {
+    console.error('[Server Error]', rawMsg || err);
   }
 
   let message = 'Terjadi kesalahan saat memproses permintaan AI. Silakan coba kembali.';
