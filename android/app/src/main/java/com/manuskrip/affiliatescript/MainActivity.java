@@ -18,10 +18,25 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Tambahkan antarmuka JavaScript bridge untuk interaksi floating window
+        // Konfigurasi WebView untuk mendukung Google Auth, Cookies, dan antarmuka JavaScript bridge
         try {
             WebView webView = this.bridge.getWebView();
-            webView.addJavascriptInterface(new AndroidFloatingBridge(), "AndroidFloatingBridge");
+            if (webView != null) {
+                android.webkit.WebSettings settings = webView.getSettings();
+                settings.setDomStorageEnabled(true);
+                settings.setDatabaseEnabled(true);
+                settings.setJavaScriptEnabled(true);
+                settings.setJavaScriptCanOpenWindowsAutomatically(true);
+                settings.setSupportMultipleWindows(true);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                    cookieManager.setAcceptCookie(true);
+                    cookieManager.setAcceptThirdPartyCookies(webView, true);
+                }
+
+                webView.addJavascriptInterface(new AndroidFloatingBridge(), "AndroidFloatingBridge");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }

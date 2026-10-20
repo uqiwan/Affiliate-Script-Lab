@@ -8,6 +8,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   User,
@@ -110,22 +112,66 @@ export function sanitizeForFirestore<T>(data: T): T {
 
 // Auth Helpers
 export async function loginWithGoogle(): Promise<User> {
-  const res = await signInWithPopup(auth, googleProvider);
-  // Sync basic user profile
   try {
-    const userRef = doc(db, 'users', res.user.uid);
-    const profileData = sanitizeForFirestore({
-      userId: res.user.uid,
-      email: res.user.email || '',
-      displayName: res.user.displayName || '',
-      photoURL: res.user.photoURL || '',
-      updatedAt: new Date().toISOString(),
-    });
-    await setDoc(userRef, profileData, { merge: true });
-  } catch (err) {
-    console.error('Failed to sync user profile:', err);
+    const res = await signInWithPopup(auth, googleProvider);
+    // Sync basic user profile
+    try {
+      const userRef = doc(db, 'users', res.user.uid);
+      const profileData = sanitizeForFirestore({
+        userId: res.user.uid,
+        email: res.user.email || '',
+        displayName: res.user.displayName || '',
+        photoURL: res.user.photoURL || '',
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(userRef, profileData, { merge: true });
+    } catch (err) {
+      console.error('Failed to sync user profile:', err);
+    }
+    return res.user;
+  } catch (popupErr: any) {
+    const msg = popupErr?.message || '';
+    const code = popupErr?.code || '';
+    console.warn('signInWithPopup failed:', code, msg);
+
+    // If popup is blocked or storage partition fails in mobile WebView, fallback to redirect
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/cancelled-popup-request' ||
+      msg.includes('missing initial state') ||
+      msg.includes('sessionStorage') ||
+      msg.includes('storage-partitioned')
+    ) {
+      await signInWithRedirect(auth, googleProvider);
+      throw new Error('Membuka autentikasi Google...');
+    }
+    throw popupErr;
   }
-  return res.user;
+}
+
+export async function checkRedirectLogin(): Promise<User | null> {
+  try {
+    const res = await getRedirectResult(auth);
+    if (res && res.user) {
+      try {
+        const userRef = doc(db, 'users', res.user.uid);
+        const profileData = sanitizeForFirestore({
+          userId: res.user.uid,
+          email: res.user.email || '',
+          displayName: res.user.displayName || '',
+          photoURL: res.user.photoURL || '',
+          updatedAt: new Date().toISOString(),
+        });
+        await setDoc(userRef, profileData, { merge: true });
+      } catch (err) {
+        console.error('Failed to sync user profile from redirect:', err);
+      }
+      return res.user;
+    }
+  } catch (err) {
+    console.warn('checkRedirectLogin check:', err);
+  }
+  return null;
 }
 
 export async function logoutUser(): Promise<void> {

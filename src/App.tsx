@@ -24,6 +24,7 @@ import { AndroidOverlayModal } from './components/AndroidOverlayModal';
 import {
   auth,
   loginWithGoogle,
+  checkRedirectLogin,
   logoutUser,
   loadUserApiKey,
   saveUserApiKey,
@@ -32,6 +33,7 @@ import {
   saveSessionToFirestore,
   deleteSessionFromFirestore,
 } from './firebase';
+import { apiUrl, safeParseJsonResponse } from './utils/api';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ProductBrief,
@@ -297,13 +299,23 @@ export default function App() {
     photoURL: '',
   } as unknown as User) : null);
 
-  // Check server API key status on boot
+  // Check server API key status and redirect login on boot
   useEffect(() => {
-    fetch('/api/health')
+    fetch(apiUrl('/api/health'))
       .then((res) => res.json())
       .then((data) => {
-        if (data.hasApiKey) {
+        if (data && data.hasApiKey) {
           setServerHasKey(true);
+        }
+      })
+      .catch(() => {});
+
+    // Periksa hasil login redirect Google jika baru kembali dari browser
+    checkRedirectLogin()
+      .then((redirectUser) => {
+        if (redirectUser) {
+          setUser(redirectUser);
+          showToast(`Selamat datang kembali, ${redirectUser.displayName || 'Pengguna'}!`, 'success');
         }
       })
       .catch(() => {});
@@ -349,7 +361,9 @@ export default function App() {
     } catch (err: any) {
       const errMsg = err?.message || '';
       const errCode = err?.code || '';
-      if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) {
+      if (errMsg.includes('Membuka autentikasi Google')) {
+        showToast('Membuka autentikasi akun Google...', 'info');
+      } else if (errCode === 'auth/unauthorized-domain' || errMsg.includes('unauthorized-domain')) {
         setUnauthorizedDomainModalOpen(true);
       } else if (!errMsg.includes('popup-closed-by-user')) {
         showToast('Gagal masuk dengan Google: ' + (errMsg || 'Coba lagi'), 'error');
@@ -628,7 +642,7 @@ export default function App() {
     setConflictsFound([]);
 
     try {
-      const response = await fetch('/api/extract-product', {
+      const response = await fetch(apiUrl('/api/extract-product'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -637,15 +651,10 @@ export default function App() {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        const errorText = await parseResponseError(
-          response,
-          `Gagal memproses informasi produk (${response.status})`
-        );
-        throw new Error(errorText);
-      }
-
-      const resData = (await response.json()) as ExtractProductResponse;
+      const resData = await safeParseJsonResponse<ExtractProductResponse>(
+        response,
+        'mengekstrak informasi produk'
+      );
       const isSingle = data.inputMode !== 'mixed';
       const rawConflicts = resData.conflictsFound || [];
       const finalConflicts: string[] = isSingle
@@ -717,7 +726,7 @@ export default function App() {
     setGlobalError(null);
 
     try {
-      const response = await fetch('/api/generate-scripts', {
+      const response = await fetch(apiUrl('/api/generate-scripts'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -729,15 +738,10 @@ export default function App() {
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await parseResponseError(
-          response,
-          `Gagal membuat skrip (${response.status})`
-        );
-        throw new Error(errorText);
-      }
-
-      const resData = (await response.json()) as GenerateScriptsResponse;
+      const resData = await safeParseJsonResponse<GenerateScriptsResponse>(
+        response,
+        'membuat skrip'
+      );
       const generatedScripts = resData.scripts || [];
       setScripts(generatedScripts);
       setVisualModes({});
@@ -778,7 +782,7 @@ export default function App() {
   ) => {
     setIsRefining(true);
     try {
-      const response = await fetch('/api/refine-script', {
+      const response = await fetch(apiUrl('/api/refine-script'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -793,15 +797,10 @@ export default function App() {
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await parseResponseError(
-          response,
-          `Gagal memperbaiki skrip (${response.status})`
-        );
-        throw new Error(errorText);
-      }
-
-      const resData = (await response.json()) as RefineScriptResponse;
+      const resData = await safeParseJsonResponse<RefineScriptResponse>(
+        response,
+        'memperbaiki skrip'
+      );
       const updatedList = scripts.map((s) => (s.id === targetScript.id ? resData.script : s));
       setScripts(updatedList);
 

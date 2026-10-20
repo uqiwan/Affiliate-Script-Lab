@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Key, Eye, EyeOff, Check, Trash2, ExternalLink, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { apiUrl, safeParseJsonResponse } from '../utils/api';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -50,14 +51,17 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     setStatusMessage({ text: 'Menguji koneksi ke Google AI Studio...', type: null });
 
     try {
-      const res = await fetch('/api/test-key', {
+      const res = await fetch(apiUrl('/api/test-key'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: trimmed }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await safeParseJsonResponse<{ success: boolean; error?: string }>(
+        res,
+        'menguji koneksi API Key'
+      );
+      if (!data.success) {
         throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
       }
 
