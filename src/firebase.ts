@@ -110,6 +110,14 @@ export function sanitizeForFirestore<T>(data: T): T {
   return cleanObj as T;
 }
 
+export function isRunningInIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
 // Auth Helpers
 export async function loginWithGoogle(): Promise<User> {
   try {
@@ -134,7 +142,31 @@ export async function loginWithGoogle(): Promise<User> {
     const code = popupErr?.code || '';
     console.warn('signInWithPopup failed:', code, msg);
 
-    // If popup is blocked or storage partition fails in mobile WebView, fallback to redirect
+    // Domain belum didaftarkan di Firebase Console
+    if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+      const err: any = new Error(
+        'Domain aplikasi belum diizinkan di Firebase Authentication. Buka Firebase Console > Authentication > Settings > Authorized domains dan tambahkan domain ini.'
+      );
+      err.code = 'auth/unauthorized-domain';
+      throw err;
+    }
+
+    // Jika berjalan di dalam iFrame (AI Studio preview), jangan lakukan redirect karena akan diblokir browser
+    if (isRunningInIframe()) {
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/cancelled-popup-request' ||
+        msg.includes('popup')
+      ) {
+        const err: any = new Error(
+          'Jendela popup login diblokir oleh browser di dalam frame pratinjau. Silakan buka aplikasi langsung di tab baru (pratinjau penuh) atau gunakan Mode Tamu.'
+        );
+        err.code = 'auth/popup-blocked';
+        throw err;
+      }
+    }
+
+    // If outside iframe and popup is blocked or storage partition fails in mobile WebView, fallback to redirect
     if (
       code === 'auth/popup-blocked' ||
       code === 'auth/cancelled-popup-request' ||

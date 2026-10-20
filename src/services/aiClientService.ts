@@ -38,58 +38,55 @@ export async function executeExtractProduct(
   const isMobile = isMobileApp();
   const apiKey = params.apiKey?.trim();
 
-  // Jika di APK Android tanpa API key, minta pengguna mengisi API key
-  if (isMobile && !apiKey) {
-    throw new Error(
-      'MISSING_MOBILE_API_KEY: Versi APK Android membutuhkan API Key Google AI Studio Anda. Silakan masukkan API Key Anda (Gratis).'
-    );
-  }
-
-  // Jika berjalan di APK Android dan memiliki API Key, eksekusi langsung via client Gemini SDK
+  // Jika berjalan di APK Android dan memiliki API Key mandiri, eksekusi langsung via client Gemini SDK
   if (isMobile && apiKey) {
-    const rawImages = (params.images || []).map((img) => ({
-      name: img.name,
-      mimeType: img.mimeType,
-      base64Data: img.base64Data,
-    }));
+    try {
+      const rawImages = (params.images || []).map((img) => ({
+        name: img.name,
+        mimeType: img.mimeType,
+        base64Data: img.base64Data,
+      }));
 
-    const { brief, notes, conflicts } = await extractProductBrief({
-      inputMode: params.inputMode,
-      textDescription: params.textDescription,
-      images: rawImages,
-      customApiKey: apiKey,
-    });
+      const { brief, notes, conflicts } = await extractProductBrief({
+        inputMode: params.inputMode,
+        textDescription: params.textDescription,
+        images: rawImages,
+        customApiKey: apiKey,
+      });
 
-    const isSingleSource =
-      params.inputMode === 'images' ||
-      params.inputMode === 'url' ||
-      params.inputMode === 'text';
+      const isSingleSource =
+        params.inputMode === 'images' ||
+        params.inputMode === 'url' ||
+        params.inputMode === 'text';
 
-    const finalConflicts: string[] = isSingleSource
-      ? []
-      : (conflicts || []).map((c: any) => {
-          if (typeof c === 'string') return c;
-          if (typeof c === 'object' && c !== null) {
-            if (c.field && c.detail) return `${c.field}: ${c.detail}`;
-            return c.detail || c.conflict || c.description || c.message || JSON.stringify(c);
-          }
-          return String(c);
-        });
+      const finalConflicts: string[] = isSingleSource
+        ? []
+        : (conflicts || []).map((c: any) => {
+            if (typeof c === 'string') return c;
+            if (typeof c === 'object' && c !== null) {
+              if (c.field && c.detail) return `${c.field}: ${c.detail}`;
+              return c.detail || c.conflict || c.description || c.message || JSON.stringify(c);
+            }
+            return String(c);
+          });
 
-    brief.conflicts = finalConflicts;
-    brief.activeSourceMode = params.inputMode;
+      brief.conflicts = finalConflicts;
+      brief.activeSourceMode = params.inputMode;
 
-    return {
-      productBrief: brief,
-      inputMode: params.inputMode,
-      extractedFromUrl: Boolean(params.productUrl),
-      extractedFromImages: rawImages.length,
-      sourceNotes: notes,
-      conflictsFound: finalConflicts,
-    };
+      return {
+        productBrief: brief,
+        inputMode: params.inputMode,
+        extractedFromUrl: Boolean(params.productUrl),
+        extractedFromImages: rawImages.length,
+        sourceNotes: notes,
+        conflictsFound: finalConflicts,
+      };
+    } catch (clientErr: any) {
+      console.warn('Direct mobile SDK extraction failed, falling back to server backend:', clientErr);
+    }
   }
 
-  // Mode Web / Server Proxy
+  // Mode Web / Server Proxy (atau fallback jika di mobile APK)
   const response = await fetch(apiUrl('/api/extract-product'), {
     method: 'POST',
     headers: {
@@ -113,7 +110,7 @@ export async function executeExtractProduct(
 
 /**
  * Universal Script Generation:
- * In Android APK: Runs Gemini SDK directly on device using user's API Key.
+ * In Android APK: Runs Gemini SDK directly on device using user's API Key or falls back to backend proxy.
  * In Web Browser: Calls backend Express /api/generate-scripts.
  */
 export async function executeGenerateScripts(params: {
@@ -124,26 +121,24 @@ export async function executeGenerateScripts(params: {
   const isMobile = isMobileApp();
   const apiKey = params.apiKey?.trim();
 
-  if (isMobile && !apiKey) {
-    throw new Error(
-      'MISSING_MOBILE_API_KEY: Versi APK Android membutuhkan API Key Google AI Studio Anda. Silakan masukkan API Key Anda (Gratis).'
-    );
-  }
-
   if (isMobile && apiKey) {
-    const scripts = await generateScripts({
-      productBrief: params.productBrief,
-      config: params.config,
-      customApiKey: apiKey,
-    });
+    try {
+      const scripts = await generateScripts({
+        productBrief: params.productBrief,
+        config: params.config,
+        customApiKey: apiKey,
+      });
 
-    return {
-      productBrief: params.productBrief,
-      scripts,
-    };
+      return {
+        productBrief: params.productBrief,
+        scripts,
+      };
+    } catch (clientErr: any) {
+      console.warn('Direct mobile SDK script generation failed, falling back to server backend:', clientErr);
+    }
   }
 
-  // Mode Web / Server Proxy
+  // Mode Web / Server Proxy (atau fallback jika di mobile APK)
   const response = await fetch(apiUrl('/api/generate-scripts'), {
     method: 'POST',
     headers: {
@@ -165,7 +160,7 @@ export async function executeGenerateScripts(params: {
 
 /**
  * Universal Script Refinement:
- * In Android APK: Runs Gemini SDK directly on device.
+ * In Android APK: Runs Gemini SDK directly on device or falls back to backend proxy.
  * In Web Browser: Calls backend Express /api/refine-script.
  */
 export async function executeRefineScript(params: {
@@ -179,28 +174,26 @@ export async function executeRefineScript(params: {
   const isMobile = isMobileApp();
   const apiKey = params.apiKey?.trim();
 
-  if (isMobile && !apiKey) {
-    throw new Error(
-      'MISSING_MOBILE_API_KEY: Versi APK Android membutuhkan API Key Google AI Studio Anda. Silakan masukkan API Key Anda (Gratis).'
-    );
-  }
-
   if (isMobile && apiKey) {
-    const refined = await refineSingleScript({
-      script: params.script,
-      productBrief: params.productBrief,
-      config: params.config,
-      refinementType: params.refinementType,
-      customInstruction: params.customInstruction,
-      customApiKey: apiKey,
-    });
+    try {
+      const refined = await refineSingleScript({
+        script: params.script,
+        productBrief: params.productBrief,
+        config: params.config,
+        refinementType: params.refinementType,
+        customInstruction: params.customInstruction,
+        customApiKey: apiKey,
+      });
 
-    return {
-      script: refined,
-    };
+      return {
+        script: refined,
+      };
+    } catch (clientErr: any) {
+      console.warn('Direct mobile SDK refinement failed, falling back to server backend:', clientErr);
+    }
   }
 
-  // Mode Web / Server Proxy
+  // Mode Web / Server Proxy (atau fallback jika di mobile APK)
   const response = await fetch(apiUrl('/api/refine-script'), {
     method: 'POST',
     headers: {

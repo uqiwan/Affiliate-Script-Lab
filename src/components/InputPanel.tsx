@@ -36,12 +36,14 @@ interface InputPanelProps {
   }) => void;
   isAnalyzing: boolean;
   disabled?: boolean;
+  onValidityChange?: (isValid: boolean, triggerAnalyze: () => void) => void;
 }
 
 export const InputPanel: React.FC<InputPanelProps> = ({
   onAnalyze,
   isAnalyzing,
   disabled = false,
+  onValidityChange,
 }) => {
   const [activeTab, setActiveTab] = useState<InputMode>('images');
   const [textDescription, setTextDescription] = useState<string>('');
@@ -202,45 +204,55 @@ export const InputPanel: React.FC<InputPanelProps> = ({
     return images.length > 0 || productUrl.trim().length > 0 || textDescription.trim().length > 0;
   })();
 
+  // Notify parent component for floating action bar synchronization
+  React.useEffect(() => {
+    if (onValidityChange) {
+      onValidityChange(isCurrentTabValid, () => handleAnalyzeFromCurrentTab(activeTab));
+    }
+  }, [isCurrentTabValid, activeTab, images, productUrl, textDescription]);
+
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-3.5 sm:p-5">
+    <div className="bg-white rounded-3xl border border-zinc-200/80 shadow-xs p-4 sm:p-5">
       {/* Header bar without redundant long paragraphs */}
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-100 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+      <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100 mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
             1
           </div>
-          <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center">
-            <span>Sumber Info Produk</span>
-            <InfoTooltip
-              title="Sumber Info Produk"
-              content="Pilih salah satu sumber informasi produk (Foto, Link, atau Teks) atau Campuran. Setelah input terisi, tombol Analisis & Siapkan Brief akan menyala dan siap ditekan."
-            />
-          </h2>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center tracking-tight">
+              <span>Sumber Info Produk</span>
+              <InfoTooltip
+                title="Sumber Info Produk"
+                content="Pilih salah satu sumber informasi produk (Foto, Link, atau Teks) atau Campuran. Tombol floating di bagian bawah akan menyala terang dan siap ditekan."
+              />
+            </h2>
+            <p className="text-[11px] text-zinc-400 font-medium">Langkah awal persiapan materi konten</p>
+          </div>
         </div>
-        <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
           Tahap 1
         </span>
       </div>
 
-      {/* Segmented Source Tabs */}
-      <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-100 rounded-xl mb-3 text-xs font-medium">
+      {/* iOS-Style Segmented Source Tabs */}
+      <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-100/90 rounded-2xl mb-4 text-xs font-semibold border border-zinc-200/50 shadow-inner">
         <button
           type="button"
           onClick={() => {
             setActiveTab('images');
             setErrorMessage(null);
           }}
-          className={`flex items-center justify-center gap-1 py-2 px-1 rounded-lg transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl transition-all duration-150 cursor-pointer active:scale-[0.98] ${
             activeTab === 'images'
-              ? 'bg-white text-zinc-900 shadow-xs font-bold'
-              : 'text-zinc-600 hover:text-zinc-900'
+              ? 'bg-white text-zinc-950 shadow-xs font-bold'
+              : 'text-zinc-500 hover:text-zinc-900'
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
           <span>Foto</span>
           {images.length > 0 && (
-            <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded-full font-bold">
+            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.2 rounded-full font-bold">
               {images.length}
             </span>
           )}
@@ -252,10 +264,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
             setActiveTab('url');
             setErrorMessage(null);
           }}
-          className={`flex items-center justify-center gap-1 py-2 px-1 rounded-lg transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl transition-all duration-150 cursor-pointer active:scale-[0.98] ${
             activeTab === 'url'
-              ? 'bg-white text-zinc-900 shadow-xs font-bold'
-              : 'text-zinc-600 hover:text-zinc-900'
+              ? 'bg-white text-zinc-950 shadow-xs font-bold'
+              : 'text-zinc-500 hover:text-zinc-900'
           }`}
         >
           <LinkIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />

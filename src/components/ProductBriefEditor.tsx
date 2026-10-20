@@ -97,24 +97,30 @@ export const ProductBriefEditor: React.FC<ProductBriefEditorProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 shadow-xs p-3.5 sm:p-5 space-y-3.5">
+    <div className="bg-white rounded-3xl border border-zinc-200/80 shadow-xs p-4 sm:p-5 space-y-4">
       {/* Header Bar */}
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+      <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
             2
           </div>
-          <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center">
-            <span>Product Brief Terverifikasi</span>
-            <InfoTooltip
-              title="Product Brief Terverifikasi"
-              content="Informasi fakta produk yang berhasil dirangkum. Anda dapat menyunting nama, keunggulan, harga, maupun pantangan overclaim sebelum menyetujui brief untuk melangkah ke tahap berikutnya."
-            />
-          </h2>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-zinc-900 flex items-center tracking-tight">
+              <span>Product Brief Terverifikasi</span>
+              <InfoTooltip
+                title="Product Brief Terverifikasi"
+                content="Informasi fakta produk yang berhasil dirangkum. Anda dapat menyunting nama, keunggulan, harga, maupun pantangan overclaim sebelum menyetujui brief untuk melangkah ke tahap berikutnya."
+              />
+            </h2>
+            <p className="text-[11px] text-zinc-400 font-medium">Verifikasi data produk sebelum diproduksi jadi skrip</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {renderSourceModeBadge()}
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
+            Tahap 2
+          </span>
         </div>
       </div>
 

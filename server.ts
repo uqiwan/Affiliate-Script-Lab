@@ -322,9 +322,14 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
 
 // Global Error Handler - never leak credentials or internal stack traces
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('[Server Error]', err.message || err);
   const status = err.status || 500;
   let rawMsg = err.message || '';
+
+  if (status === 504 || rawMsg.includes('timeout') || rawMsg.includes('melebihi batas waktu')) {
+    console.warn('[Server Timeout Notice]', rawMsg || err);
+  } else {
+    console.error('[Server Error]', rawMsg || err);
+  }
 
   // Parse nested json error if returned by API
   try {

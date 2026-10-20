@@ -8,21 +8,22 @@ export const DEFAULT_CLOUD_BACKEND =
   'https://ais-dev-aifodh74ossxb4rjkp7oqs-772852091165.asia-southeast1.run.app';
 
 /**
- * Mendeteksi apakah aplikasi sedang berjalan di dalam Android APK / Capacitor WebView.
+ * Mendeteksi apakah aplikasi sedang berjalan di dalam Android APK / Capacitor Native WebView.
+ * HANYA bernilai true jika benar-benar berjalan di runtime native Android / bridge.
  */
 export function isMobileApp(): boolean {
   if (typeof window === 'undefined') return false;
-  const isCapacitor = Boolean((window as any).Capacitor?.isNativePlatform?.());
+  const cap = (window as any).Capacitor;
+  const isCapacitorNative = Boolean(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
   const isAndroidBridge = Boolean((window as any).AndroidFloatingBridge);
   const isCapacitorScheme = window.location.protocol === 'capacitor:' || window.location.protocol === 'file:';
-  const isLocalhostNoPort = window.location.hostname === 'localhost' && (!window.location.port || window.location.port === '80' || window.location.port === '443');
-  return isCapacitor || isAndroidBridge || isCapacitorScheme || isLocalhostNoPort;
+  return isCapacitorNative || isAndroidBridge || isCapacitorScheme;
 }
 
 /**
  * Mengambil Base URL untuk panggilan API /api/*.
- * Di Web browser biasa, menggunakan relative path ''.
- * Di APK Android, mengarah ke server backend cloud AI Studio.
+ * Di Web browser biasa (desktop/mobile web/localhost), menggunakan relative path ''.
+ * Di APK Android native, mengarah ke server backend cloud AI Studio.
  */
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return '';
@@ -37,12 +38,12 @@ export function getApiBaseUrl(): string {
     // ignore
   }
 
-  // 2. Jika di APK / Mobile WebView, gunakan server cloud backend
+  // 2. Jika di APK Android native, gunakan server cloud backend
   if (isMobileApp()) {
     return DEFAULT_CLOUD_BACKEND.replace(/\/+$/, '');
   }
 
-  // 3. Di Web browser desktop (localhost:3000 atau domain web AI Studio), gunakan relative path
+  // 3. Di Web browser desktop & mobile browser, gunakan relative path agar selalu terhubung ke host server saat ini
   return '';
 }
 
@@ -78,18 +79,18 @@ export async function safeParseJsonResponse<T = any>(
     const text = await response.text();
     if (text.includes('<!doctype html') || text.includes('<html')) {
       throw new Error(
-        `Server backend belum merespons API dengan benar (${response.status}). Pastikan perangkat Anda terhubung ke internet.`
+        `Server backend mengembalikan halaman HTML (${response.status}) alih-alih data JSON. Pastikan endpoint server backend aktif.`
       );
     }
     throw new Error(text || `Gagal ${actionLabel} (${response.status})`);
   }
 
-  // Jika response.ok bernilai true tetapi tipe konten adalah HTML (terjadi pada WebView routing fallback)
+  // Jika response.ok bernilai true tetapi tipe konten adalah HTML (terjadi pada fallback SPA routing)
   if (!isJson) {
     const text = await response.text();
     if (text.includes('<!doctype html') || text.includes('<html')) {
       throw new Error(
-        'Aplikasi tidak dapat menghubungi server backend AI. Pastikan perangkat Anda terhubung ke internet dan server aktif.'
+        'Server backend mengembalikan respons HTML. Pastikan server backend sedang aktif dan dapat menerima permintaan API.'
       );
     }
     try {

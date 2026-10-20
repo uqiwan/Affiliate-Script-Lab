@@ -21,6 +21,7 @@ import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
 import { AndroidOverlayModal } from './components/AndroidOverlayModal';
+import { FloatingBottomNav } from './components/FloatingBottomNav';
 import {
   auth,
   loginWithGoogle,
@@ -296,13 +297,18 @@ export default function App() {
     }
   });
 
-  // Active user: authenticated Google user or local session if API key is active
+  // Active user representation: either Firebase User, custom API key user, or guest user
   const activeUser = user || (apiKey ? ({
     uid: 'local-session',
     displayName: 'Pengguna Mandiri',
     email: 'Sesi API Key Lokal',
     photoURL: '',
-  } as unknown as User) : null);
+  } as unknown as User) : ({
+    uid: 'guest-session',
+    displayName: 'Pengguna Tamu',
+    email: 'Sesi Tamu (Lokal)',
+    photoURL: '',
+  } as unknown as User));
 
   // Check server API key status and redirect login on boot
   useEffect(() => {
@@ -467,6 +473,10 @@ export default function App() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [conflictsFound, setConflictsFound] = useState<string[]>([]);
   const [extractWarning, setExtractWarning] = useState<string | undefined>(undefined);
+
+  // Synchronization state for Floating Action Bar (Step 1 Analyze trigger)
+  const [isInputValid, setIsInputValid] = useState<boolean>(false);
+  const analyzeTriggerRef = React.useRef<(() => void) | null>(null);
 
   // History State
   const [history, setHistory] = useState<HistorySession[]>(() => {
@@ -709,12 +719,13 @@ export default function App() {
 
   // 3. Generate scripts: Unlocks Step 4 (Skrip) & Archives to History
   const handleGenerateScripts = async () => {
-    // Protection guard: user must be authenticated AND have an API key set
-    if (!activeUser || !apiKey) {
-      setAuthWarningModalOpen(true);
+    // Check if an AI key is available either from server backend or custom API key
+    const canGenerate = serverHasKey || Boolean(apiKey && apiKey.trim());
+    if (!canGenerate) {
+      setApiKeyModalOpen(true);
       showToast(
-        'Harap login dan atur API Key Google AI Studio Anda terlebih dahulu di menu profil (kanan atas).',
-        'error'
+        'Harap atur API Key Google AI Studio Anda terlebih dahulu untuk membuat skrip.',
+        'info'
       );
       return;
     }
@@ -823,6 +834,8 @@ export default function App() {
     setGlobalError(null);
     setConflictsFound([]);
     setExtractWarning(undefined);
+    setIsInputValid(false);
+    analyzeTriggerRef.current = null;
     setResetKey((prev) => prev + 1); // unmount & re-mount InputPanel to wipe its internal fields
     showToast('Aplikasi berhasil di-reset ke awal.', 'info');
   };
@@ -897,7 +910,7 @@ export default function App() {
       )}
 
       {/* Main Container - Optimized for Mobile & Desktop Single Viewport */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5">
+      <main className="flex-1 max-w-4xl w-full mx-auto p-3.5 sm:p-5 pb-36 sm:pb-40">
         {/* Global Error Banner */}
         {globalError && (
           <div className="mb-3.5 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start justify-between gap-3 text-rose-900 text-xs">
@@ -976,6 +989,10 @@ export default function App() {
                 onAnalyze={handleAnalyzeInput}
                 isAnalyzing={isAnalyzing}
                 disabled={isGenerating || isRefining}
+                onValidityChange={(valid, trigger) => {
+                  setIsInputValid(valid);
+                  analyzeTriggerRef.current = trigger;
+                }}
               />
             </div>
           )}
@@ -1164,6 +1181,43 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Floating Action Bar & iOS Bottom Navigation Dock */}
+      <FloatingBottomNav
+        currentStep={currentStep}
+        onStepChange={(step) => setCurrentStep(step)}
+        isBriefUnlocked={isBriefUnlocked}
+        isBriefApproved={isBriefApproved}
+        isConfigUnlocked={isConfigUnlocked}
+        isScriptsUnlocked={isScriptsUnlocked}
+        scriptsCount={scripts.length}
+        onAnalyze={() => {
+          if (analyzeTriggerRef.current) {
+            analyzeTriggerRef.current();
+          }
+        }}
+        isAnalyzing={isAnalyzing}
+        isInputValid={isInputValid}
+        onApproveBrief={handleApproveBrief}
+        isBriefValid={Boolean(productBrief.name)}
+        onBackToSource={() => setCurrentStep(1)}
+        onGenerate={handleGenerateScripts}
+        isGenerating={isGenerating}
+        scriptCount={config.scriptCount}
+        durationSeconds={config.durationSeconds}
+        isAuthLocked={!activeUser || !apiKey}
+        onRequireAuthOrKey={() => setAuthWarningModalOpen(true)}
+        onBackToBrief={() => setCurrentStep(2)}
+        onOpenTeleprompter={handleOpenAllTeleprompter}
+        onOpenFloatingPrompter={() =>
+          setFloatingPrompterState({
+            isOpen: true,
+            conceptIndex: -1,
+          })
+        }
+        onCopyAllScripts={handleCopyAllScripts}
+        onOpenSettings={() => setHistoryOpen(true)}
+      />
 
       {/* Safe Zone Modal */}
       <SafeZoneModal
