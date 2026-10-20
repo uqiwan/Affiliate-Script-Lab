@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Key, Eye, EyeOff, Check, Trash2, ExternalLink, X, ShieldAlert, Sparkles } from 'lucide-react';
-import { apiUrl, safeParseJsonResponse } from '../utils/api';
+import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
+import { testGeminiApiKey } from '../../server/gemini';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -51,18 +52,25 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     setStatusMessage({ text: 'Menguji koneksi ke Google AI Studio...', type: null });
 
     try {
-      const res = await fetch(apiUrl('/api/test-key'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: trimmed }),
-      });
+      if (isMobileApp()) {
+        const testRes = await testGeminiApiKey(trimmed);
+        if (!testRes.valid) {
+          throw new Error(testRes.error || 'API Key tidak valid atau tidak memiliki akses.');
+        }
+      } else {
+        const res = await fetch(apiUrl('/api/test-key'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: trimmed }),
+        });
 
-      const data = await safeParseJsonResponse<{ success: boolean; error?: string }>(
-        res,
-        'menguji koneksi API Key'
-      );
-      if (!data.success) {
-        throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
+        const data = await safeParseJsonResponse<{ success: boolean; error?: string }>(
+          res,
+          'menguji koneksi API Key'
+        );
+        if (!data.success) {
+          throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
+        }
       }
 
       // Save key to persistent storage

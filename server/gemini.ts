@@ -8,9 +8,10 @@ import type { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } fro
 import type { ScrapedPageResult } from './ssrf.ts';
 import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
 
-// Initialize GoogleGenAI SDK helper with user agent as per aistudio-build guidelines
 function getAiClient(customApiKey?: string): GoogleGenAI {
-  const key = customApiKey || process.env.GEMINI_API_KEY;
+  const key =
+    customApiKey ||
+    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : undefined);
   if (!key) {
     throw new Error(
       'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'

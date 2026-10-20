@@ -34,6 +34,11 @@ import {
   deleteSessionFromFirestore,
 } from './firebase';
 import { apiUrl, safeParseJsonResponse } from './utils/api';
+import {
+  executeExtractProduct,
+  executeGenerateScripts,
+  executeRefineScript,
+} from './services/aiClientService';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ProductBrief,
@@ -642,19 +647,11 @@ export default function App() {
     setConflictsFound([]);
 
     try {
-      const response = await fetch(apiUrl('/api/extract-product'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
-        },
-        body: JSON.stringify(data),
+      const resData = await executeExtractProduct({
+        ...data,
+        apiKey,
       });
 
-      const resData = await safeParseJsonResponse<ExtractProductResponse>(
-        response,
-        'mengekstrak informasi produk'
-      );
       const isSingle = data.inputMode !== 'mixed';
       const rawConflicts = resData.conflictsFound || [];
       const finalConflicts: string[] = isSingle
@@ -688,7 +685,12 @@ export default function App() {
 
       showToast(`Brief "${cleanBrief.name}" berhasil disiapkan!`, 'success');
     } catch (err: any) {
-      setGlobalError(getFriendlyErrorMessage(err, 'Gagal memproses informasi produk.'));
+      if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
+        setApiKeyModalOpen(true);
+        showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
+      } else {
+        setGlobalError(getFriendlyErrorMessage(err, 'Gagal memproses informasi produk.'));
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -726,22 +728,12 @@ export default function App() {
     setGlobalError(null);
 
     try {
-      const response = await fetch(apiUrl('/api/generate-scripts'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
-        },
-        body: JSON.stringify({
-          productBrief,
-          config,
-        }),
+      const resData = await executeGenerateScripts({
+        productBrief,
+        config,
+        apiKey,
       });
 
-      const resData = await safeParseJsonResponse<GenerateScriptsResponse>(
-        response,
-        'membuat skrip'
-      );
       const generatedScripts = resData.scripts || [];
       setScripts(generatedScripts);
       setVisualModes({});
@@ -763,7 +755,12 @@ export default function App() {
 
       showToast(`${generatedScripts.length} skrip berhasil dibuat & disimpan ke riwayat!`, 'success');
     } catch (err: any) {
-      setGlobalError(getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproduksi skrip.'));
+      if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
+        setApiKeyModalOpen(true);
+        showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
+      } else {
+        setGlobalError(getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproduksi skrip.'));
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -782,25 +779,15 @@ export default function App() {
   ) => {
     setIsRefining(true);
     try {
-      const response = await fetch(apiUrl('/api/refine-script'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
-        },
-        body: JSON.stringify({
-          script: targetScript,
-          productBrief,
-          config,
-          refinementType,
-          customInstruction,
-        }),
+      const resData = await executeRefineScript({
+        script: targetScript,
+        productBrief,
+        config,
+        refinementType,
+        customInstruction,
+        apiKey,
       });
 
-      const resData = await safeParseJsonResponse<RefineScriptResponse>(
-        response,
-        'memperbaiki skrip'
-      );
       const updatedList = scripts.map((s) => (s.id === targetScript.id ? resData.script : s));
       setScripts(updatedList);
 
