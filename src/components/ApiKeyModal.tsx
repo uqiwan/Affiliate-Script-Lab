@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Key, Eye, EyeOff, Check, Trash2, ExternalLink, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { Key, Eye, EyeOff, Check, Trash2, ExternalLink, X, ShieldAlert, Sparkles, Clipboard, ClipboardCheck } from 'lucide-react';
 import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
 import { testGeminiApiKey } from '../../server/gemini';
 
@@ -27,6 +27,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [justPasted, setJustPasted] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{
     text: string;
     type: 'success' | 'error' | null;
@@ -40,6 +41,41 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   }, [isOpen, currentApiKey]);
 
   if (!isOpen) return null;
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      let clipText = '';
+      // 1. Coba bridge native Android jika di dalam APK
+      if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.getClipboardText) {
+        clipText = (window as any).AndroidFloatingBridge.getClipboardText();
+      }
+      // 2. Fallback ke Web Clipboard API
+      if (!clipText && typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        clipText = await navigator.clipboard.readText();
+      }
+
+      if (clipText && clipText.trim()) {
+        const cleanKey = clipText.trim();
+        setApiKeyInput(cleanKey);
+        setJustPasted(true);
+        setTimeout(() => setJustPasted(false), 2000);
+        setStatusMessage({
+          text: '✓ Berhasil menempel API Key dari papan klip (clipboard)!',
+          type: 'success',
+        });
+      } else {
+        setStatusMessage({
+          text: 'Papan klip (clipboard) Anda saat ini kosong. Salin API Key dari Google AI Studio terlebih dahulu.',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({
+        text: 'Tidak dapat membaca clipboard otomatis. Anda dapat mengetuk kolom input dan menempel secara manual.',
+        type: 'error',
+      });
+    }
+  };
 
   const handleTestAndSave = async () => {
     const trimmed = apiKeyInput.trim();
@@ -146,23 +182,74 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               )}
             </label>
 
-            {/* Input with Show/Hide toggle */}
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                disabled={isTesting || isDeleting}
-                className="w-full pr-10 pl-3 py-2 text-xs font-mono rounded-xl border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-              />
+            {/* Input with dedicated Paste button & visibility toggle */}
+            <div className="space-y-2">
+              <div className="relative flex items-center">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Tempel kunci AIzaSy... di sini"
+                  disabled={isTesting || isDeleting}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    color: '#18181B',
+                    caretColor: '#059669',
+                    WebkitUserSelect: 'text',
+                    userSelect: 'text',
+                  }}
+                  className="w-full pr-16 pl-3 py-2.5 text-xs font-mono rounded-xl border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-xs"
+                />
+                
+                <div className="absolute right-2 flex items-center gap-1">
+                  {apiKeyInput && (
+                    <button
+                      type="button"
+                      onClick={() => setApiKeyInput('')}
+                      className="p-1 text-zinc-400 hover:text-zinc-700 rounded-md cursor-pointer transition-colors"
+                      title="Bersihkan teks"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="p-1 text-zinc-400 hover:text-zinc-700 rounded-md cursor-pointer transition-colors"
+                    title={showPassword ? 'Sembunyikan' : 'Tampilkan'}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 1-Tap Paste Button (Eliminates Android WebView black box popup) */}
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer p-1"
-                title={showPassword ? 'Sembunyikan' : 'Tampilkan'}
+                onClick={handlePasteFromClipboard}
+                disabled={isTesting || isDeleting}
+                className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.99] ${
+                  justPasted
+                    ? 'bg-emerald-500 text-white border-emerald-500'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                }`}
+                title="Tempel langsung teks API Key dari clipboard tanpa perlu menekan lama"
               >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {justPasted ? (
+                  <>
+                    <ClipboardCheck className="w-4 h-4 text-white" />
+                    <span>Tersalin dari Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <Clipboard className="w-4 h-4 text-emerald-700" />
+                    <span>Tempel dari Clipboard (1-Klik Tanpa Tekan Lama)</span>
+                  </>
+                )}
               </button>
             </div>
 

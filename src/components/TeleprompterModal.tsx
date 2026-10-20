@@ -31,6 +31,7 @@ import {
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
 import { openDocumentPip, isDocumentPipSupported } from '../utils/teleprompterPip';
+import { launchAndroidFloatingPrompter } from '../utils/androidPrompterSettings';
 
 interface TeleprompterModalProps {
   isOpen: boolean;
@@ -294,17 +295,25 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
   // Fitur Melayang (PiP OS / Buka Floating Widget) - DITARUH DI DEPAN
   const handleActivateFloating = async () => {
-    // 1. Jika di Android native APK: panggil bridge AndroidFloatingBridge
+    const fullText = activeConcepts
+      .map((c) => c.title + '\n\n' + c.lines.map((l) => l.rawText).join('\n'))
+      .join('\n\n---\n\n');
+
+    // 1. Jika di Android native APK: luncurkan Floating Service dengan setelan lengkap
     if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
-      const fullText = activeConcepts
-        .map((c) => c.title + '\n\n' + c.lines.map((l) => l.rawText).join('\n'))
-        .join('\n\n---\n\n');
-      (window as any).AndroidFloatingBridge.startFloatingService(
-        fullText,
+      const launched = launchAndroidFloatingPrompter(fullText, {
         speed,
-        Math.max(7, Math.round(fontSize * 0.9))
-      );
-      return;
+        fontSize,
+        opacity,
+        textColorHex: activePreset.textColor || '#FEF08A',
+        presetId: activePresetId,
+        rotation,
+        isMirrored,
+        showFocusGuide: showFocusZone,
+        focusGuidePercent: focusZonePosition,
+        countdownSec: countdownEnabled ? countdownDuration : 0,
+      });
+      if (launched) return;
     }
 
     // 2. Jika di Web Browser & top-level: coba Document Picture-in-Picture

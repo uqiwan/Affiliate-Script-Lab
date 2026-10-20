@@ -238,6 +238,22 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                     </button>
 
+                    {onOpenApkModal && (
+                      <button
+                        type="button"
+                        onClick={() => handleMenuAction(onOpenApkModal)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-[12px] text-xs font-medium text-[#1C1C1E] dark:text-white hover:bg-[#F2F2F7] dark:hover:bg-[#2C2C2E] active:scale-[0.98] transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Smartphone className="w-4 h-4 text-[#FF9500]" />
+                          <span>Setelan Prompter Melayang Android</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">
+                          Atur
+                        </span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => handleMenuAction(onReset)}
@@ -360,8 +376,8 @@ export const Header: React.FC<HeaderProps> = ({
                         <Smartphone className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <div className="font-semibold">Bungkus APK Android (.APK)</div>
-                        <div className="text-[11px] text-[#8E8E93]">Instal mandiri di ponsel Anda</div>
+                        <div className="font-semibold">Setelan Prompter Melayang & APK (.APK)</div>
+                        <div className="text-[11px] text-[#8E8E93]">Atur kecepatan, transparansi & panduan melayang</div>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">

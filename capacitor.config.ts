@@ -12,7 +12,7 @@ export interface CapacitorConfig {
 
 const config: CapacitorConfig = {
   appId: 'com.manuskrip.affiliatescript',
-  appName: 'Manuskrip Teleprompter',
+  appName: 'Gagaswara',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

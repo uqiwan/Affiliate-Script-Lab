@@ -40,6 +40,7 @@ import {
   executeGenerateScripts,
   executeRefineScript,
 } from './services/aiClientService';
+import { launchAndroidFloatingPrompter } from './utils/androidPrompterSettings';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ProductBrief,
@@ -1093,6 +1094,16 @@ export default function App() {
                     isRefining={isRefining}
                     onOpenPrompter={handleOpenSingleTeleprompter}
                     onOpenFloatingPrompter={(_script, index) => {
+                      const targetScript = scripts[index] || _script;
+                      const scriptText = targetScript
+                        ? `=== ${targetScript.title} ===\n\n` + (targetScript.voiceoverOnly || targetScript.segments.map((sg) => sg.spokenDialogue).join(' '))
+                        : '';
+
+                      if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge && scriptText) {
+                        launchAndroidFloatingPrompter(scriptText);
+                        return;
+                      }
+
                       setFloatingPrompterState({
                         isOpen: true,
                         conceptIndex: index,
@@ -1183,6 +1194,11 @@ export default function App() {
       <AndroidOverlayModal
         isOpen={androidOverlayModalOpen}
         onClose={() => setAndroidOverlayModalOpen(false)}
+        sampleScriptText={
+          scripts.length > 0
+            ? scripts.map((s) => `=== ${s.title} ===\n\n` + (s.voiceoverOnly || s.segments.map((sg) => sg.spokenDialogue).join(' '))).join('\n\n---\n\n')
+            : undefined
+        }
         onStartFloatingWidget={() => {
           setAndroidOverlayModalOpen(false);
           setFloatingPrompterState({

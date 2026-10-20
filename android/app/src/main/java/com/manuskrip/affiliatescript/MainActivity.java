@@ -67,7 +67,90 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public String getClipboardText() {
+            try {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                if (clipboard != null && clipboard.hasPrimaryClip()) {
+                    android.content.ClipData clip = clipboard.getPrimaryClip();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        CharSequence text = clip.getItemAt(0).coerceToText(MainActivity.this);
+                        if (text != null) {
+                            return text.toString().trim();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return "";
+        }
+
+        @JavascriptInterface
+        public void copyToClipboard(String text) {
+            try {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    android.content.ClipData clip = android.content.ClipData.newPlainText("Manuskrip Teleprompter", text);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(MainActivity.this, "Teks berhasil disalin ke papan klip!", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @JavascriptInterface
         public void startFloatingService(String scriptText, int speed, int fontSize) {
+            startFloatingServiceDetailed(scriptText, speed, fontSize, 85, "#FEF08A", false, true, 12, 3, 650, 720);
+        }
+
+        @JavascriptInterface
+        public void startFloatingServiceDetailed(
+            String scriptText,
+            int speed,
+            int fontSize,
+            int opacity,
+            String textColorHex,
+            boolean isMirrored,
+            boolean showFocusGuide,
+            int focusGuidePercent,
+            int countdownSec,
+            int windowWidth,
+            int windowHeight
+        ) {
+            startFloatingServiceFull(
+                scriptText,
+                speed,
+                fontSize,
+                opacity,
+                textColorHex,
+                "standard_read",
+                0,
+                isMirrored,
+                showFocusGuide,
+                focusGuidePercent,
+                countdownSec,
+                windowWidth,
+                windowHeight
+            );
+        }
+
+        @JavascriptInterface
+        public void startFloatingServiceFull(
+            String scriptText,
+            int speed,
+            int fontSize,
+            int opacity,
+            String textColorHex,
+            String presetId,
+            int rotation,
+            boolean isMirrored,
+            boolean showFocusGuide,
+            int focusGuidePercent,
+            int countdownSec,
+            int windowWidth,
+            int windowHeight
+        ) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(MainActivity.this)) {
                 requestOverlayPermission();
                 return;
@@ -77,11 +160,59 @@ public class MainActivity extends BridgeActivity {
             intent.putExtra("scriptText", scriptText);
             intent.putExtra("speed", speed);
             intent.putExtra("fontSize", fontSize);
+            intent.putExtra("opacity", opacity);
+            intent.putExtra("textColorHex", textColorHex);
+            intent.putExtra("presetId", presetId != null ? presetId : "standard_read");
+            intent.putExtra("rotation", rotation);
+            intent.putExtra("isMirrored", isMirrored);
+            intent.putExtra("showFocusGuide", showFocusGuide);
+            intent.putExtra("focusGuidePercent", focusGuidePercent);
+            intent.putExtra("countdownSec", countdownSec);
+            intent.putExtra("windowWidth", windowWidth);
+            intent.putExtra("windowHeight", windowHeight);
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent);
             } else {
                 startService(intent);
+            }
+        }
+
+        @JavascriptInterface
+        public void startFloatingServiceWithJson(String configJson) {
+            try {
+                org.json.JSONObject obj = new org.json.JSONObject(configJson);
+                String scriptText = obj.optString("scriptText", "Skrip Teleprompter");
+                int speed = obj.optInt("speed", 3);
+                int fontSize = obj.optInt("fontSize", 18);
+                int opacity = obj.optInt("opacity", 85);
+                String textColorHex = obj.optString("textColorHex", "#FEF08A");
+                String presetId = obj.optString("presetId", "standard_read");
+                int rotation = obj.optInt("rotation", 0);
+                boolean isMirrored = obj.optBoolean("isMirrored", false);
+                boolean showFocusGuide = obj.optBoolean("showFocusGuide", true);
+                int focusGuidePercent = obj.optInt("focusGuidePercent", 12);
+                int countdownSec = obj.optInt("countdownSec", 3);
+                int windowWidth = obj.optInt("windowWidth", 650);
+                int windowHeight = obj.optInt("windowHeight", 720);
+
+                startFloatingServiceFull(
+                    scriptText,
+                    speed,
+                    fontSize,
+                    opacity,
+                    textColorHex,
+                    presetId,
+                    rotation,
+                    isMirrored,
+                    showFocusGuide,
+                    focusGuidePercent,
+                    countdownSec,
+                    windowWidth,
+                    windowHeight
+                );
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 

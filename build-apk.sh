@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Membangun Manuskrip Teleprompter Android APK ==="
+echo "=== Membangun Gagaswara Teleprompter Android APK ==="
 
 # 1. Build frontend web production bundle
 echo "1. Membangun bundle web..."

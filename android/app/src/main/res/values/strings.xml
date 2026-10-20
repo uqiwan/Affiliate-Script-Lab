@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Manuskrip Teleprompter</string>
-    <string name="title_activity_main">Manuskrip Teleprompter</string>
+    <string name="app_name">Gagaswara</string>
+    <string name="title_activity_main">Gagaswara</string>
     <string name="package_name">com.manuskrip.affiliatescript</string>
     <string name="custom_url_scheme">com.manuskrip.affiliatescript</string>
 </resources>
