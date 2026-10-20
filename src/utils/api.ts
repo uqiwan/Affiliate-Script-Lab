@@ -5,7 +5,7 @@
 
 // URL backend cloud utama untuk koneksi dari APK Android / perangkat mobile
 export const DEFAULT_CLOUD_BACKEND =
-  'https://ais-dev-5r5bitfebesnik7w3djprs-164136808770.asia-southeast1.run.app';
+  'https://ais-dev-aifodh74ossxb4rjkp7oqs-772852091165.asia-southeast1.run.app';
 
 /**
  * Mendeteksi apakah aplikasi sedang berjalan di dalam Android APK / Capacitor WebView.
