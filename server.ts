@@ -83,11 +83,11 @@ app.get('/api/health', (req: Request, res: Response) => {
 // Test Gemini API Key
 app.post('/api/test-key', async (req: Request, res: Response) => {
   try {
-    const { apiKey } = req.body;
+    const { apiKey, model } = req.body;
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
       return res.status(400).json({ success: false, error: 'API Key wajib diisi.' });
     }
-    const result = await testGeminiApiKey(apiKey.trim());
+    const result = await testGeminiApiKey(apiKey.trim(), typeof model === 'string' ? model.trim() : undefined);
     if (result.valid) {
       return res.json({
         success: true,

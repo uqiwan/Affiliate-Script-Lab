@@ -47,6 +47,7 @@ interface TeleprompterModalProps {
   onClose: () => void;
   scripts: ScriptItem[];
   initialConceptIndex?: number;
+  openToken?: number;
   productBrief?: ProductBrief;
   onOpenFloatingPrompter?: (conceptIdx?: number) => void;
   theme?: TeleprompterTheme;
@@ -63,6 +64,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
   onClose,
   scripts,
   initialConceptIndex = -1,
+  openToken = 0,
   productBrief,
   onOpenFloatingPrompter,
   theme: propTheme,
@@ -97,12 +99,13 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [minimizedPos, setMinimizedPos] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== 'undefined') {
+      const safeX = Math.max(12, window.innerWidth - 240);
       return {
-        x: Math.max(10, window.innerWidth - 305),
-        y: Math.max(10, window.innerHeight - 70),
+        x: Math.min(safeX, 20),
+        y: 84, // Posisi aman di atas layar (di bawah header), tidak tertutup bottom navigation
       };
     }
-    return { x: 16, y: 80 };
+    return { x: 16, y: 84 };
   });
   const savedScrollTopRef = useRef<number>(0);
   const isMinimizedDraggingRef = useRef<boolean>(false);
@@ -121,10 +124,10 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
   const handleMinimizedPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     if (!isMinimizedDraggingRef.current) return;
-    const maxX = Math.max(5, window.innerWidth - 295);
-    const maxY = Math.max(5, window.innerHeight - 48);
+    const maxX = Math.max(5, window.innerWidth - 220);
+    const maxY = Math.max(60, window.innerHeight - 100);
     const newX = Math.min(Math.max(5, e.clientX - dragOffsetRef.current.x), maxX);
-    const newY = Math.min(Math.max(5, e.clientY - dragOffsetRef.current.y), maxY);
+    const newY = Math.min(Math.max(60, e.clientY - dragOffsetRef.current.y), maxY);
     setMinimizedPos({ x: newX, y: newY });
   };
 
@@ -136,8 +139,20 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
   };
 
   const handleMinimize = useCallback(() => {
+    // Saat diminimalkan, hentikan pemutaran otomatis skrip
+    setIsPlaying(false);
+    setIsCountingDown(false);
     if (scrollContainerRef.current) {
       savedScrollTopRef.current = scrollContainerRef.current.scrollTop;
+    }
+    // Pastikan posisi kapsul minimize selalu berada di area pandang layar
+    if (typeof window !== 'undefined') {
+      const maxX = Math.max(10, window.innerWidth - 230);
+      const maxY = Math.max(64, window.innerHeight - 120);
+      setMinimizedPos((prev) => ({
+        x: Math.min(Math.max(12, prev.x), maxX),
+        y: Math.min(Math.max(64, prev.y), maxY),
+      }));
     }
     setIsMinimized(true);
   }, []);
@@ -207,6 +222,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setIsMinimized(false);
       setSelectedConceptIndex(initialConceptIndex);
       setIsPlaying(false);
       setIsCountingDown(false);
@@ -216,7 +232,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
         scrollContainerRef.current.scrollTop = 0;
       }
     }
-  }, [isOpen, initialConceptIndex]);
+  }, [isOpen, initialConceptIndex, openToken]);
 
   // Ekstrak keyword nama produk untuk penekanan prompter
   const productKeywords = React.useMemo(() => {
@@ -522,24 +538,12 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
 
-          {/* 4. Tombol Putar / Jeda */}
+          {/* 4. Tombol Tutup */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              handleTogglePlay();
-            }}
-            className="p-1.5 rounded-[10px] bg-amber-500 hover:bg-amber-400 active:scale-95 text-black transition-all cursor-pointer shrink-0"
-            title={isPlaying ? 'Jeda' : 'Mulai'}
-          >
-            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-black" /> : <Play className="w-3.5 h-3.5 fill-black ml-0.5" />}
-          </button>
-
-          {/* 5. Tombol Tutup */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
+              setIsMinimized(false);
               onClose();
             }}
             className="p-1.5 rounded-[10px] bg-red-500/20 hover:bg-red-500 active:scale-95 text-red-300 hover:text-white transition-all cursor-pointer shrink-0"

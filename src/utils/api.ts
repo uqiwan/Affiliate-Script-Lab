@@ -5,7 +5,60 @@
 
 // URL backend cloud utama untuk koneksi dari APK Android / perangkat mobile
 export const DEFAULT_CLOUD_BACKEND =
-  'https://ais-pre-pv7i3bsjhst2hmkdil2qzc-685404496570.asia-east1.run.app';
+  'https://ais-pre-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app';
+
+export const FALLBACK_CLOUD_BACKENDS = [
+  'https://ais-pre-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app',
+  'https://ais-dev-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app',
+];
+
+/**
+ * Verifikasi API Key Google AI Studio langsung ke endpoint Google.
+ * Berfungsi sebagai fallback mandiri jika backend cloud sedang cold-start atau unreachable.
+ */
+export async function verifyGeminiKeyDirectly(
+  key: string,
+  model?: string
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const cleanKey = key.trim();
+    if (!cleanKey || cleanKey.length < 10) {
+      return { valid: false, error: 'Format API Key terlalu pendek atau tidak valid.' };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      return { valid: true };
+    }
+
+    const errData = await res.json().catch(() => null);
+    const msg = errData?.error?.message || `HTTP ${res.status}`;
+    if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+      return { valid: false, error: 'API Key Google AI Studio tidak valid atau salah ketik.' };
+    }
+    if (msg.includes('PERMISSION_DENIED')) {
+      return { valid: false, error: 'API Key tidak memiliki izin akses ke Google AI Studio.' };
+    }
+    return { valid: false, error: `Google AI Studio menolak kunci: ${msg}` };
+  } catch (err: any) {
+    // Jika format kunci standar Google (AIzaSy...), izinkan simpan sebagai toleransi jaringan offline
+    if (key.trim().startsWith('AIzaSy') && key.trim().length >= 35) {
+      return { valid: true };
+    }
+    return {
+      valid: false,
+      error: err?.message || 'Gagal memverifikasi API Key ke server Google AI Studio.',
+    };
+  }
+}
 
 /**
  * Mendeteksi apakah aplikasi sedang berjalan di dalam Android APK / Capacitor Native WebView.

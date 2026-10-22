@@ -483,35 +483,43 @@ export default function App() {
   const [teleprompterState, setTeleprompterState] = useState<{
     isOpen: boolean;
     initialConceptIndex: number;
+    openToken: number;
   }>({
     isOpen: false,
     initialConceptIndex: -1,
+    openToken: 0,
   });
 
   const handleOpenAllTeleprompter = () => {
-    setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+    setFloatingPrompterState((prev) => ({ ...prev, isOpen: false, conceptIndex: -1 }));
     stopAndroidFloatingPrompter();
-    setTeleprompterState({
+    setTeleprompterState((prev) => ({
       isOpen: true,
       initialConceptIndex: -1,
-    });
+      openToken: prev.openToken + 1,
+    }));
   };
 
   const handleOpenSingleTeleprompter = (_script: ScriptItem, index: number) => {
-    setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+    setFloatingPrompterState((prev) => ({ ...prev, isOpen: false, conceptIndex: -1 }));
     stopAndroidFloatingPrompter();
-    setTeleprompterState({
+    setTeleprompterState((prev) => ({
       isOpen: true,
       initialConceptIndex: index,
-    });
+      openToken: prev.openToken + 1,
+    }));
   };
 
   // Listener saat user klik tombol Full di Floating Teleprompter native Android
   useEffect(() => {
     (window as any).__openFullPrompterFromNative = () => {
-      setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+      setFloatingPrompterState((prev) => ({ ...prev, isOpen: false, conceptIndex: -1 }));
       stopAndroidFloatingPrompter();
-      setTeleprompterState({ isOpen: true, initialConceptIndex: -1 });
+      setTeleprompterState((prev) => ({
+        isOpen: true,
+        initialConceptIndex: -1,
+        openToken: prev.openToken + 1,
+      }));
     };
     return () => {
       delete (window as any).__openFullPrompterFromNative;
@@ -522,9 +530,11 @@ export default function App() {
   const [floatingPrompterState, setFloatingPrompterState] = useState<{
     isOpen: boolean;
     conceptIndex: number;
+    openToken: number;
   }>({
     isOpen: false,
     conceptIndex: -1,
+    openToken: 0,
   });
 
   const [androidOverlayModalOpen, setAndroidOverlayModalOpen] = useState<boolean>(false);
@@ -1208,7 +1218,7 @@ export default function App() {
                       const targetConcept = buildPrompterConcept(targetScript, index + 1, productKeywords);
 
                       // Tutup mode teleprompter modal jika sedang terbuka
-                      setTeleprompterState({ isOpen: false, initialConceptIndex: -1 });
+                      setTeleprompterState((prev) => ({ ...prev, isOpen: false, initialConceptIndex: -1 }));
 
                       if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
                         launchAndroidFloatingPrompter(
@@ -1223,10 +1233,11 @@ export default function App() {
                         return;
                       }
 
-                      setFloatingPrompterState({
+                      setFloatingPrompterState((prev) => ({
                         isOpen: true,
                         conceptIndex: index,
-                      });
+                        openToken: prev.openToken + 1,
+                      }));
                     }}
                   />
                 ))}
@@ -1268,7 +1279,7 @@ export default function App() {
           const allConcepts = scripts.map((s, idx) => buildPrompterConcept(s, idx + 1, productKeywords));
 
           // Tutup mode teleprompter modal jika sedang terbuka
-          setTeleprompterState({ isOpen: false, initialConceptIndex: -1 });
+          setTeleprompterState((prev) => ({ ...prev, isOpen: false, initialConceptIndex: -1 }));
 
           if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge && allConcepts.length > 0) {
             launchAndroidFloatingPrompter(
@@ -1283,10 +1294,11 @@ export default function App() {
             return;
           }
 
-          setFloatingPrompterState({
+          setFloatingPrompterState((prev) => ({
             isOpen: true,
             conceptIndex: -1,
-          });
+            openToken: prev.openToken + 1,
+          }));
         }}
         onCopyAllScripts={handleCopyAllScripts}
         onOpenSettings={() => setSettingsSheetOpen(true)}
@@ -1304,29 +1316,36 @@ export default function App() {
         onClose={() => setTeleprompterState((prev) => ({ ...prev, isOpen: false }))}
         scripts={scripts}
         initialConceptIndex={teleprompterState.initialConceptIndex}
+        openToken={teleprompterState.openToken}
         productBrief={productBrief}
         theme={prompterTheme}
         onSelectTheme={handleSelectPrompterTheme}
         onOpenFloatingPrompter={(idx) => {
-          setFloatingPrompterState({
+          setFloatingPrompterState((prev) => ({
             isOpen: true,
             conceptIndex: idx ?? -1,
-          });
+            openToken: prev.openToken + 1,
+          }));
         }}
       />
 
       {/* Floating Teleprompter (Draggable, Resizable, Always-on-top Widget) */}
       <FloatingTeleprompter
         isOpen={floatingPrompterState.isOpen}
-        onClose={() => setFloatingPrompterState({ isOpen: false, conceptIndex: -1 })}
+        onClose={() => setFloatingPrompterState((prev) => ({ ...prev, isOpen: false, conceptIndex: -1 }))}
         onExpandToFull={() => {
           const idx = floatingPrompterState.conceptIndex;
-          setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+          setFloatingPrompterState((prev) => ({ ...prev, isOpen: false, conceptIndex: -1 }));
           stopAndroidFloatingPrompter();
-          setTeleprompterState({ isOpen: true, initialConceptIndex: idx });
+          setTeleprompterState((prev) => ({
+            isOpen: true,
+            initialConceptIndex: idx,
+            openToken: prev.openToken + 1,
+          }));
         }}
         scripts={scripts}
         conceptIndex={floatingPrompterState.conceptIndex}
+        openToken={floatingPrompterState.openToken}
         productBrief={productBrief}
         theme={prompterTheme}
         onSelectTheme={handleSelectPrompterTheme}
@@ -1344,10 +1363,11 @@ export default function App() {
         }
         onStartFloatingWidget={() => {
           setAndroidOverlayModalOpen(false);
-          setFloatingPrompterState({
+          setFloatingPrompterState((prev) => ({
             isOpen: true,
             conceptIndex: teleprompterState.initialConceptIndex ?? -1,
-          });
+            openToken: prev.openToken + 1,
+          }));
         }}
       />
 

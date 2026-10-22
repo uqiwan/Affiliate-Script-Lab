@@ -49,6 +49,7 @@ interface FloatingTeleprompterProps {
   onExpandToFull: () => void;
   scripts: ScriptItem[];
   conceptIndex?: number;
+  openToken?: number;
   productBrief?: ProductBrief;
   onOpenPermissionGuide?: () => void;
   theme?: TeleprompterTheme;
@@ -66,6 +67,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   onExpandToFull,
   scripts,
   conceptIndex = -1,
+  openToken = 0,
   productBrief,
   onOpenPermissionGuide,
   theme: propTheme,
@@ -89,6 +91,8 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const savedScrollTopRef = useRef<number>(0);
 
   const handleMinimize = useCallback(() => {
+    setIsPlaying(false);
+    setIsCountingDown(false);
     if (scrollContainerRef.current) {
       savedScrollTopRef.current = scrollContainerRef.current.scrollTop;
     }
@@ -98,6 +102,15 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const handleRestoreFromMinimize = useCallback(() => {
     setIsMinimized(false);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+      setIsPlaying(false);
+      setIsCountingDown(false);
+      setIsSettingsOpen(false);
+    }
+  }, [isOpen, conceptIndex, openToken]);
 
   useEffect(() => {
     if (!isMinimized && isOpen && savedScrollTopRef.current > 0) {
@@ -551,28 +564,12 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
 
-          {/* 4. Tombol Putar / Jeda */}
+          {/* 4. Tombol Tutup */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              if (isPlaying) {
-                setIsPlaying(false);
-              } else {
-                triggerPlay();
-              }
-            }}
-            className="p-1.5 rounded-[10px] bg-amber-500 hover:bg-amber-400 active:scale-95 text-black transition-all cursor-pointer shrink-0"
-            title={isPlaying ? 'Jeda' : 'Mulai'}
-          >
-            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-black" /> : <Play className="w-3.5 h-3.5 fill-black ml-0.5" />}
-          </button>
-
-          {/* 5. Tombol Tutup */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
+              setIsMinimized(false);
               onClose();
             }}
             className="p-1.5 rounded-[10px] bg-red-500/20 hover:bg-red-500 active:scale-95 text-red-300 hover:text-white transition-all cursor-pointer shrink-0"

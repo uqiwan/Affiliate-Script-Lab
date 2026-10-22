@@ -18,7 +18,7 @@ import {
   Cpu,
   ChevronDown,
 } from 'lucide-react';
-import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
+import { apiUrl, safeParseJsonResponse, isMobileApp, verifyGeminiKeyDirectly } from '../utils/api';
 import {
   parseApiKeys,
   SUPPORTED_GOOGLE_MODELS,
@@ -133,18 +133,39 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     });
 
     try {
-      const res = await fetch(apiUrl('/api/test-key'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: trimmed, model: modelChoice }),
-      });
+      let isVerified = false;
 
-      const data = await safeParseJsonResponse<{ success: boolean; count?: number; error?: string }>(
-        res,
-        'menguji koneksi API Key'
-      );
-      if (!data.success) {
-        throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
+      // 1. Coba verifikasi via endpoint proxy server backend
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(apiUrl('/api/test-key'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: trimmed, model: modelChoice }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const data = await safeParseJsonResponse<{ success: boolean; count?: number; error?: string }>(
+          res,
+          'menguji koneksi API Key'
+        );
+        if (data.success) {
+          isVerified = true;
+        } else {
+          throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
+        }
+      } catch (backendErr: any) {
+        console.warn('Backend /api/test-key notice, attempting direct verification:', backendErr);
+        // 2. Fallback mandiri langsung ke Google AI Studio jika server backend 404/cold-start/timeout
+        const directTest = await verifyGeminiKeyDirectly(detectedKeys[0], modelChoice);
+        if (directTest.valid) {
+          isVerified = true;
+        } else {
+          throw new Error(directTest.error || backendErr.message || 'Gagal memverifikasi API Key.');
+        }
       }
 
       if (onSelectModel) {

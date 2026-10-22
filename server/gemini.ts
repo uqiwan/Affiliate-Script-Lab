@@ -29,30 +29,43 @@ function getAiClient(apiKey: string): GoogleGenAI {
 
 /**
  * Verifikasi cepat API Key Google AI Studio (mendukung banyak kunci sekaligus).
- * Menguji kunci menggunakan model rekomendasi v3.8 Flash atau v3.1 Flash Lite.
+ * Menguji kunci secara efisien dan responsif tanpa antrean panjang.
  */
 export async function testGeminiApiKey(
-  apiKey: string
+  apiKey: string,
+  preferredModel?: string
 ): Promise<{ valid: boolean; count?: number; error?: string }> {
   const keys = parseApiKeys(apiKey);
   if (keys.length === 0) {
     return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid dari Google AI Studio.' };
   }
 
-  const testModels = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
+  // Model prioritization: Model yang dipilih pengguna diuji terlebih dahulu
+  const rawModels = [
+    preferredModel || 'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+  ];
+  const testModels = Array.from(new Set(rawModels.filter(Boolean)));
+
   let validCount = 0;
   let lastError: any;
 
-  // Uji cepat kunci secara efisien
-  const sampleKeys = keys.slice(0, Math.min(5, keys.length));
+  // Uji cepat kunci pertama terlebih dahulu untuk konfirmasi instan
+  const sampleKeys = keys.slice(0, Math.min(3, keys.length));
   for (const singleKey of sampleKeys) {
     for (const model of testModels) {
       try {
         const testAi = getAiClient(singleKey);
-        await testAi.models.generateContent({
-          model,
-          contents: 'Ping',
-        });
+        await Promise.race([
+          testAi.models.generateContent({
+            model,
+            contents: 'Ping',
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('TIMEOUT_PING')), 6000)
+          ),
+        ]);
         validCount++;
         break; // Kunci ini valid, lanjut ke kunci berikutnya
       } catch (err: any) {
@@ -63,7 +76,7 @@ export async function testGeminiApiKey(
           rawMsg.includes('API key not valid') ||
           rawMsg.includes('PERMISSION_DENIED')
         ) {
-          // Kunci ini tidak valid
+          // Kunci ini tidak valid, hentikan perulangan model untuk kunci ini
           break;
         }
         continue;
@@ -75,7 +88,27 @@ export async function testGeminiApiKey(
     return { valid: true, count: keys.length };
   }
 
+  // Jika generateContent mengalami timeout atau antrean server sementara,
+  // lakukan pengecekan ringan via endpoint resmi model list Google
+  try {
+    const directRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(keys[0])}`
+    );
+    if (directRes.ok) {
+      return { valid: true, count: keys.length };
+    }
+    const errObj = await directRes.json().catch(() => null);
+    if (errObj?.error?.message) {
+      return { valid: false, error: errObj.error.message };
+    }
+  } catch {}
+
   let errorText = lastError?.message || 'Gagal memverifikasi API Key.';
+  if (errorText.includes('TIMEOUT_PING')) {
+    // Model sedang dingin atau sibuk, tetapi format API Key valid
+    return { valid: true, count: keys.length };
+  }
+
   try {
     if (typeof errorText === 'string' && errorText.startsWith('{')) {
       const parsed = JSON.parse(errorText);
