@@ -35,6 +35,13 @@ import {
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
 import { openDocumentPip, isDocumentPipSupported } from '../utils/teleprompterPip';
 import { launchAndroidFloatingPrompter } from '../utils/androidPrompterSettings';
+import {
+  TeleprompterTheme,
+  TeleprompterThemeId,
+  TELEPROMPTER_THEMES,
+  getStoredPrompterTheme,
+  saveStoredPrompterTheme,
+} from '../utils/teleprompterThemes';
 
 interface FloatingTeleprompterProps {
   isOpen: boolean;
@@ -44,6 +51,8 @@ interface FloatingTeleprompterProps {
   conceptIndex?: number;
   productBrief?: ProductBrief;
   onOpenPermissionGuide?: () => void;
+  theme?: TeleprompterTheme;
+  onSelectTheme?: (themeId: TeleprompterThemeId) => void;
 }
 
 export type SettingsTabId = 'teks' | 'countdown' | 'layar';
@@ -59,7 +68,20 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   conceptIndex = -1,
   productBrief,
   onOpenPermissionGuide,
+  theme: propTheme,
+  onSelectTheme,
 }) => {
+  // Tema teleprompter aktif
+  const [internalTheme, setInternalTheme] = useState<TeleprompterTheme>(() => getStoredPrompterTheme());
+  const activeTheme = propTheme || internalTheme;
+
+  useEffect(() => {
+    if (propTheme) {
+      setInternalTheme(propTheme);
+    } else {
+      setInternalTheme(getStoredPrompterTheme());
+    }
+  }, [propTheme, isOpen]);
   // Posisi dan ukuran widget melayang
   const [position, setPosition] = useState<{ x: number; y: number }>({ x: 16, y: 32 });
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 340, height: 440 });
@@ -82,6 +104,24 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const [isMirrored, setIsMirrored] = useState<boolean>(false);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0); // Rotasi manual 0, 90, 180, 270 derajat
   const [selectedConceptIdx, setSelectedConceptIdx] = useState<number>(conceptIndex);
+
+  // Skala otomatis rotasi agar teleprompter mengecil otomatis dan tidak melebihi area layar hp
+  const rotScale = React.useMemo(() => {
+    if (rotation === 90 || rotation === 270) {
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 640;
+      const maxAllowedW = Math.max(200, vw - 16);
+      const maxAllowedH = Math.max(160, vh - 16);
+      const scaleW = size.height > maxAllowedW ? maxAllowedW / size.height : 1;
+      const scaleH = size.width > maxAllowedH ? maxAllowedH / size.width : 1;
+      return Math.min(scaleW, scaleH, 1);
+    }
+    return 1;
+  }, [rotation, size]);
+
+  // Ukuran tombol & ikon dinamis agar menu-menu mengecil saat teleprompter dikecilkan
+  const dynamicBtnSize = Math.max(20, Math.min(32, Math.floor((size.width - 24) / 10.2)));
+  const dynamicIconSize = Math.max(10, Math.min(16, Math.floor(dynamicBtnSize * 0.46)));
 
   // Preset Subtitle (#1 Standard Read sebagai DEFAULT)
   const [activePresetId, setActivePresetId] = useState<SubtitlePresetId>('standard_read');
@@ -494,9 +534,15 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         top: `${position.y}px`,
         width: `${size.width}px`,
         height: `${size.height}px`,
-        backgroundColor: `rgba(0, 0, 0, ${opacity / 100})`, // Opasitas murni untuk seluruh tampilan widget (tanpa blur buram)
+        backgroundColor:
+          activeTheme.id === 'light_clean'
+            ? `rgba(255, 255, 255, ${opacity / 100})`
+            : activeTheme.id === 'soft_comfort'
+            ? `rgba(24, 24, 27, ${opacity / 100})`
+            : `rgba(0, 0, 0, ${opacity / 100})`,
+        color: activeTheme.textColor,
         touchAction: 'none',
-        transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+        transform: rotation !== 0 ? `rotate(${rotation}deg) scale(${rotScale})` : undefined,
         transformOrigin: 'center center',
       }}
       className="fixed z-[9999] flex flex-col rounded-2xl border border-zinc-700/80 shadow-2xl select-none overflow-hidden transition-all duration-200"
@@ -529,8 +575,17 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             style={{ top: `${focusGuidePosition}%` }}
             className="pointer-events-none absolute left-0 right-0 z-20 -translate-y-1/2 flex items-center justify-between px-2"
           >
-            <div className="flex-1 h-0.5 bg-gradient-to-r from-amber-500/80 via-amber-300 to-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-            <span className="text-[10px] text-amber-300 font-mono font-bold pl-1.5 drop-shadow-md">
+            <div
+              style={{
+                background: `linear-gradient(90deg, ${activeTheme.highlightColor}aa, ${activeTheme.highlightColor}, ${activeTheme.highlightColor}aa)`,
+                boxShadow: `0 0 8px ${activeTheme.highlightColor}88`,
+              }}
+              className="flex-1 h-0.5"
+            />
+            <span
+              style={{ color: activeTheme.highlightColor }}
+              className="text-[10px] font-mono font-bold pl-1.5 drop-shadow-md"
+            >
               {focusGuidePosition}%
             </span>
           </div>
@@ -539,11 +594,17 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         {/* Feedback visual animasi Tap Mulai / Jeda */}
         {tapFeedback && (
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center animate-out fade-out zoom-out duration-400">
-            <div className="p-4 rounded-full bg-black/80 border border-amber-400 text-amber-400 shadow-2xl backdrop-blur-md">
+            <div
+              style={{
+                borderColor: activeTheme.highlightColor,
+                color: activeTheme.highlightColor,
+              }}
+              className="p-4 rounded-full bg-black/80 border shadow-2xl backdrop-blur-md"
+            >
               {tapFeedback === 'play' ? (
-                <Play className="w-7 h-7 fill-amber-400" />
+                <Play className="w-7 h-7 fill-current" />
               ) : (
-                <Pause className="w-7 h-7 fill-amber-400" />
+                <Pause className="w-7 h-7 fill-current" />
               )}
             </div>
           </div>
@@ -559,7 +620,10 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             }}
             className="absolute inset-0 z-40 bg-black/85 flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-150"
           >
-            <div className="text-7xl font-black text-amber-400 animate-bounce drop-shadow-[0_0_25px_rgba(251,191,36,0.6)]">
+            <div
+              style={{ color: activeTheme.highlightColor }}
+              className="text-7xl font-black animate-bounce drop-shadow-[0_0_25px_rgba(251,191,36,0.6)]"
+            >
               {countdownValue}
             </div>
             <p className="mt-2 text-[11px] text-zinc-300">
@@ -582,15 +646,35 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
           >
             {activeConcepts.map((concept, cIdx) => (
               <div key={concept.id || cIdx} className="space-y-4 mb-8">
-                {/* Header Pemisah Konsep Kontras Tinggi (Kotak Putih, Teks Hitam Besar Tanpa Duplikasi) */}
-                <div className="w-full my-2.5 p-2.5 rounded-xl bg-white text-zinc-950 border-2 border-zinc-300 shadow-md flex items-center justify-between gap-2 select-none">
+                {/* Header Pemisah Konsep Sesuai Tema */}
+                <div
+                  style={{
+                    backgroundColor: activeTheme.cardBg,
+                    borderColor: activeTheme.cardBorder,
+                    color: activeTheme.cardTextColor,
+                  }}
+                  className="w-full my-2.5 p-2.5 rounded-xl border-2 shadow-md flex items-center justify-between gap-2 select-none"
+                >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200 shrink-0" />
-                    <h2 className="text-xs sm:text-sm font-black tracking-tight text-zinc-950 uppercase truncate">
+                    <span
+                      style={{ backgroundColor: activeTheme.highlightColor }}
+                      className="w-2.5 h-2.5 rounded-full ring-2 ring-black/10 shrink-0"
+                    />
+                    <h2
+                      style={{ color: activeTheme.cardTextColor }}
+                      className="text-xs sm:text-sm font-black tracking-tight uppercase truncate"
+                    >
                       {formatConceptDisplayTitle(concept.conceptNumber, concept.title, concept.angle)}
                     </h2>
                   </div>
-                  <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-300 shrink-0">
+                  <span
+                    style={{
+                      color: activeTheme.secondaryTextColor,
+                      backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
+                      borderColor: activeTheme.cardBorder,
+                    }}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0"
+                  >
                     ±{concept.estimatedDuration}s
                   </span>
                 </div>
@@ -603,8 +687,8 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                       style={{
                         fontSize: `${fontSize}px`,
                         lineHeight: '1.45',
-                        color: activePreset.textColor,
-                        textShadow: activePreset.textShadow,
+                        color: activeTheme.textColor,
+                        textShadow: activeTheme.id === 'light_clean' ? 'none' : activePreset.textShadow,
                         fontWeight: activePreset.fontWeight,
                         backgroundColor: activePreset.pillBg || 'transparent',
                       }}
@@ -618,7 +702,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                             <span
                               key={tIdx}
                               style={{
-                                color: activePreset.highlightColor,
+                                color: activeTheme.highlightColor,
                               }}
                               className="font-black uppercase tracking-wider"
                             >
@@ -630,7 +714,8 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                           return (
                             <span
                               key={tIdx}
-                              className="text-amber-400 font-bold mx-1 opacity-80 select-none"
+                              style={{ color: activeTheme.highlightColor }}
+                              className="font-bold mx-1 opacity-80 select-none"
                               title="Jeda Intonasi"
                             >
                               /{' '}
@@ -639,11 +724,14 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                         }
                         if (token.type === 'pause-long') {
                           return (
-                            <div
+                            <span
                               key={tIdx}
-                              className="h-4 sm:h-5 w-full select-none"
-                              aria-hidden="true"
-                            />
+                              style={{ color: activeTheme.highlightColor }}
+                              className="font-black mx-1.5 opacity-90 select-none"
+                              title="Jeda Intonasi Panjang"
+                            >
+                              //{' '}
+                            </span>
                           );
                         }
                         return <span key={tIdx}>{token.text} </span>;
@@ -729,6 +817,51 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
           {/* TAB 1: TEKS & SUBTITLE */}
           {settingsTab === 'teks' && (
             <div className="space-y-3">
+              {/* 3 PRESET TEMA UTAMA TELEPROMPTER */}
+              <div className="space-y-1 bg-zinc-900/60 p-2 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-300 font-semibold">Tema Teleprompter:</span>
+                  <span className="font-bold text-amber-400">{activeTheme.name}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 mt-1">
+                  {(Object.values(TELEPROMPTER_THEMES)).map((t) => {
+                    const isSelected = activeTheme.id === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          const updated = saveStoredPrompterTheme(t.id);
+                          setInternalTheme(updated);
+                          if (onSelectTheme) onSelectTheme(t.id);
+                        }}
+                        className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          isSelected
+                            ? 'bg-zinc-800 border-amber-500 shadow-md ring-1 ring-amber-500/50'
+                            : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div
+                          style={{ backgroundColor: t.previewSwatch.bg }}
+                          className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center relative shadow-xs"
+                        >
+                          <span style={{ color: t.previewSwatch.text }} className="text-[9px] font-black">
+                            T
+                          </span>
+                          <span
+                            style={{ backgroundColor: t.previewSwatch.highlight }}
+                            className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-black"
+                          />
+                        </div>
+                        <span className={`text-[10px] font-bold truncate max-w-full ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                          {t.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Ukuran Font (Mulai dari 7px!) */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
@@ -912,14 +1045,19 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         onPointerDown={handlePointerDownDrag}
         onPointerMove={handlePointerMoveDrag}
         onPointerUp={handlePointerUpDrag}
-        className={`no-tap-toggle w-full px-2 py-1.5 bg-zinc-950/80 border-t border-zinc-800/80 text-white shrink-0 transition-all duration-300 cursor-grab active:cursor-grabbing ${
+        style={{
+          backgroundColor: activeTheme.dockBg,
+          borderTopColor: activeTheme.dockBorder,
+          color: activeTheme.textColor,
+        }}
+        className={`no-tap-toggle w-full px-2 py-1.5 border-t shrink-0 transition-all duration-200 cursor-grab active:cursor-grabbing ${
           isPlaying
-            ? 'opacity-0 translate-y-12 pointer-events-none'
-            : 'opacity-100 translate-y-0 pointer-events-auto'
+            ? 'opacity-35 hover:opacity-100'
+            : 'opacity-100'
         }`}
       >
-        <div className="flex items-center justify-between gap-1.5">
-          {/* SISI KIRI: TOMBOL GESER (PALING KIRI) & TOMBOL ROTASI (SEBELAH KANANNYA) */}
+        <div className="flex items-center justify-between gap-1 w-full overflow-hidden">
+          {/* SISI KIRI: TOMBOL GESER (PALING KIRI), ROTASI, RESET */}
           <div className="flex items-center gap-1 shrink-0">
             {/* 1. Tombol Pengatur Posisi (Geser) - PALING KIRI */}
             <button
@@ -928,22 +1066,24 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
               onPointerMove={handlePointerMoveDrag}
               onPointerUp={handlePointerUpDrag}
               onClick={handleCyclePosition}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-grab active:cursor-grabbing shrink-0 shadow-xs"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-grab active:cursor-grabbing shrink-0 shadow-2xs"
               title="Pengatur Posisi (Geser Teleprompter: Tekan & Geser, atau Ketuk untuk Pindah Posisi)"
             >
-              <Move className="w-3.5 h-3.5 text-amber-400" />
+              <Move style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="text-amber-400" />
             </button>
 
-            {/* 2. Tombol Rotasi Orientasi Teleprompter - SEBELAH KANAN TOMBOL GESER */}
+            {/* 2. Tombol Rotasi Orientasi Teleprompter */}
             <button
               type="button"
               onClick={() => setRotation((prev) => ((prev + 90) % 360) as 0 | 90 | 180 | 270)}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0 relative shadow-xs"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0 relative shadow-2xs"
               title={`Ubah Orientasi Rotasi Teleprompter (${rotation}°)`}
             >
-              <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+              <RotateCw style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="text-amber-400" />
               {rotation !== 0 && (
-                <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1 rounded-full leading-tight">
+                <span className="absolute -top-1 -right-1 text-[7px] font-bold bg-amber-500 text-black px-1 rounded-full leading-tight">
                   {rotation}°
                 </span>
               )}
@@ -953,37 +1093,47 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             <button
               type="button"
               onClick={handleReset}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0 shadow-2xs"
               title="Kembalikan Teks ke Paling Atas (Reset)"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} />
             </button>
           </div>
 
           {/* TENGAH: SPEED (+ -), MULAI / JEDA & FULL */}
-          <div className="flex items-center gap-1 sm:gap-1.5">
+          <div className="flex items-center gap-1 shrink-1 min-w-0 justify-center">
             {/* Stepper Speed (+ -) */}
-            <div className="flex items-center bg-zinc-900 rounded-xl border border-zinc-700 p-0.5 shadow-xs shrink-0">
+            <div
+              style={{ height: `${dynamicBtnSize}px` }}
+              className="flex items-center bg-zinc-900 rounded-xl border border-zinc-700 p-0.5 shadow-2xs shrink-0"
+            >
               <button
                 type="button"
                 onClick={() => setSpeed((prev) => Math.max(1, prev - 1))}
                 disabled={speed <= 1}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                style={{ width: `${Math.round(dynamicBtnSize * 0.72)}px` }}
+                className="h-full flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
                 title="Perlambat Kecepatan"
               >
-                <Minus className="w-3 h-3" />
+                <Minus style={{ width: `${Math.max(9, Math.round(dynamicIconSize * 0.85))}px`, height: `${Math.max(9, Math.round(dynamicIconSize * 0.85))}px` }} />
               </button>
-              <span className="font-mono font-bold text-xs px-1 text-amber-400 min-w-[24px] text-center" title="Kecepatan Gulir">
+              <span
+                style={{ fontSize: `${Math.max(9, Math.round(dynamicBtnSize * 0.38))}px` }}
+                className="font-mono font-bold px-1 text-amber-400 min-w-[18px] text-center"
+                title="Kecepatan Gulir"
+              >
                 {speed}x
               </span>
               <button
                 type="button"
                 onClick={() => setSpeed((prev) => Math.min(10, prev + 1))}
                 disabled={speed >= 10}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                style={{ width: `${Math.round(dynamicBtnSize * 0.72)}px` }}
+                className="h-full flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
                 title="Percepat Kecepatan"
               >
-                <Plus className="w-3 h-3" />
+                <Plus style={{ width: `${Math.max(9, Math.round(dynamicIconSize * 0.85))}px`, height: `${Math.max(9, Math.round(dynamicIconSize * 0.85))}px` }} />
               </button>
             </div>
 
@@ -997,13 +1147,14 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                   triggerPlay();
                 }
               }}
-              className="p-1.5 sm:p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95 shrink-0"
+              style={{ width: `${Math.round(dynamicBtnSize * 1.15)}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold shadow-md shadow-amber-500/25 transition-all cursor-pointer active:scale-95 shrink-0"
               title={isPlaying ? 'Jeda Teks' : 'Mulai Jalankan Teks'}
             >
               {isPlaying ? (
-                <Pause className="w-3.5 h-3.5 fill-black" />
+                <Pause style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="fill-black" />
               ) : (
-                <Play className="w-3.5 h-3.5 fill-black ml-0.5" />
+                <Play style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="fill-black ml-0.5" />
               )}
             </button>
 
@@ -1011,10 +1162,11 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             <button
               type="button"
               onClick={onExpandToFull}
-              className="p-1.5 sm:p-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold transition-all cursor-pointer shadow-xs shrink-0"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold transition-all cursor-pointer shadow-2xs shrink-0"
               title="Kembali ke Mode Teleprompter Layar Penuh (Full)"
             >
-              <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+              <Maximize2 style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="text-amber-400" />
             </button>
           </div>
 
@@ -1024,34 +1176,37 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             <button
               type="button"
               onClick={() => setIsSettingsOpen((prev) => !prev)}
-              className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className={`flex items-center justify-center rounded-xl border transition-all cursor-pointer shadow-2xs ${
                 isSettingsOpen
-                  ? 'bg-amber-500 text-black border-amber-500 shadow-xs'
+                  ? 'bg-amber-500 text-black border-amber-500'
                   : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700'
               }`}
               title="Menu Pengaturan (Teks, Hitung Mundur, Layar)"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <SlidersHorizontal style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} />
             </button>
 
             {/* Tombol Minimize (-) sejajar dengan tombol tutup */}
             <button
               type="button"
               onClick={() => setIsMinimized(true)}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shadow-2xs"
               title="Minimize Teleprompter (-)"
             >
-              <Minus className="w-3.5 h-3.5" />
+              <Minus style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} />
             </button>
 
-            {/* Tombol Tutup */}
+            {/* Tombol Tutup - Kontras tinggi, warna merah tegas, selalu terlihat jelas */}
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-red-500/20 border border-zinc-700 text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
+              style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
+              className="flex items-center justify-center rounded-xl bg-red-500/25 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/60 shadow-2xs transition-all cursor-pointer shrink-0"
               title="Tutup Teleprompter"
             >
-              <X className="w-3.5 h-3.5" />
+              <X style={{ width: `${dynamicIconSize}px`, height: `${dynamicIconSize}px` }} className="stroke-[2.5]" />
             </button>
           </div>
         </div>

@@ -185,19 +185,17 @@ export function sanitizeCrossPlatformText(text: string): string {
 export const CANDIDATE_MODELS = [
   'gemini-3.8-flash',
   'gemini-3.1-flash-lite',
-  'gemini-4-argon',
-  'gemini-2.5-flash',
 ];
 
 /**
- * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model.
+ * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model super cepat.
  * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED), sistem secara otomatis
  * dan mulus beralih ke kunci berikutnya tanpa membatalkan proses pengguna.
  */
 export async function callGeminiWithRetry(
   options: any,
   customApiKey?: string | string[],
-  timeoutPerCallMs = 55000
+  timeoutPerCallMs = 26000
 ): Promise<any> {
   let rawKeys: string[] = [];
 
@@ -219,12 +217,10 @@ export async function callGeminiWithRetry(
   }
 
   const requestedModel = options.model || GEMINI_MODEL;
+  // Batasi hanya ke 2 model tercepat: model utama dan model failover ultra-cepat Flash Lite
   const candidateModels = [
     requestedModel,
-    'gemini-3.8-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-4-argon',
-    'gemini-2.5-flash',
+    requestedModel === 'gemini-3.1-flash-lite' ? 'gemini-3.8-flash' : 'gemini-3.1-flash-lite',
   ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let lastError: any;
@@ -877,7 +873,7 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         },
       },
       customApiKey,
-      50000
+      26000
     );
 
     const rawText = response.text || '[]';
@@ -1085,10 +1081,10 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
     currentStart += bCount;
   }
 
-  // Execute batches with concurrency of 2 to optimize speed and stay well within API limits
+  // Execute batches concurrently in parallel (up to 4 batches simultaneously) to maximize throughput
   const batchResults = await runWithConcurrency(
     batchTasks,
-    2,
+    Math.min(4, batchTasks.length),
     async (task) => {
       return await generateBatchOfScripts({
         productBrief,

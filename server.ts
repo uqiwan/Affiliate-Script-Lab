@@ -207,7 +207,7 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
         images: validatedImages,
         customApiKey,
       }),
-      75000,
+      35000,
       'Ekstraksi brief produk melebihi batas waktu (timeout). Silakan periksa koneksi internet atau coba kembali.'
     );
 

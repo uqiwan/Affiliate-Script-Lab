@@ -25,6 +25,8 @@ interface ProcessingModalProps {
   activeInputMode?: InputMode;
   config?: GenerationConfig;
   productName?: string;
+  realProgressPercent?: number;
+  realStepIndex?: number;
 }
 
 // 6 Tips praktis untuk affiliator & kreator video TikTok/Reels/Shorts
@@ -73,6 +75,8 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
   activeInputMode = 'images',
   config,
   productName,
+  realProgressPercent,
+  realStepIndex,
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [activeTipIndex, setActiveTipIndex] = useState<number>(0);
@@ -104,7 +108,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
 
   const steps = isAnalyzing ? analyzingSteps : generatingSteps;
 
-  // Reset & Step cycle animation
+  // Sync real-time step index if provided
   useEffect(() => {
     if (!isVisible) {
       setCurrentStepIndex(0);
@@ -112,41 +116,38 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
       return;
     }
 
-    // Interval to advance step checkpoints dynamically
-    const stepTimer = setInterval(() => {
-      setCurrentStepIndex((prev) => {
-        if (prev < steps.length - 1) {
-          return prev + 1;
-        }
-        return prev;
-      });
-    }, 2000);
+    if (realStepIndex !== undefined) {
+      setCurrentStepIndex(Math.max(0, Math.min(steps.length - 1, realStepIndex)));
+    }
+  }, [isVisible, realStepIndex, steps.length]);
 
-    return () => clearInterval(stepTimer);
-  }, [isVisible, steps.length]);
-
-  // Smooth continuous progress bar interpolation without any freeze at 94%
+  // Accurate linear progress bar: smoothly animates towards real progress percent or calculated step percent
   useEffect(() => {
     if (!isVisible) return;
 
+    if (realProgressPercent !== undefined) {
+      // Linear and immediate tracking to actual stage
+      setProgressPercent(Math.max(10, Math.min(100, Math.round(realProgressPercent))));
+      return;
+    }
+
+    // Fallback: smooth monotonic linear progress bar
     const progressTimer = setInterval(() => {
       setProgressPercent((prev) => {
-        // Target percent scales smoothly from 20% to 98% based on step progress
-        const baseTarget = Math.round(((currentStepIndex + 1) / steps.length) * 92);
+        const baseTarget = Math.round(((currentStepIndex + 1) / steps.length) * 94);
         const dynamicMax = currentStepIndex === steps.length - 1 ? 98 : baseTarget;
 
         if (prev < dynamicMax) {
           return prev + 1;
         } else if (prev < 98 && currentStepIndex === steps.length - 1) {
-          // Slow organic breathing micro-ticks so it never appears dead or stuck
           return prev + 1;
         }
         return prev;
       });
-    }, 110);
+    }, 120);
 
     return () => clearInterval(progressTimer);
-  }, [isVisible, currentStepIndex, steps.length]);
+  }, [isVisible, currentStepIndex, realProgressPercent, steps.length]);
 
   // Tip carousel rotation every 4 seconds
   useEffect(() => {

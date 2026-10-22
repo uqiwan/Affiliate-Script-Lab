@@ -214,6 +214,8 @@ export function formatSentenceTokens(sentence: string, productKeywords: string[]
     } else if (!/[.,!?]$/.test(lastToken.text)) {
       lastToken.text = `${lastToken.text}.`;
     }
+    // Tambahkan garis bantu jeda intonasi panjang (//) di akhir kalimat
+    tokens.push({ text: '//', type: 'pause-long' });
   }
 
   return tokens;
@@ -259,14 +261,16 @@ export function formatConceptDisplayTitle(
 function classifyWordToken(word: string, productKeywords: string[]): PrompterToken {
   // Bersihkan simbol untuk pengecekan kata
   const strippedWord = word.replace(/[^\w]/g, '').toUpperCase();
+  const alphaOnly = word.replace(/[^a-zA-Z]/g, '');
+  const isCapitalWord = alphaOnly.length >= 2 && alphaOnly === alphaOnly.toUpperCase();
 
   // Cek apakah merupakan CTA phrase kata tunggal
-  if (['CHECKOUT', 'KERANJANG', 'KUNING'].includes(strippedWord)) {
+  if (['CHECKOUT', 'KERANJANG', 'KUNING', 'BAWAH', 'BELI', 'PESAN', 'CO', 'ORDER'].includes(strippedWord)) {
     return { text: word.toUpperCase(), type: 'cta' };
   }
 
   // Cek promo
-  if (PROMO_WORDS.has(strippedWord) || strippedWord.startsWith('DISKON') || strippedWord.startsWith('PROMO')) {
+  if (PROMO_WORDS.has(strippedWord) || strippedWord.startsWith('DISKON') || strippedWord.startsWith('PROMO') || strippedWord.startsWith('RP')) {
     return { text: word.toUpperCase(), type: 'promo' };
   }
 
@@ -278,6 +282,11 @@ function classifyWordToken(word: string, productKeywords: string[]): PrompterTok
   // Cek kata kunci nama produk
   if (productKeywords.includes(strippedWord) && strippedWord.length >= 3) {
     return { text: word.toUpperCase(), type: 'emphasis' };
+  }
+
+  // Cek jika kata ditulis dalam huruf kapital (ALL-CAPS) seperti "USB-C", "LED", "WFH", "BPOM", dll.
+  if (isCapitalWord) {
+    return { text: word, type: 'emphasis' };
   }
 
   return { text: word, type: 'normal' };

@@ -40,7 +40,21 @@ import {
   executeGenerateScripts,
   executeRefineScript,
 } from './services/aiClientService';
-import { launchAndroidFloatingPrompter } from './utils/androidPrompterSettings';
+import {
+  launchAndroidFloatingPrompter,
+  stopAndroidFloatingPrompter,
+} from './utils/androidPrompterSettings';
+import {
+  buildPrompterConcept,
+  extractProductKeywords,
+} from './utils/prompterFormatter';
+import {
+  getStoredPrompterTheme,
+  saveStoredPrompterTheme,
+  TeleprompterTheme,
+  TeleprompterThemeId,
+  TELEPROMPTER_THEMES,
+} from './utils/teleprompterThemes';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ProductBrief,
@@ -284,6 +298,19 @@ export default function App() {
   const [isRefining, setIsRefining] = useState<boolean>(false);
   const [activeInputMode, setActiveInputMode] = useState<InputMode>('images');
 
+  // Dedicated Teleprompter Theme State (Dark Pro, Soft Comfort, Light Clean)
+  const [prompterTheme, setPrompterTheme] = useState<TeleprompterTheme>(() => getStoredPrompterTheme());
+
+  const handleSelectPrompterTheme = (themeId: TeleprompterThemeId) => {
+    const saved = saveStoredPrompterTheme(themeId);
+    setPrompterTheme(saved);
+    showToast(`Tema teleprompter diubah ke "${saved.name}"`, 'info');
+  };
+
+  // Real-time linear progress tracking states
+  const [processingProgress, setProcessingProgress] = useState<number>(15);
+  const [processingStepIndex, setProcessingStepIndex] = useState<number>(0);
+
   // Auth & API Key State
   const [user, setUser] = useState<User | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
@@ -453,18 +480,34 @@ export default function App() {
   });
 
   const handleOpenAllTeleprompter = () => {
+    setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+    stopAndroidFloatingPrompter();
     setTeleprompterState({
       isOpen: true,
       initialConceptIndex: -1,
     });
   };
 
-  const handleOpenSingleTeleprompter = (script: ScriptItem, index: number) => {
+  const handleOpenSingleTeleprompter = (_script: ScriptItem, index: number) => {
+    setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+    stopAndroidFloatingPrompter();
     setTeleprompterState({
       isOpen: true,
       initialConceptIndex: index,
     });
   };
+
+  // Listener saat user klik tombol Full di Floating Teleprompter native Android
+  useEffect(() => {
+    (window as any).__openFullPrompterFromNative = () => {
+      setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+      stopAndroidFloatingPrompter();
+      setTeleprompterState({ isOpen: true, initialConceptIndex: -1 });
+    };
+    return () => {
+      delete (window as any).__openFullPrompterFromNative;
+    };
+  }, []);
 
   // State untuk Teleprompter Melayang (Floating Widget) & Dialog Izin/APK Android
   const [floatingPrompterState, setFloatingPrompterState] = useState<{
@@ -667,15 +710,41 @@ export default function App() {
   }) => {
     setActiveInputMode(data.inputMode);
     setIsAnalyzing(true);
+    setProcessingProgress(15);
+    setProcessingStepIndex(0);
     setGlobalError(null);
     setExtractWarning(undefined);
     setConflictsFound([]);
 
+    // Linear progress simulation tracking real API stages
+    const pTimer = setInterval(() => {
+      setProcessingProgress((prev) => {
+        if (prev < 38) return prev + 2;
+        if (prev < 68) return prev + 1.5;
+        if (prev < 88) return prev + 1;
+        return prev;
+      });
+      setProcessingStepIndex((prev) => {
+        setProcessingProgress((curr) => {
+          if (curr > 75) return 2;
+          if (curr > 35) return 1;
+          return 0;
+        });
+        return prev;
+      });
+    }, 180);
+
     try {
+      setProcessingProgress(35);
+      setProcessingStepIndex(1);
+
       const resData = await executeExtractProduct({
         ...data,
         apiKey,
       });
+
+      setProcessingProgress(85);
+      setProcessingStepIndex(2);
 
       const isSingle = data.inputMode !== 'mixed';
       const rawConflicts = resData.conflictsFound || [];
@@ -700,6 +769,9 @@ export default function App() {
             : undefined,
       };
 
+      setProcessingProgress(98);
+      setProcessingStepIndex(3);
+
       setProductBrief(cleanBrief);
       setConflictsFound(finalConflicts);
       setExtractWarning(resData.warning);
@@ -717,6 +789,7 @@ export default function App() {
         setGlobalError(getFriendlyErrorMessage(err, 'Gagal memproses informasi produk.'));
       }
     } finally {
+      clearInterval(pTimer);
       setIsAnalyzing(false);
     }
   };
@@ -751,19 +824,48 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    setProcessingProgress(15);
+    setProcessingStepIndex(0);
     setGlobalError(null);
 
+    // Linear progress tracking real AI generation milestones
+    const pTimer = setInterval(() => {
+      setProcessingProgress((prev) => {
+        if (prev < 42) return prev + 2;
+        if (prev < 72) return prev + 1.5;
+        if (prev < 90) return prev + 0.8;
+        return prev;
+      });
+      setProcessingStepIndex((prev) => {
+        setProcessingProgress((curr) => {
+          if (curr > 75) return 2;
+          if (curr > 38) return 1;
+          return 0;
+        });
+        return prev;
+      });
+    }, 200);
+
     try {
+      setProcessingProgress(38);
+      setProcessingStepIndex(1);
+
       const resData = await executeGenerateScripts({
         productBrief,
         config,
         apiKey,
       });
 
+      setProcessingProgress(88);
+      setProcessingStepIndex(2);
+
       const generatedScripts = resData.scripts || [];
       setScripts(generatedScripts);
       setVisualModes({});
       setCurrentStep(4); // Advance to Step 4: Skrip
+
+      setProcessingProgress(98);
+      setProcessingStepIndex(3);
 
       // Automatically archive this generation session to History
       const newSession: HistorySession = {
@@ -788,6 +890,7 @@ export default function App() {
         setGlobalError(getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproduksi skrip.'));
       }
     } finally {
+      clearInterval(pTimer);
       setIsGenerating(false);
     }
   };
@@ -912,6 +1015,8 @@ export default function App() {
         historyCount={history.length}
         hasApiKey={Boolean(apiKey || serverHasKey)}
         isLoggingIn={isLoggingIn}
+        currentThemeId={prompterTheme.id}
+        onSelectTheme={handleSelectPrompterTheme}
         settingsSheetOpen={settingsSheetOpen}
         onToggleSettingsSheet={setSettingsSheetOpen}
       />
@@ -1107,12 +1212,22 @@ export default function App() {
                     onOpenPrompter={handleOpenSingleTeleprompter}
                     onOpenFloatingPrompter={(_script, index) => {
                       const targetScript = scripts[index] || _script;
-                      const scriptText = targetScript
-                        ? `=== ${targetScript.title} ===\n\n` + (targetScript.voiceoverOnly || targetScript.segments.map((sg) => sg.spokenDialogue).join(' '))
-                        : '';
+                      const productKeywords = extractProductKeywords(productBrief?.name);
+                      const targetConcept = buildPrompterConcept(targetScript, index + 1, productKeywords);
 
-                      if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge && scriptText) {
-                        launchAndroidFloatingPrompter(scriptText);
+                      // Tutup mode teleprompter modal jika sedang terbuka
+                      setTeleprompterState({ isOpen: false, initialConceptIndex: -1 });
+
+                      if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
+                        launchAndroidFloatingPrompter(
+                          `=== ${targetConcept.title} ===\n\n` + targetConcept.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'),
+                          {
+                            themeId: prompterTheme.id,
+                            backgroundColorHex: prompterTheme.backgroundColor,
+                            highlightColorHex: prompterTheme.highlightColor,
+                          },
+                          [targetConcept]
+                        );
                         return;
                       }
 
@@ -1156,12 +1271,31 @@ export default function App() {
         onRequireAuthOrKey={() => setAuthWarningModalOpen(true)}
         onBackToBrief={() => setCurrentStep(2)}
         onOpenTeleprompter={handleOpenAllTeleprompter}
-        onOpenFloatingPrompter={() =>
+        onOpenFloatingPrompter={() => {
+          const productKeywords = extractProductKeywords(productBrief?.name);
+          const allConcepts = scripts.map((s, idx) => buildPrompterConcept(s, idx + 1, productKeywords));
+
+          // Tutup mode teleprompter modal jika sedang terbuka
+          setTeleprompterState({ isOpen: false, initialConceptIndex: -1 });
+
+          if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge && allConcepts.length > 0) {
+            launchAndroidFloatingPrompter(
+              allConcepts.map((c) => `=== ${c.title} ===\n\n` + c.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n')).join('\n\n---\n\n'),
+              {
+                themeId: prompterTheme.id,
+                backgroundColorHex: prompterTheme.backgroundColor,
+                highlightColorHex: prompterTheme.highlightColor,
+              },
+              allConcepts
+            );
+            return;
+          }
+
           setFloatingPrompterState({
             isOpen: true,
             conceptIndex: -1,
-          })
-        }
+          });
+        }}
         onCopyAllScripts={handleCopyAllScripts}
         onOpenSettings={() => setSettingsSheetOpen(true)}
       />
@@ -1179,6 +1313,8 @@ export default function App() {
         scripts={scripts}
         initialConceptIndex={teleprompterState.initialConceptIndex}
         productBrief={productBrief}
+        theme={prompterTheme}
+        onSelectTheme={handleSelectPrompterTheme}
         onOpenFloatingPrompter={(idx) => {
           setFloatingPrompterState({
             isOpen: true,
@@ -1194,11 +1330,14 @@ export default function App() {
         onExpandToFull={() => {
           const idx = floatingPrompterState.conceptIndex;
           setFloatingPrompterState({ isOpen: false, conceptIndex: -1 });
+          stopAndroidFloatingPrompter();
           setTeleprompterState({ isOpen: true, initialConceptIndex: idx });
         }}
         scripts={scripts}
         conceptIndex={floatingPrompterState.conceptIndex}
         productBrief={productBrief}
+        theme={prompterTheme}
+        onSelectTheme={handleSelectPrompterTheme}
         onOpenPermissionGuide={() => setAndroidOverlayModalOpen(true)}
       />
 
@@ -1252,6 +1391,8 @@ export default function App() {
         activeInputMode={activeInputMode}
         config={config}
         productName={productBrief.name}
+        realProgressPercent={processingProgress}
+        realStepIndex={processingStepIndex}
       />
 
       {/* API Key Modal */}

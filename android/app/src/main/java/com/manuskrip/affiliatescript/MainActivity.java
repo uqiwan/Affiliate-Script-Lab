@@ -29,12 +29,37 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         setupWebBridge();
         checkAndRequestNotificationPermission();
+        handlePrompterIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handlePrompterIntent(intent);
     }
 
     @Override
     public void onResume() {
         super.onResume();
         setupWebBridge();
+        handlePrompterIntent(getIntent());
+    }
+
+    private void handlePrompterIntent(Intent intent) {
+        if (intent != null && intent.getBooleanExtra("open_full_prompter", false)) {
+            intent.removeExtra("open_full_prompter");
+            try {
+                if (this.bridge != null && this.bridge.getWebView() != null) {
+                    this.bridge.getWebView().evaluateJavascript(
+                        "if (window.__openFullPrompterFromNative) { window.__openFullPrompterFromNative(); }",
+                        null
+                    );
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void setupWebBridge() {
@@ -184,6 +209,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void startFloatingServiceFull(
             String scriptText,
+            String conceptsJson,
             int speed,
             int fontSize,
             int opacity,
@@ -204,6 +230,7 @@ public class MainActivity extends BridgeActivity {
 
             Intent intent = new Intent(MainActivity.this, FloatingPrompterService.class);
             intent.putExtra("scriptText", scriptText);
+            intent.putExtra("conceptsJson", conceptsJson != null ? conceptsJson : "");
             intent.putExtra("speed", speed);
             intent.putExtra("fontSize", fontSize);
             intent.putExtra("opacity", opacity);
@@ -230,15 +257,53 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void startFloatingServiceFull(
+            String scriptText,
+            int speed,
+            int fontSize,
+            int opacity,
+            String textColorHex,
+            String presetId,
+            int rotation,
+            boolean isMirrored,
+            boolean showFocusGuide,
+            int focusGuidePercent,
+            int countdownSec,
+            int windowWidth,
+            int windowHeight
+        ) {
+            startFloatingServiceFull(
+                scriptText,
+                "",
+                speed,
+                fontSize,
+                opacity,
+                textColorHex,
+                presetId,
+                rotation,
+                isMirrored,
+                showFocusGuide,
+                focusGuidePercent,
+                countdownSec,
+                windowWidth,
+                windowHeight
+            );
+        }
+
+        @JavascriptInterface
         public void startFloatingServiceWithJson(String configJson) {
             try {
                 org.json.JSONObject obj = new org.json.JSONObject(configJson);
                 String scriptText = obj.optString("scriptText", "Skrip Teleprompter");
+                String conceptsJson = obj.optString("conceptsJson", "");
                 int speed = obj.optInt("speed", 3);
                 int fontSize = obj.optInt("fontSize", 18);
                 int opacity = obj.optInt("opacity", 85);
                 String textColorHex = obj.optString("textColorHex", "#FFFFFF");
                 String presetId = obj.optString("presetId", "standard_read");
+                String themeId = obj.optString("themeId", "dark_pro");
+                String backgroundColorHex = obj.optString("backgroundColorHex", "");
+                String highlightColorHex = obj.optString("highlightColorHex", "");
                 int rotation = obj.optInt("rotation", 0);
                 boolean isMirrored = obj.optBoolean("isMirrored", false);
                 boolean showFocusGuide = obj.optBoolean("showFocusGuide", true);
@@ -247,21 +312,34 @@ public class MainActivity extends BridgeActivity {
                 int windowWidth = obj.optInt("windowWidth", 660);
                 int windowHeight = obj.optInt("windowHeight", 740);
 
-                startFloatingServiceFull(
-                    scriptText,
-                    speed,
-                    fontSize,
-                    opacity,
-                    textColorHex,
-                    presetId,
-                    rotation,
-                    isMirrored,
-                    showFocusGuide,
-                    focusGuidePercent,
-                    countdownSec,
-                    windowWidth,
-                    windowHeight
-                );
+                Intent intent = new Intent(MainActivity.this, FloatingPrompterService.class);
+                intent.putExtra("scriptText", scriptText);
+                intent.putExtra("conceptsJson", conceptsJson != null ? conceptsJson : "");
+                intent.putExtra("speed", speed);
+                intent.putExtra("fontSize", fontSize);
+                intent.putExtra("opacity", opacity);
+                intent.putExtra("textColorHex", textColorHex);
+                intent.putExtra("presetId", presetId != null ? presetId : "standard_read");
+                intent.putExtra("themeId", themeId);
+                intent.putExtra("backgroundColorHex", backgroundColorHex);
+                intent.putExtra("highlightColorHex", highlightColorHex);
+                intent.putExtra("rotation", rotation);
+                intent.putExtra("isMirrored", isMirrored);
+                intent.putExtra("showFocusGuide", showFocusGuide);
+                intent.putExtra("focusGuidePercent", focusGuidePercent);
+                intent.putExtra("countdownSec", countdownSec);
+                intent.putExtra("windowWidth", windowWidth);
+                intent.putExtra("windowHeight", windowHeight);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent);
+                } else {
+                    startService(intent);
+                }
+
+                try {
+                    runOnUiThread(() -> moveTaskToBack(true));
+                } catch (Exception ignored) {}
             } catch (Exception e) {
                 e.printStackTrace();
             }

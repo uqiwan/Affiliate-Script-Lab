@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TeleprompterThemeId, getStoredPrompterTheme, TELEPROMPTER_THEMES } from './teleprompterThemes';
+
 export interface AndroidPrompterConfig {
   speed: number; // 1 - 10
   fontSize: number; // 7 - 48
   opacity: number; // 10 - 100
   textColorHex: string; // Hex color code
   presetId?: string; // SubtitlePresetId (standard_read, large_text, etc)
+  themeId?: TeleprompterThemeId; // 'dark_pro' | 'soft_comfort' | 'light_clean'
+  backgroundColorHex?: string;
+  highlightColorHex?: string;
   rotation?: number; // 0, 90, 180, 270
   isMirrored: boolean;
   showFocusGuide: boolean;
@@ -22,8 +27,11 @@ export const DEFAULT_ANDROID_PROMPTER_CONFIG: AndroidPrompterConfig = {
   speed: 3,
   fontSize: 18,
   opacity: 85,
-  textColorHex: '#FEF08A',
+  textColorHex: '#FFFFFF',
   presetId: 'standard_read',
+  themeId: 'dark_pro',
+  backgroundColorHex: '#000000',
+  highlightColorHex: '#FACC15',
   rotation: 0,
   isMirrored: false,
   showFocusGuide: true,
@@ -69,7 +77,8 @@ export function saveAndroidPrompterConfig(config: AndroidPrompterConfig): void {
  */
 export function launchAndroidFloatingPrompter(
   scriptText: string,
-  overrides?: Partial<AndroidPrompterConfig>
+  overrides?: Partial<AndroidPrompterConfig>,
+  structuredConcepts?: any[]
 ): boolean {
   if (typeof window === 'undefined') return false;
 
@@ -84,14 +93,21 @@ export function launchAndroidFloatingPrompter(
   // Simpan setelan terakhir agar konsisten
   saveAndroidPrompterConfig(config);
 
+  const storedTheme = getStoredPrompterTheme();
+  const activeTheme = (config.themeId && TELEPROMPTER_THEMES[config.themeId]) || storedTheme;
+
   try {
     const payload = {
       scriptText,
+      conceptsJson: structuredConcepts ? JSON.stringify(structuredConcepts) : '',
       speed: config.speed,
       fontSize: config.fontSize,
       opacity: config.opacity,
-      textColorHex: config.textColorHex,
+      textColorHex: config.textColorHex || activeTheme.textColor,
       presetId: config.presetId || 'standard_read',
+      themeId: activeTheme.id,
+      backgroundColorHex: config.backgroundColorHex || activeTheme.backgroundColor,
+      highlightColorHex: config.highlightColorHex || activeTheme.highlightColor,
       rotation: config.rotation || 0,
       isMirrored: Boolean(config.isMirrored),
       showFocusGuide: Boolean(config.showFocusGuide),
@@ -110,7 +126,7 @@ export function launchAndroidFloatingPrompter(
         config.speed,
         config.fontSize,
         config.opacity,
-        config.textColorHex,
+        payload.textColorHex,
         config.isMirrored,
         config.showFocusGuide,
         config.focusGuidePercent,
@@ -128,6 +144,19 @@ export function launchAndroidFloatingPrompter(
   }
 
   return false;
+}
+
+/**
+ * Hentikan Foreground Service Teleprompter Melayang di Android native jika sedang aktif.
+ */
+export function stopAndroidFloatingPrompter(): void {
+  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
+    try {
+      (window as any).AndroidFloatingBridge.stopFloatingService?.();
+    } catch (e) {
+      console.warn('Failed to stop Android floating prompter:', e);
+    }
+  }
 }
 
 /**
