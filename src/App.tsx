@@ -15,8 +15,10 @@ import { ProcessingModal } from './components/ProcessingModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ResetConfirmModal } from './components/ResetConfirmModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { QuotaExhaustedModal } from './components/QuotaExhaustedModal';
 import { AuthWarningModal } from './components/AuthWarningModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
+import { parseApiKeys } from '../server/gemini';
 import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
@@ -315,6 +317,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(false);
+  const [quotaModalOpen, setQuotaModalOpen] = useState<boolean>(false);
   const [isQuotaExhausted, setIsQuotaExhausted] = useState<boolean>(false);
   const [authWarningModalOpen, setAuthWarningModalOpen] = useState<boolean>(false);
   const [unauthorizedDomainModalOpen, setUnauthorizedDomainModalOpen] = useState<boolean>(false);
@@ -330,9 +333,9 @@ export default function App() {
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     try {
-      return localStorage.getItem('affiliate_script_lab_model') || 'gemini-3.8-flash';
+      return localStorage.getItem('affiliate_script_lab_model') || 'gemini-3.6-flash';
     } catch {
-      return 'gemini-3.8-flash';
+      return 'gemini-3.6-flash';
     }
   });
 
@@ -767,8 +770,8 @@ export default function App() {
 
       if (isQuota) {
         setIsQuotaExhausted(true);
-        setApiKeyModalOpen(true);
-        showToast('Token API Key Google habis. Silakan masukkan atau ganti dengan kunci baru.', 'error');
+        setQuotaModalOpen(true);
+        showToast('Token API Key Google habis. Silakan ganti atau masukkan kunci baru.', 'error');
       } else if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
         setApiKeyModalOpen(true);
         showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
@@ -852,8 +855,8 @@ export default function App() {
 
       if (isQuota) {
         setIsQuotaExhausted(true);
-        setApiKeyModalOpen(true);
-        showToast('Token API Key Google habis. Silakan masukkan atau ganti dengan kunci baru.', 'error');
+        setQuotaModalOpen(true);
+        showToast('Token API Key Google habis. Silakan ganti atau masukkan kunci baru.', 'error');
       } else if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
         setApiKeyModalOpen(true);
         showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
@@ -905,7 +908,22 @@ export default function App() {
 
       showToast('Skrip berhasil disempurnakan!', 'success');
     } catch (err: any) {
-      showToast(getFriendlyErrorMessage(err, 'Gagal memproses perbaikan'), 'error');
+      const msg = err?.message || '';
+      const isQuota =
+        Boolean(err?.isQuotaExhausted) ||
+        err?.status === 429 ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota') ||
+        msg.includes('Quota exceeded');
+      if (isQuota) {
+        setIsQuotaExhausted(true);
+        setQuotaModalOpen(true);
+        showToast('Token API Key Google habis. Silakan ganti atau masukkan kunci baru.', 'error');
+      } else {
+        showToast(getFriendlyErrorMessage(err, 'Gagal memproses perbaikan'), 'error');
+      }
     } finally {
       setIsRefining(false);
     }
@@ -1361,6 +1379,17 @@ export default function App() {
         activeInputMode={activeInputMode}
         config={config}
         productName={productBrief.name}
+      />
+
+      {/* Quota Exhausted Notification Modal */}
+      <QuotaExhaustedModal
+        isOpen={quotaModalOpen}
+        onClose={() => setQuotaModalOpen(false)}
+        onOpenApiKeyModal={() => {
+          setQuotaModalOpen(false);
+          setApiKeyModalOpen(true);
+        }}
+        keyCount={parseApiKeys(apiKey).length || 1}
       />
 
       {/* API Key Modal */}

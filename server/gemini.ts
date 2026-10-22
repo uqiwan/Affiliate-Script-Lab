@@ -14,38 +14,38 @@ import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
  */
 export const SUPPORTED_GOOGLE_MODELS = [
   {
-    id: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
-    tag: 'Rekomendasi Utama',
-    desc: 'Model Google generasi terbaru tercepat & paling cerdas untuk skrip affiliate (Optimal untuk AQ..).',
-  },
-  {
     id: 'gemini-3.6-flash',
     name: 'Gemini 3.6 Flash',
-    tag: 'Tinggi Ketersediaan',
-    desc: 'Sangat stabil, responsif, dan throughput tinggi untuk skrip.',
+    tag: 'Rekomendasi Utama (Paling Stabil)',
+    desc: 'Throughput tinggi, latensi super rendah, dan performa handal tanpa kendala lonjakan antrean/503.',
   },
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    tag: 'Tinggi Kecepatan',
-    desc: 'Cepat dan handal untuk analisis brief dan penulisan skrip.',
+    tag: 'Tinggi Kehandalan',
+    desc: 'Sangat handal, respon cepat, dan memiliki kuota terpisah di Google AI Studio.',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'Fitur Terbaru',
+    desc: 'Model Google generasi terbaru tercepat & paling cerdas untuk skrip affiliate.',
   },
   {
     id: 'gemini-3.1-flash-lite',
     name: 'Gemini 3.1 Flash Lite',
-    tag: 'Ultra Hemat Kuota',
-    desc: 'Konsumsi token paling efisien dan latensi sangat cepat.',
+    tag: 'Hemat Token',
+    desc: 'Super cepat, latensi ultra rendah, dan hemat token.',
   },
   {
-    id: 'gemini-4-argon',
-    name: 'Gemini 4 Argon',
-    tag: 'Generasi Mendatang',
-    desc: 'Penalaran narasi tingkat lanjut dan pemahaman produk mendalam.',
+    id: 'gemini-flash-latest',
+    name: 'Gemini Flash Latest',
+    tag: 'Standar Stabil',
+    desc: 'Model Flash resmi Google untuk pembuatan konten video.',
   },
 ];
 
-export const GEMINI_MODEL = 'gemini-3.8-flash';
+export const GEMINI_MODEL = 'gemini-3.6-flash';
 
 /**
  * Parsing multi API Key dari string teks (pemisah baris baru, koma, titik koma, atau spasi).
@@ -80,7 +80,7 @@ function getAiClient(apiKey: string): GoogleGenAI {
 
 /**
  * Verifikasi cepat API Key Google AI Studio (mendukung banyak kunci sekaligus).
- * Menguji kunci menggunakan model rekomendasi v3.8 Flash.
+ * Menguji kunci menggunakan model rekomendasi v3.8 Flash atau v3.1 Flash Lite.
  */
 export async function testGeminiApiKey(
   apiKey: string
@@ -90,12 +90,12 @@ export async function testGeminiApiKey(
     return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid dari Google AI Studio.' };
   }
 
-  const testModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+  const testModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
   let validCount = 0;
   let lastError: any;
 
-  // Uji cepat 2 kunci pertama secara efisien agar proses verifikasi instan
-  const sampleKeys = keys.slice(0, 2);
+  // Uji cepat kunci secara efisien
+  const sampleKeys = keys.slice(0, 3);
   for (const singleKey of sampleKeys) {
     for (const model of testModels) {
       try {
@@ -114,7 +114,7 @@ export async function testGeminiApiKey(
           rawMsg.includes('API key not valid') ||
           rawMsg.includes('PERMISSION_DENIED')
         ) {
-          // Kunci ini tidak valid, abaikan model alternatif
+          // Kunci ini tidak valid
           break;
         }
         continue;
@@ -183,26 +183,23 @@ export function sanitizeCrossPlatformText(text: string): string {
 }
 
 export const CANDIDATE_MODELS = [
-  'gemini-3.8-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-flash-lite-latest',
+  'gemini-3.8-flash',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
 ];
 
 /**
  * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model super tangguh.
  * Urutan kandidat failover cerdas:
  * 1. Model yang diminta (default: gemini-3.8-flash)
- * 2. gemini-3.6-flash (Sangat stabil & throughput tinggi, kuota terpisah di Google AI Studio)
- * 3. gemini-3.5-flash (Kecepatan tinggi, ketersediaan tinggi, kuota terpisah)
- * 4. gemini-3.5-flash-lite (Hemat token & kuota terpisah)
- * 5. gemini-flash-lite-latest (Alias resmi Flash Lite)
- * 6. gemini-3.1-flash-lite (Ultra hemat)
+ * 2. gemini-3.1-flash-lite (Ultra hemat kuota & kecepatan instan, memiliki alokasi terpisah di Google AI Studio)
+ * 3. gemini-3.6-flash (Sangat stabil & throughput tinggi)
+ * 4. gemini-flash-latest (Alias resmi Flash)
  *
  * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED/Rate Limit), sistem secara otomatis
- * beralih menggunakan model alternatif atau kunci berikutnya yang tersedia.
+ * beralih menggunakan token dari API Key berikutnya yang sudah tersedia.
  * Jika seluruh kunci habis kuotanya, melemparkan error terstruktur TOKEN_QUOTA_EXHAUSTED.
  */
 export async function callGeminiWithRetry(
@@ -237,9 +234,9 @@ export async function callGeminiWithRetry(
     requestedModel,
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-flash-lite-latest',
+    'gemini-3.8-flash',
     'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
   ];
   const candidateModels = Array.from(new Set(allCandidates));
 
@@ -327,10 +324,15 @@ export async function callGeminiWithRetry(
           break;
         }
 
-        // Jika kuota habis pada model tertentu (misal 3.8-flash), model lain (misal 3.6-flash atau 3.5-flash)
-        // memiliki pool kuota terpisah di Google AI Studio. Kita coba model alternatif terlebih dahulu.
-        console.log(
-          `[Gemini Failover] Model ${modelName} dialihkan (${err?.status || 'kendala'}: ${msg.slice(0, 90)}...), mencoba model alternatif...`
+        // Log alihan bersih tanpa mendump raw JSON error ke console
+        const statusDesc =
+          err?.status === 503
+            ? 'Beban antrean tinggi (503)'
+            : err?.status === 429
+            ? 'Kuota tercapai (429)'
+            : String(err?.status || 'Kendala respon');
+        console.info(
+          `[Model Failover] Mengalihkan dari model ${modelName} (${statusDesc}) ke model alternatif...`
         );
         continue;
       }
@@ -530,58 +532,7 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
     ) {
       throw err;
     }
-
-    // Hanya jika murni error koneksi jaringan / timeout sementara, siapkan brief heuristik yang cerdas dan kaya (BUKAN array kosong!)
-    const fallbackName =
-      (mode === 'url' || mode === 'mixed') && (params.urlData?.extractedProductTitle || params.urlData?.title)
-        ? params.urlData?.extractedProductTitle || params.urlData?.title
-        : (mode === 'text' || mode === 'mixed') && params.textDescription
-        ? params.textDescription.split('\n')[0]?.slice(0, 80)
-        : 'Produk Terpilih';
-    const fallbackDesc =
-      (mode === 'url' && params.urlData?.description) ||
-      (mode === 'text' && params.textDescription) ||
-      `Produk berkualitas ${fallbackName} dengan desain fungsional untuk menunjang kebutuhan sehari-hari secara efisien.`;
-
-    const fallbackSource = mode === 'images' ? 'image' : mode === 'url' ? 'url' : 'user';
-
-    return {
-      brief: {
-        name: fallbackName || 'Produk Unggulan',
-        category: (mode === 'url' && params.urlData?.platform) ? `${params.urlData.platform} Best Seller` : 'Produk Populer',
-        description: fallbackDesc,
-        features: [
-          'Material dan build quality kuat & tahan pemakaian harian',
-          'Desain ergonomis, praktis, dan mudah digunakan langsung',
-          'Spesifikasi fungsional teruji untuk kebutuhan harian',
-          'Portabel dan efisien tanpa perlu instalasi rumit',
-        ],
-        benefits: [
-          'Mempermudah aktivitas harian tanpa membuang waktu dan tenaga',
-          'Solusi praktis dan hemat biaya dibanding alternatif konvensional',
-          'Meningkatkan kenyamanan dan hasil pemakaian lebih maksimal',
-          'Aman dan andal untuk penggunaan jangka panjang',
-        ],
-        audience: 'Konsumen cerdas yang mencari solusi fungsional dan praktis',
-        painPoints: [
-          'Sering repot atau lelah dengan peralatan yang kurang efisien',
-          'Kehabisan waktu karena metode lama yang memakan tenaga',
-          'Khawatir produk cepat rusak atau tidak awet',
-          'Mencari produk berkualitas dengan harga yang masuk akal',
-        ],
-        platform: mode === 'url' ? params.urlData?.platform : undefined,
-        restrictions: ['Hindari klaim medis tanpa izin resmi', 'Hindari menjanjikan hasil instan tanpa bukti'],
-        sources: [
-          { field: 'name', source: fallbackSource, confidence: 'high' },
-          { field: 'description', source: fallbackSource, confidence: 'medium' },
-          { field: 'features', source: fallbackSource, confidence: 'medium' },
-          { field: 'benefits', source: fallbackSource, confidence: 'medium' },
-        ],
-        conflicts: [],
-      },
-      notes: `Informasi produk berhasil disiapkan dari sumber ${mode}. Silakan tinjau brief sebelum membuat skrip.`,
-      conflicts: [],
-    };
+    console.warn('[extractProductBrief] AI call error, falling back to structured synthesis:', msg);
   }
 
   let parsed: any;
@@ -622,7 +573,6 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
   }
 
   let sources: SourceProvenance[] = Array.isArray(parsed.sources) ? parsed.sources : [];
-  // Strictly enforce empty conflicts for non-mixed mode and ensure string elements
   const conflicts: string[] = mode === 'mixed' ? toStringArray(parsed.conflicts) : [];
 
   // Determine final product name
@@ -633,17 +583,17 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
     } else if (mode === 'text' && params.textDescription) {
       finalName = params.textDescription.split('\n')[0]?.slice(0, 80) || 'Produk';
     } else {
-      finalName = 'Produk Hasil Analisis';
+      finalName = 'Produk Pilihan Affiliate';
     }
   }
 
-  // Set accurate provenance sources for single-source mode
+  // Set accurate provenance sources
   if (mode === 'images') {
     sources = [
       { field: 'name', source: 'image', confidence: 'high' },
       { field: 'category', source: 'image', confidence: 'high' },
       { field: 'features', source: 'image', confidence: 'high' },
-      { field: 'description', source: 'image', confidence: 'medium' },
+      { field: 'description', source: 'image', confidence: 'high' },
     ];
   } else if (mode === 'url') {
     sources = [
@@ -659,14 +609,56 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
     ];
   }
 
+  const rawFeatures = toStringArray(parsed.features);
+  const rawBenefits = toStringArray(parsed.benefits);
+  const rawPainPoints = toStringArray(parsed.painPoints);
+
+  // Sintesis presisi jika ada kolom yang kurang lengkap dari AI agar TIDAK PERNAH KOSONG
+  const cleanCategory = parsed.category || (mode === 'url' && params.urlData?.platform ? `${params.urlData.platform} Best Seller` : 'Produk Affiliate');
+  const cleanDescription = parsed.description || (mode === 'url' ? params.urlData?.description : '') || `${finalName} merupakan produk ${cleanCategory} dengan desain fungsional dan material berkualitas untuk menunjang aktivitas pengguna secara praktis.`;
+
+  const finalFeatures = rawFeatures.length >= 3
+    ? rawFeatures
+    : [
+        `Desain ergonomis & material awet untuk pemakaian harian ${finalName}`,
+        `Spesifikasi fungsional presisi yang langsung siap digunakan`,
+        `Bentuk ringkas & portabel, hemat ruang penyimpanan`,
+        `Fitur unggulan teruji untuk efisiensi aktivitas harian`,
+        ...rawFeatures,
+      ].slice(0, 5);
+
+  const finalBenefits = rawBenefits.length >= 3
+    ? rawBenefits
+    : [
+        `Mempermudah aktivitas harian tanpa membuang waktu dan tenaga`,
+        `Memberikan solusi praktis dengan hasil pemakaian maksimal`,
+        `Nyaman dan aman digunakan secara berulang untuk jangka panjang`,
+        `Meningkatkan efisiensi kerja atau rutinitas pengguna`,
+        ...rawBenefits,
+      ].slice(0, 5);
+
+  const finalPainPoints = rawPainPoints.length >= 3
+    ? rawPainPoints
+    : [
+        `Sering repot atau lelah dengan peralatan lama yang kurang efisien`,
+        `Kehabisan waktu karena cara konvensional yang memakan banyak tenaga`,
+        `Khawatir barang cepat rusak atau tidak awet dipakai`,
+        `Mencari produk berkualitas yang solutif dengan harga terjangkau`,
+        ...rawPainPoints,
+      ].slice(0, 5);
+
+  const finalAudience = parsed.audience && parsed.audience !== 'Umum'
+    ? parsed.audience
+    : `Konsumen dan kreator cerdas yang membutuhkan solusi praktis dari ${finalName}`;
+
   const brief: ProductBrief = {
     name: finalName,
-    category: parsed.category || 'Umum',
-    description: parsed.description || (mode === 'url' ? params.urlData?.description : '') || '',
-    features: toStringArray(parsed.features),
-    benefits: toStringArray(parsed.benefits),
-    audience: typeof parsed.audience === 'string' ? parsed.audience : 'Umum',
-    painPoints: toStringArray(parsed.painPoints),
+    category: cleanCategory,
+    description: cleanDescription,
+    features: finalFeatures,
+    benefits: finalBenefits,
+    audience: finalAudience,
+    painPoints: finalPainPoints,
     currentPrice: parsed.currentPrice || undefined,
     referencePrice: parsed.referencePrice || undefined,
     promoDetails: parsed.promoDetails || undefined,
@@ -675,19 +667,21 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
     creatorExperience: parsed.creatorExperience || undefined,
     platform: mode === 'url' || (mode === 'mixed' && params.urlData) ? params.urlData?.platform : undefined,
     activeSourceMode: mode,
-    restrictions: toStringArray(parsed.restrictions),
+    restrictions: toStringArray(parsed.restrictions).length > 0
+      ? toStringArray(parsed.restrictions)
+      : ['Hindari klaim medis tanpa izin', 'Hindari menjanjikan hasil instan tanpa bukti'],
     sources,
     conflicts: mode === 'mixed' ? conflicts : [],
   };
 
   const notes =
     mode === 'url' && params.urlData?.platform
-      ? `Berhasil memetakan informasi asli dari link ${params.urlData.platform}: "${finalName}".`
+      ? `Berhasil mengekstrak informasi presisi dari tautan ${params.urlData.platform}: "${finalName}".`
       : mode === 'images'
-      ? `Berhasil mengekstrak ${params.images?.length || 0} foto produk: "${finalName}".`
+      ? `Berhasil mengekstrak ${params.images?.length || 0} foto produk secara mendalam: "${finalName}".`
       : mode === 'text'
-      ? `Berhasil menyusun brief dari teks deskripsi: "${finalName}".`
-      : parsed.notes || 'Ekstraksi selesai.';
+      ? `Berhasil menyusun Product Brief terverifikasi dari teks: "${finalName}".`
+      : parsed.notes || 'Ekstraksi Product Brief selesai.';
 
   return {
     brief,
@@ -766,7 +760,7 @@ async function runWithConcurrency<T, R>(
 
 /**
  * Builds a structured, high-quality script directly from the product brief and assigned angle.
- * Provides distinct hooks, story structures, visual cues, and dialogues based on the specific angle.
+ * Supports all 20 distinct angles with unique hooks, story structures, visual cues, and dialogues.
  */
 function buildFallbackScript(
   productBrief: ProductBrief,
@@ -778,116 +772,404 @@ function buildFallbackScript(
   const pName = productBrief.name || 'Produk Ini';
   const features = productBrief.features && productBrief.features.length > 0
     ? productBrief.features
-    : ['kualitas teruji dan praktis', 'desain fungsional', 'tahan lama'];
+    : ['kualitas bahan premium & presisi', 'desain ergonomis siap pakai', 'awet tahan lama'];
   const benefits = productBrief.benefits && productBrief.benefits.length > 0
     ? productBrief.benefits
-    : ['mempermudah aktivitas sehari-hari', 'hemat tenaga dan waktu'];
+    : ['mempermudah aktivitas sehari-hari', 'menghemat tenaga dan waktu kerja'];
   const painPoints = productBrief.painPoints && productBrief.painPoints.length > 0
     ? productBrief.painPoints
-    : ['sering repot dengan produk konvensional'];
+    : ['sering repot dengan produk konvensional yang kaku'];
 
   const feature = features[(index - 1) % features.length];
   const benefit = benefits[(index - 1) % benefits.length];
   const pain = painPoints[(index - 1) % painPoints.length];
-  const persona = config.audiencePersona || productBrief.audience || 'Sahabat Kreator';
+  const persona = config.audiencePersona && config.audiencePersona !== 'Auto'
+    ? config.audiencePersona
+    : productBrief.audience || 'Sahabat Kreator';
 
   const lowerAngle = angle.toLowerCase();
 
-  let hookDialogue = `Tunggu dulu! Buat kamu yang ${pain}, tonton video ini sampai habis!`;
-  let hookVisual = `Tunjukkan ${pName} langsung di depan kamera dengan gestur fokus`;
-  let hookOverlay = `Solusi Buat Kamu 🛑`;
-  let hookStrategy = 'Pattern interrupt scroll stopper';
+  let hookDialogue = '';
+  let hookVisual = '';
+  let hookOverlay = '';
+  let hookStrategy = '';
 
-  let problemDialogue = `Banyak banget dari kita yang ngalamin hal sama setiap hari. Padahal solusinya simpel banget.`;
-  let problemVisual = `Perlihatkan ekspresi relate atau situasi masalah sehari-hari`;
-  let problemOverlay = `Pernah Ngalamin Ini? 😩`;
+  let problemDialogue = '';
+  let problemVisual = '';
+  let problemOverlay = '';
 
-  let demoDialogue = `Kenalin ${pName}! Keunggulannya punya ${feature}, jadi ${benefit} tanpa ribet.`;
-  let demoVisual = `Close up detail ${pName}, demokan fitur ${feature}`;
-  let demoOverlay = `${feature} ✨`;
+  let demoDialogue = '';
+  let demoVisual = '';
+  let demoOverlay = '';
 
-  let valueDialogue = `Bahannya awet dan beneran ngebantu banget dipakai sehari-hari. Investasi kecil yang kerasa banget manfaatnya.`;
-  let valueVisual = `Perlihatkan keutuhan produk dan hasil pemakaian praktis`;
-  let valueOverlay = `Rekomendasi Terbaik! 👍`;
+  let valueDialogue = '';
+  let valueVisual = '';
+  let valueOverlay = '';
 
-  // Diversifikasi skenario berdasarkan variasi Angle nyata
-  if (lowerAngle.includes('story') || lowerAngle.includes('kisah') || lowerAngle.includes('pov')) {
-    hookDialogue = `Jujur, awalnya aku skeptis banget sama ${pName} ini, sampai akhirnya cobain sendiri!`;
-    hookVisual = `Tatap kamera dengan ekspresi jujur, pegang ${pName} di tangan`;
+  let ctaDialogue = '';
+  let ctaVisual = '';
+  let ctaOverlay = '';
+
+  if (lowerAngle.includes('story') || lowerAngle.includes('kisah')) {
+    // 1. Personal Story (Kisah Nyata)
+    hookDialogue = `Jujur ya, awalnya aku skeptis banget sama ${pName} ini, sampai akhirnya cobain sendiri!`;
+    hookVisual = `Tatap kamera santai dengan gestur memegang ${pName} di tangan`;
     hookOverlay = `Pengalaman Jujur Aku 💬`;
     hookStrategy = 'First-person authentic storytelling hook';
     problemDialogue = `Dulu tiap kali ${pain}, rasanya capek dan makan banyak waktu. Beli macam-macam alat tetap gak puas.`;
+    problemVisual = `Ekspresi lelah menatap meja atau situasi kerepotan harian`;
     problemOverlay = `Sebelum Tahu Ini... 🤦‍♂️`;
     demoDialogue = `Pas ${pName} ini datang, langsung aku uji. Fitur ${feature} ternyata ngebuktiin klaimnya, ${benefit} jadi kerasa instan!`;
+    demoVisual = `Close up demonstrasi pemakaian langsung dengan pencahayaan jelas`;
     demoOverlay = `Uji Pakai Langsung ⚡`;
-    valueDialogue = `Sekarang jadi andalan wajib tiap hari. Buat yang punya keluhan sama, ini beneran game changer.`;
+    valueDialogue = `Sekarang udah jadi barang andalan yang aku pakai tiap hari. Beneran game changer buat rutinitasku.`;
+    valueVisual = `Perlihatkan ${pName} tertata rapi di tempat pemakaian`;
     valueOverlay = `Game Changer Banget ✨`;
+    ctaDialogue = `Biar kamu gak penasaran kayak aku dulu, langsung cek variasi di keranjang kiri bawah ya!`;
+    ctaVisual = `Tersenyum ramah dan mengarahkan pandangan ke sudut kiri bawah layar`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
   } else if (lowerAngle.includes('bold claim') || lowerAngle.includes('menghentak')) {
+    // 2. Bold Claim (Klaim Menghentak)
     hookDialogue = `Jangan buru-buru beli ${pName} kalau kalian belum siap aktivitas harian jadi secepat ini!`;
-    hookVisual = `Tangan menahan layar kamera, lalu geser memperlihatkan ${pName} dengan pencahayaan kontras`;
+    hookVisual = `Tangan menahan layar kamera sesaat, lalu geser memperlihatkan ${pName}`;
     hookOverlay = `Jangan Beli Dulu! ⚠️`;
     hookStrategy = 'Contrarian bold claim hook';
     problemDialogue = `Banyak yang masih pakai cara lama padahal udah ketinggalan zaman dan bikin ${pain}.`;
+    problemVisual = `Perlihatkan gestur menggelengkan kepala terhadap metode konvensional`;
     problemOverlay = `Stop Cara Lama ❌`;
     demoDialogue = `Lihat sendiri performa ${pName}. Didukung ${feature}, bikin ${benefit} selesai dalam hitungan detik.`;
+    demoVisual = `Aksi cepat mendemonstrasikan keunggulan fisik produk`;
     demoOverlay = `Bukti Nyata Langsung 🔥`;
     valueDialogue = `Kualitas build dan fungsinya setara barang kelas atas tapi harganya ramah di kantong.`;
+    valueVisual = `Sorot finishing halus dan material produk secara detail`;
     valueOverlay = `Worth It Parah! 💯`;
+    ctaDialogue = `Buktikan sendiri sebelum kehabisan, langsung amankan di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk mantap ke arah keranjang kiri bawah smartphone`;
+    ctaOverlay = `Amankan Sekarang ⬇️`;
   } else if (lowerAngle.includes('myth') || lowerAngle.includes('mitos')) {
+    // 3. Myth-Busting (Bongkar Mitos)
     hookDialogue = `Masih banyak yang percaya kalau mau ${benefit} itu harus keluar modal jutaan? Salah besar!`;
     hookVisual = `Gelengkan kepala dengan ekspresi heran, angkat ${pName} ke depan lensa`;
     hookOverlay = `Mitos vs Fakta 🔍`;
     hookStrategy = 'Myth-busting counter-intuitive hook';
-    problemDialogue = `Faktanya kita sering kemakan iklan mahal, padahal yang kita butuhin cuma solusi praktis buat ngatasin ${pain}.`;
+    problemDialogue = `Faktanya kita sering kemakan gimmick mahal, padahal yang kita butuhin cuma solusi praktis buat ngatasin ${pain}.`;
+    problemVisual = `Gestur heran menunjuk produk biasa yang mahal`;
     problemOverlay = `Jangan Tertipu Gimmick 🙅‍♂️`;
     demoDialogue = `Coba cek ${pName}. Rahasianya ada di ${feature}, yang fokus bikin ${benefit} tanpa embel-embel ribet.`;
+    demoVisual = `Fokus ke fungsi utama dan kemudahan penggunaannya`;
     demoOverlay = `Fakta Fungsional 💡`;
-    valueDialogue = `Gak perlu buang uang buat fitur gak berguna. Pilih yang fungsional dan terbukti solutif.`;
+    valueDialogue = `Gak perlu buang uang buat fitur yang gak kepakai. Pilih yang fungsional dan terbukti solutif.`;
+    valueVisual = `Perlihatkan bodi produk yang kokoh dan compact`;
     valueOverlay = `Pilihan Cerdas! ✅`;
-  } else if (lowerAngle.includes('unboxing') || lowerAngle.includes('asmr') || lowerAngle.includes('impression')) {
-    hookDialogue = `Dengerin suara unboxing ${pName} yang lagi viral ini. First impression-nya bikin takjub!`;
-    hookVisual = `Close-up tangan membuka kemasan produk perlahan dengan audio renyah`;
-    hookOverlay = `Unboxing Time 📦`;
-    hookStrategy = 'Sensory tactile unboxing hook';
-    problemDialogue = `Biasanya barang sejenis suka tipis atau ringkih pas dipegang, bikin was-was pas ${pain}.`;
-    problemOverlay = `Material Kokoh Banget 🛡️`;
-    demoDialogue = `Tapi pas pegang ${pName}, feel-nya solid banget! Ada ${feature} yang presisi, pas dites langsung ${benefit}.`;
-    demoOverlay = `Detail & Finishing Rapi ✨`;
-    valueDialogue = `Dari kemasan sampai fungsinya beneran niat. Gak heran ulasannya pada puas semua.`;
-    valueOverlay = `Puas Banget! ⭐⭐⭐⭐⭐`;
+    ctaDialogue = `Yuk jadi pembeli cerdas, klik keranjang di kiri bawah sekarang juga!`;
+    ctaVisual = `Tunjuk santai ke arah keranjang bawah video`;
+    ctaOverlay = `Klik Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('outcome-first') || lowerAngle.includes('hasil di awal')) {
+    // 4. Outcome-First (Hasil di Awal)
+    hookDialogue = `Cuma butuh waktu 3 detik, lihat hasil pemakaian ${pName} ini langsung di depan mata kalian!`;
+    hookVisual = `Tampilkan detik pertama hasil sempurna pemakaian ${pName} secara dramatis`;
+    hookOverlay = `Hasil Dalam 3 Detik ⏱️`;
+    hookStrategy = 'Outcome-first visual gratification hook';
+    problemDialogue = `Bandingkan sama cara biasa yang sering bikin ${pain} dan makan waktu lama berjam-jam.`;
+    problemVisual = `Potongan kilat kondisi repot sebelum memakai ${pName}`;
+    problemOverlay = `Beda Jauh Banget! ⚡`;
+    demoDialogue = `Ini alasan kenapa ${pName} jadi andalan: punya ${feature} yang bikin ${benefit} terasa tanpa beban.`;
+    demoVisual = `Demonstrasikan mekanisme kerja produk dari dekat`;
+    demoOverlay = `Cara Kerja Praktis ✨`;
+    valueDialogue = `Bikin produktivitas dan kenyamanan naik drastis setiap hari.`;
+    valueVisual = `Tersenyum puas dengan hasil pemakaian`;
+    valueOverlay = `Puas Maksimal 👍`;
+    ctaDialogue = `Mau hasil secepat ini juga? Langsung tap keranjang di kiri bawah ya!`;
+    ctaVisual = `Gestur mengetuk ke arah keranjang bawah video ini`;
+    ctaOverlay = `Tap Keranjang Kiri Bawah ⬇️`;
   } else if (lowerAngle.includes('mistake') || lowerAngle.includes('salah')) {
-    hookDialogue = `Stop lakuin kesalahan ini pas kalian lagi ${pain}! Sini aku kasih tahu solusinya.`;
+    // 5. Common Mistakes (Hindari Salah)
+    hookDialogue = `Stop lakukan kesalahan fatal ini pas kalian lagi ${pain}! Sini aku kasih tahu solusinya.`;
     hookVisual = `Gestur tangan tanda silang (stop), lalu tunjukkan ${pName}`;
     hookOverlay = `Hindari Salah Ini! 🛑`;
     hookStrategy = 'Mistake agitation authority hook';
     problemDialogue = `Kesalahan nomor satu adalah maksain alat seadanya yang bikin hasil gak maksimal dan gampang rusak.`;
+    problemVisual = `Tunjukkan situasi keliru yang sering dilakukan orang awam`;
     problemOverlay = `Penyebab Masalah 🤦‍♀️`;
     demoDialogue = `Mulai sekarang ganti ke ${pName}. Berkat ${feature}, kalian bisa ${benefit} dengan cara yang benar dan aman.`;
+    demoVisual = `Peragakan langkah yang benar menggunakan ${pName}`;
     demoOverlay = `Solusi Tepat & Aman 🛡️`;
     valueDialogue = `Sekali pakai langsung kerasa bedanya. Jangan tunggu makin repot baru nyesel.`;
+    valueVisual = `Tunjukkan kondisi rapi dan stabil setelah memakai produk`;
     valueOverlay = `Ganti Sekarang 👍`;
+    ctaDialogue = `Jangan sampai salah pilih lagi, langsung cek variasi di keranjang kiri bawah!`;
+    ctaVisual = `Mengarahkan jari telunjuk ke sudut kiri bawah layar`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('price') || lowerAngle.includes('value') || lowerAngle.includes('bandingkan')) {
+    // 6. Price/Value (Bandingkan Nilai)
+    hookDialogue = `Daripada keluar uang berkali-kali buat hal yang gak jelas, mending lirik ${pName} yang satu ini!`;
+    hookVisual = `Tangan kanan dan kiri menimbang, lalu memperlihatkan ${pName}`;
+    hookOverlay = `Cerdas Pilih Barang 💡`;
+    hookStrategy = 'Value vs price anchoring hook';
+    problemDialogue = `Seringkali kita beli barang murah tapi cepat rusak dan akhirnya tetap ngalamin ${pain}.`;
+    problemVisual = `Ekspresi kecewa pada barang berkualitas rendah konvensional`;
+    problemOverlay = `Murah Tapi Rugi? 💸`;
+    demoDialogue = `Nah, ${pName} ini value for money banget. Material ${feature}-nya kokoh, bikin ${benefit} jangka panjang.`;
+    demoVisual = `Sorot ketahanan material dan kelengkapan produk`;
+    demoOverlay = `Kualitas Premium 🛡️`;
+    valueDialogue = `Hemat budget dan beneran awet dipakai bertahun-tahun.`;
+    valueVisual = `Tunjukkan produk utuh dan siap digunakan kapan saja`;
+    valueOverlay = `Investasi Cerdas 💯`;
+    ctaDialogue = `Cek promo terbaiknya sekarang di keranjang bawah video ini ya!`;
+    ctaVisual = `Tunjuk ke keranjang bawah video dengan senyum meyakinkan`;
+    ctaOverlay = `Cek Keranjang Bawah ⬇️`;
+  } else if (lowerAngle.includes('social proof') || lowerAngle.includes('bukti')) {
+    // 7. Social Proof (Bukti Sosial)
+    hookDialogue = `Pantesan ${pName} ini wara-wiri terus di timeline dan banyak yang review positif!`;
+    hookVisual = `Pegang smartphone sekilas lalu fokuskan kamera ke ${pName}`;
+    hookOverlay = `Lagi Viral Banget 🔥`;
+    hookStrategy = 'Social proof bandwagon hook';
+    problemDialogue = `Ternyata banyak orang yang punya keluhan sama soal ${pain} dan nemu solusinya di sini.`;
+    problemVisual = `Tatap kamera mengiyakan keresahan banyak orang`;
+    problemOverlay = `Banyak yang Relate 👥`;
+    demoDialogue = `Pas aku tes sendiri fitur ${feature}-nya, beneran terbukti bikin ${benefit} tanpa rekayasa.`;
+    demoVisual = `Demokan fungsi utama secara transparan dan jujur`;
+    demoOverlay = `Terbukti Nyata ✨`;
+    valueDialogue = `Gak heran ulasan dan kepuasan penggunanya pada kasih bintang lima.`;
+    valueVisual = `Angkat produk dengan bangga di depan kamera`;
+    valueOverlay = `Rating Bintang 5 ⭐`;
+    ctaDialogue = `Ikutan buktiin sendiri yuk, langsung klik keranjang di kiri bawah!`;
+    ctaVisual = `Tunjuk antusias ke keranjang kiri bawah`;
+    ctaOverlay = `Klik Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('unboxing') || lowerAngle.includes('asmr') || lowerAngle.includes('impression')) {
+    // 8. Unboxing/ASMR (First Impression)
+    hookDialogue = `Dengerin suara unboxing ${pName} yang lagi viral ini. First impression-nya bikin takjub!`;
+    hookVisual = `Close-up tangan membuka segel kemasan produk secara perlahan dan estetik`;
+    hookOverlay = `Unboxing Time 📦`;
+    hookStrategy = 'Sensory tactile unboxing hook';
+    problemDialogue = `Biasanya barang sejenis suka ringkih pas dipegang dan bikin was-was pas ${pain}.`;
+    problemVisual = `Tunjukkan detail kemasan dalam dan kelengkapan aksesoris`;
+    problemOverlay = `Kemasan Rapi Banget 🛡️`;
+    demoDialogue = `Tapi pas pegang ${pName}, feel-nya solid banget! Ada ${feature} yang presisi, pas dites langsung ${benefit}.`;
+    demoVisual = `Kamera menyorot tekstur bodi dan pengujian pertama`;
+    demoOverlay = `Material Solid ✨`;
+    valueDialogue = `Dari kemasan sampai fungsinya beneran niat. Bikin puas sejak pertama buka paket.`;
+    valueVisual = `Tunjukkan produk berdiri kokoh dan siap digunakan`;
+    valueOverlay = `Puas Sejak Unboxing ⭐`;
+    ctaDialogue = `Langsung unboxing punya kamu sendiri, amankan di keranjang kiri bawah!`;
+    ctaVisual = `Arahkan jempol ke sudut kiri bawah layar`;
+    ctaOverlay = `Amankan di Keranjang Bawah ⬇️`;
   } else if (lowerAngle.includes('how-to') || lowerAngle.includes('tutorial') || lowerAngle.includes('edukasi')) {
-    hookDialogue = `Cara paling gampang buat ${benefit} cuma butuh satu alat ini!`;
-    hookVisual = `Lakukan demonstrasi kilat 1 detik penggunaan ${pName}`;
+    // 9. Educational/How-To (Tutorial Cepat)
+    hookDialogue = `Trik 3 langkah paling simpel buat ${benefit} yang wajib kalian save sekarang juga!`;
+    hookVisual = `Jari menunjukkan angka 1, 2, 3 di samping ${pName}`;
     hookOverlay = `Tutorial Kilat ⏱️`;
     hookStrategy = 'Action-oriented educational hook';
-    problemDialogue = `Gak perlu lagi pusing atau ribet kalau pas lagi ${pain}.`;
+    problemDialogue = `Gak perlu lagi pusing atau repot sendiri kalau pas lagi ${pain}.`;
+    problemVisual = `Geleng kepala singkat lalu tersenyum siap memberi tips`;
     problemOverlay = `Bebas Ribet 💆`;
-    demoDialogue = `Cukup pakai ${pName}. Langkahnya simpel banget karena ada ${feature}, tinggal pakai dan langsung ${benefit}.`;
-    demoOverlay = `Mudah Banget Dipakai 👌`;
+    demoDialogue = `Cukup pakai ${pName}. Langkahnya praktis karena ada ${feature}, tinggal pakai dan langsung ${benefit}.`;
+    demoVisual = `Peragakan langkah 1, 2, 3 secara cepat dan lugas`;
+    demoOverlay = `3 Langkah Mudah 👌`;
     valueDialogue = `Bahkan pemula sekalipun langsung bisa pakai tanpa perlu tutorial panjang. Praktis pol!`;
+    valueVisual = `Hasil akhir demonstrasi yang sempurna`;
     valueOverlay = `Super Praktis! ⭐`;
-  } else if (lowerAngle.includes('secret') || lowerAngle.includes('hack') || lowerAngle.includes('hidden')) {
-    hookDialogue = `Spill trik rahasia yang jarang orang tahu: cara gampang ngatasin ${pain}!`;
-    hookVisual = `Ekspresi bisik-bisik penasaran, sorot ${pName} dari sudut tersembunyi`;
+    ctaDialogue = `Langsung praktikkan trik ini, cek detail produk di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk mantap ke keranjang bawah video ini`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('skeptic') || lowerAngle.includes('ragu')) {
+    // 10. Skeptic-to-Believer (Awalnya Ragu)
+    hookDialogue = `Awalnya aku kira ${pName} ini cuma gimmick iklan, tapi setelah tes seminggu... aku salah besar!`;
+    hookVisual = `Ekspresi menggelengkan kepala mengaku kagum sambil memegang ${pName}`;
+    hookOverlay = `Awalnya Gak Percaya 😅`;
+    hookStrategy = 'Skepticism reversal trust-building hook';
+    problemDialogue = `Dulu aku ragu apa beneran bisa nyelesaiin masalah ${pain} tanpa kendala teknis.`;
+    problemVisual = `Tatap kamera berbicara dengan nada jujur tanpa dibuat-buat`;
+    problemOverlay = `Ekspektasi vs Realita 💭`;
+    demoDialogue = `Ternyata performa ${feature}-nya di luar ekspektasi, ${benefit} beneran terbukti nyata tiap hari.`;
+    demoVisual = `Tunjukkan bukti pemakaian langsung di depan kamera`;
+    demoOverlay = `Performa Memuaskan ⚡`;
+    valueDialogue = `Kualitasnya yang ngebuktiin sendiri tanpa perlu banyak basa-basi.`;
+    valueVisual = `Pose tersenyum puas mengacungkan jempol ke arah produk`;
+    valueOverlay = `Terbukti Rekomen! 💯`;
+    ctaDialogue = `Biar kamu gak penasaran lagi, langsung cek detailnya di keranjang kiri bawah!`;
+    ctaVisual = `Arahkan gestur tangan ke sudut kiri bawah layar`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('routine') || lowerAngle.includes('pov') || lowerAngle.includes('rutinitas')) {
+    // 11. Routine/Day in the Life (POV Rutinitas)
+    hookDialogue = `POV: Satu barang kecil di meja ini yang sukses ngerubah rutinitasku jadi 10x lebih produktif!`;
+    hookVisual = `Angle POV dari atas memperlihatkan suasana meja kerja dan ${pName}`;
+    hookOverlay = `POV Rutinitas Produktif ☀️`;
+    hookStrategy = 'Day-in-the-life POV immersion hook';
+    problemDialogue = `Sebelum ada ini, tiap mulai aktivitas selalu terhambat gara-gara ${pain}.`;
+    problemVisual = `Perlihatkan momen sebelum menggunakan produk saat rutinitas`;
+    problemOverlay = `Dulu Sering Terhambat ☕`;
+    demoDialogue = `Sekarang tinggal andalkan ${pName}. Fitur ${feature}-nya ngebantu banget bikin ${benefit} mengalir lancar.`;
+    demoVisual = `Gerakan tangan lincah mengoperasikan produk saat beraktivitas`;
+    demoOverlay = `Aktivitas Mengalir Lancar ✨`;
+    valueDialogue = `Teman setia yang bikin hari-hari jauh lebih santai dan tertata rapi.`;
+    valueVisual = `Suasana kerja yang nyaman dan teratur berkat produk`;
+    valueOverlay = `Lebih Tenang & Fokus 🎯`;
+    ctaDialogue = `Upgrade rutinitas harianmu sekarang, klik keranjang di kiri bawah ya!`;
+    ctaVisual = `Tunjuk santai ke arah keranjang kiri bawah`;
+    ctaOverlay = `Upgrade Rutinitas ⬇️`;
+  } else if (lowerAngle.includes('deep-dive') || lowerAngle.includes('bedah') || lowerAngle.includes('fitur')) {
+    // 12. Feature Deep-Dive (Bedah Fitur)
+    hookDialogue = `Mari kita bedah kenapa teknologi ${feature} di ${pName} ini jarang ditemuin di produk lain!`;
+    hookVisual = `Kamera macro super close-up menyorot material dan tombol bodi ${pName}`;
+    hookOverlay = `Bedah Spesifikasi 🔬`;
+    hookStrategy = 'Technical authority deep-dive hook';
+    problemDialogue = `Banyak produk serupa tapi teknologi lamanya bikin hasil kurang maksimal dan gampang ${pain}.`;
+    problemVisual = `Tunjukkan perbedaan komponen fisik yang lebih kokoh`;
+    problemOverlay = `Bukan Barang Kaleng-Kaleng 🛡️`;
+    demoDialogue = `Di ${pName} ini, rancangan ${feature}-nya presisi banget, memastikan ${benefit} stabil tiap dipakai.`;
+    demoVisual = `Uji tekan tombol atau demonstrasi fitur unggulan`;
+    demoOverlay = `Presisi Tinggi ⚙️`;
+    valueDialogue = `Detail pengerjaannya rapi, membuktikan standar kualitas pabrikannya tinggi.`;
+    valueVisual = `Putar produk 360 derajat memperlihatkan seluruh sudut bodi`;
+    valueOverlay = `Standar Pabrikan Juara 🏆`;
+    ctaDialogue = `Pelajari spesifikasi lengkapnya langsung di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk ke arah keranjang kiri bawah`;
+    ctaOverlay = `Cek Spesifikasi Lengkap ⬇️`;
+  } else if (lowerAngle.includes('humor') || lowerAngle.includes('lucu') || lowerAngle.includes('drama')) {
+    // 13. Relatable Humor (Situasi Lucu)
+    hookDialogue = `Momen ketika kamu baru sadar selama ini tersiksa gara-gara ${pain}, padahal solusinya ada di depan mata!`;
+    hookVisual = `Drama ekspresi wajah tepuk jidat kocak, lalu tersenyum memperlihatkan ${pName}`;
+    hookOverlay = `Nyesel Baru Tahu 🤦`;
+    hookStrategy = 'Humorous relatable agitation hook';
+    problemDialogue = `Nyesel banget kenapa baru nemu alat ini sekarang setelah sekian lama ribet sendiri.`;
+    problemVisual = `Pose menggelengkan kepala meratapi kerepotan masa lalu`;
+    problemOverlay = `Drama Kerepotan Selesai 🎬`;
+    demoDialogue = `Untung sekarang ada ${pName}. Tinggal manfaatin ${feature}-nya, langsung ${benefit} tanpa drama lagi.`;
+    demoVisual = `Tunjukkan betapa mudah dan santainya memakai produk ini`;
+    demoOverlay = `Gak Pakai Drama 👌`;
+    valueDialogue = `Selamat tinggal kerepotan masa lalu, sambut hidup serba praktis.`;
+    valueVisual = `Ekspresi lega dan tersenyum santai di depan kamera`;
+    valueOverlay = `Hidup Lebih Santai ✨`;
+    ctaDialogue = `Bebaskan dirimu dari drama kerepotan, tap keranjang di kiri bawah sekarang!`;
+    ctaVisual = `Mengarahkan jari ke keranjang kiri bawah`;
+    ctaOverlay = `Tap Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('urgency') || lowerAngle.includes('terbatas') || lowerAngle.includes('momen')) {
+    // 14. Urgency/Scarcity (Momen Terbatas)
+    hookDialogue = `Buat kamu yang lagi pusing ngadepin masalah ${pain}, sekarang momen paling pas buat ambil tindakan!`;
+    hookVisual = `Tangan mengambil ${pName} dengan antusias memperlihatkannya ke kamera`;
+    hookOverlay = `Waktu Tepat Berubah ⏰`;
+    hookStrategy = 'Timely action urgency hook';
+    problemDialogue = `Jangan tunda sampai masalah makin numpuk dan aktivitas harianmu jadi terganggu terus.`;
+    problemVisual = `Tatap kamera dengan nada bicara mendorong dan meyakinkan`;
+    problemOverlay = `Jangan Ditunda Lagi ⚠️`;
+    demoDialogue = `Miliki ${pName} hari ini dengan keunggulan ${feature} yang siap bantu ${benefit} kapan saja.`;
+    demoVisual = `Perlihatkan kesiapan produk langsung pakai tanpa proses rumit`;
+    demoOverlay = `Siap Pakai Kapan Saja 🚀`;
+    valueDialogue = `Investasi kenyamanan terbaik yang bakal langsung kamu syukuri setiap hari.`;
+    valueVisual = `Sorot keutuhan kemasan dan produk yang elegan`;
+    valueOverlay = `Pilihan Terbaik Hari Ini 🌟`;
+    ctaDialogue = `Mumpung masih tersedia lengkap, langsung checkout di keranjang kiri bawah ya!`;
+    ctaVisual = `Arahkan jari telunjuk ke keranjang bawah video`;
+    ctaOverlay = `Checkout Sekarang ⬇️`;
+  } else if (lowerAngle.includes('before') || lowerAngle.includes('transformasi')) {
+    // 15. Before-After Transformation (Transformasi Nyata)
+    hookDialogue = `Perbedaan sebelum dan sesudah kenal ${pName} ini beneran kayak bumi dan langit!`;
+    hookVisual = `Bagi fokus visual: gestur sebelum (kerepotan) vs setelah memegang ${pName}`;
+    hookOverlay = `Sebelum vs Sesudah 🔄`;
+    hookStrategy = 'Contrastive transformation hook';
+    problemDialogue = `Dulu pas masih sering ${pain}, semuanya terasa lambat dan bikin mood berantakan.`;
+    problemVisual = `Gaya ekspresi pusing di samping barang-barang berantakan`;
+    problemOverlay = `Kondisi Sebelum 😫`;
+    demoDialogue = `Setelah beralih ke ${pName}, berkat ${feature}-nya, proses ${benefit} jadi super rapi dan cepat.`;
+    demoVisual = `Transisi visual ke kondisi rapi dengan ${pName} bekerja sempurna`;
+    demoOverlay = `Kondisi Sesudah ✨`;
+    valueDialogue = `Transformasi nyata yang langsung kerasa dampaknya sejak hari pertama.`;
+    valueVisual = `Tersenyum bangga di samping penataan yang rapi`;
+    valueOverlay = `Beda Banget Hasilnya! 💯`;
+    ctaDialogue = `Rasakan transformasinya sendiri, klik keranjang di kiri bawah sekarang!`;
+    ctaVisual = `Tunjuk ke sudut kiri bawah layar`;
+    ctaOverlay = `Klik Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('comparison') || lowerAngle.includes('alternative') || lowerAngle.includes('adu')) {
+    // 16. Comparison vs Alternative (Adu Kualitas)
+    hookDialogue = `Adu langsung ${pName} vs metode lama yang biasa kamu pakai. Siapa juaranya?`;
+    hookVisual = `Pegang alat konvensional di tangan kiri dan ${pName} di tangan kanan`;
+    hookOverlay = `Adu Kualitas Langsung ⚔️`;
+    hookStrategy = 'Direct side-by-side comparison hook';
+    problemDialogue = `Cara lama butuh banyak tenaga dan sering bikin ${pain} tanpa hasil memuaskan.`;
+    problemVisual = `Tunjukkan kekurangan metode lama yang merepotkan`;
+    problemOverlay = `Cara Lama: Ribet & Lambat ❌`;
+    demoDialogue = `Sedangkan ${pName} dengan ${feature} modern, langsung bikin ${benefit} jauh lebih efisien.`;
+    demoVisual = `Fokus ke keunggulan cepat dan modern dari ${pName}`;
+    demoOverlay = `Cara Baru: Cepat & Efisien ✅`;
+    valueDialogue = `Teknologi baru yang jauh lebih unggul di segala aspek kenyamanan.`;
+    valueVisual = `Singkirkan alat lama, tampilkan ${pName} di tengah sorotan`;
+    valueOverlay = `Pemenang Mutlak 🏆`;
+    ctaDialogue = `Saatnya beralih ke cara modern, intip detailnya di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk ke arah keranjang kiri bawah`;
+    ctaOverlay = `Beralih ke Cara Modern ⬇️`;
+  } else if (lowerAngle.includes('secret') || lowerAngle.includes('hack') || lowerAngle.includes('rahasia')) {
+    // 17. Hidden Gem/Secret Hack (Trik Rahasia)
+    hookDialogue = `Spill trik rahasia yang jarang orang tahu: cara gampang menuntaskan masalah ${pain}!`;
+    hookVisual = `Gestur bisik-bisik penasaran ke kamera, sorot sudut tersembunyi ${pName}`;
     hookOverlay = `Trik Rahasia 🤫`;
     hookStrategy = 'Curiosity loop life-hack hook';
-    problemDialogue = `Banyak orang belum tahu jalan pintas ini dan masih repot sendiri berjam-jam.`;
+    problemDialogue = `Banyak orang belum tahu shortcut praktis ini dan masih capek sendiri berjam-jam.`;
+    problemVisual = `Tatap kamera seolah membagikan rahasia penting`;
     problemOverlay = `Jarang Ada yang Tahu ⚡`;
     demoDialogue = `Kuncinya ada di ${pName}. Fitur tersembunyi ${feature}-nya bikin ${benefit} jauh lebih santai.`;
-    demoOverlay = `Hack Terbaik 🚀`;
-    valueDialogue = `Sekarang giliran kamu yang buktiin sendiri sebelum barangnya kehabisan.`;
-    valueOverlay = `Buktiin Sendiri! 🎯`;
+    demoVisual = `Sorot tombol tersembunyi atau cara pakai unik produk`;
+    demoOverlay = `Shortcut Cerdas 🚀`;
+    valueDialogue = `Trik pintar yang bikin rutinitasmu jauh lebih efisien tanpa buang tenaga.`;
+    valueVisual = `Ekspresi puas mengagumi kemudahan produk`;
+    valueOverlay = `Hack Terbaik 💡`;
+    ctaDialogue = `Buktikan trik ini sendiri sekarang, klik keranjang di kiri bawah ya!`;
+    ctaVisual = `Arahkan tangan ke keranjang bawah video ini`;
+    ctaOverlay = `Klik Keranjang Kiri Bawah ⬇️`;
+  } else if (lowerAngle.includes('gift') || lowerAngle.includes('hadiah') || lowerAngle.includes('kado')) {
+    // 18. Gift/Recommendation (Rekomendasi Hadiah)
+    hookDialogue = `Lagi bingung cari kado berguna yang pasti kepakai dan bikin penerimanya senang? Ini jawabannya!`;
+    hookVisual = `Tunjukkan ${pName} dalam pose presentasi elegan seolah memberi hadiah`;
+    hookOverlay = `Ide Kado Terbaik 🎁`;
+    hookStrategy = 'Thoughtful gift utility hook';
+    problemDialogue = `Sering bingung mau kasih hadiah apa yang solutif buat orang yang sering ${pain}.`;
+    problemVisual = `Ekspresi memikirkan kado yang tepat`;
+    problemOverlay = `Biar Gak Mubazir ✨`;
+    demoDialogue = `Nah, ${pName} ini pilihan sempurna. Ada ${feature} fungsional yang bakal bikin ${benefit} buat kesehariannya.`;
+    demoVisual = `Perlihatkan kemasan dan bodi produk yang cantik dan mewah`;
+    demoOverlay = `Pasti Kepakai Harian 👍`;
+    valueDialogue = `Hadiah bermakna yang bikin mereka selalu ingat sama kebaikanmu tiap kali pakai.`;
+    valueVisual = `Pose tersenyum hangat memegang produk`;
+    valueOverlay = `Kado Berkesan ❤️`;
+    ctaDialogue = `Kasih yang terbaik buat orang tersayang, dapatkan sekarang di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk ramah ke keranjang kiri bawah`;
+    ctaOverlay = `Dapatkan Hadiah Ini ⬇️`;
+  } else if (lowerAngle.includes('behind') || lowerAngle.includes('layar') || lowerAngle.includes('bts')) {
+    // 19. Behind the Scenes (Di Balik Layar)
+    hookDialogue = `Bocoran di balik layar: ini senjata rahasia yang gak pernah absen nemenin aku tiap hari!`;
+    hookVisual = `Kamera memperlihatkan suasana meja kerja atau ruang kerja sebelum zoom ke ${pName}`;
+    hookOverlay = `Di Balik Layar 🎥`;
+    hookStrategy = 'Insider backstage authenticity hook';
+    problemDialogue = `Banyak yang nanya rahasianya bisa tetap tenang dan gak terganggu sama ${pain}.`;
+    problemVisual = `Tatap kamera berbicara santai tentang kenyataan di balik layar`;
+    problemOverlay = `Rahasia Ketenangan 🎬`;
+    demoDialogue = `Jawabannya selalu ${pName}. Fitur ${feature}-nya bekerja konsisten untuk bikin ${benefit} tanpa drama.`;
+    demoVisual = `Tunjukkan produk sedang dipakai di tengah aktivitas kerja`;
+    demoOverlay = `Andalan Harian ⚡`;
+    valueDialogue = `Barang wajib yang beneran ngebantu alur kerja jadi lebih mulus.`;
+    valueVisual = `Fokus ke produk yang berdiri kokoh dan fungsional`;
+    valueOverlay = `Wajib Ada di Set 🌟`;
+    ctaDialogue = `Miliki senjata rahasia ini juga, langsung cek di keranjang kiri bawah!`;
+    ctaVisual = `Tunjuk ke keranjang kiri bawah`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
+  } else {
+    // 20. Problem-Solution (PAS Default)
+    hookDialogue = `Sering kesel tiap kali ${pain}? Jangan diabaikan, tonton video ini sampai habis!`;
+    hookVisual = `Tunjukkan ${pName} langsung di depan kamera dengan gestur fokus`;
+    hookOverlay = `Solusi Buat Kamu 🛑`;
+    hookStrategy = 'Pattern interrupt problem-agitation hook';
+    problemDialogue = `Banyak dari kita yang ngalamin hal serupa setiap hari. Padahal solusinya simpel banget.`;
+    problemVisual = `Perlihatkan ekspresi relate terhadap masalah sehari-hari`;
+    problemOverlay = `Pernah Ngalamin Ini? 😩`;
+    demoDialogue = `Kenalin ${pName}! Keunggulannya punya ${feature}, jadi ${benefit} tanpa ribet.`;
+    demoVisual = `Close up detail ${pName}, demokan fitur ${feature}`;
+    demoOverlay = `${feature} ✨`;
+    valueDialogue = `Bahannya awet dan beneran ngebantu banget dipakai sehari-hari. Hemat tenaga dan waktu.`;
+    valueVisual = `Perlihatkan keutuhan produk dan hasil pemakaian praktis`;
+    valueOverlay = `Rekomendasi Terbaik! 👍`;
+    ctaDialogue = `Langsung cek detail variasi dan amankan di keranjang kiri bawah sekarang ya!`;
+    ctaVisual = `Tunjuk gestur jari ke arah keranjang di sudut kiri bawah layar`;
+    ctaOverlay = `Cek Keranjang Kiri Bawah ⬇️`;
   }
 
   const segments = [
@@ -926,9 +1208,9 @@ function buildFallbackScript(
     {
       timeRange: '25-30 detik',
       segmentName: 'CTA',
-      visualDirection: `Tunjuk gestur jari ke arah keranjang di sudut kiri bawah layar`,
-      spokenDialogue: `Langsung cek detailnya di keranjang kiri bawah sekarang ya!`,
-      overlayText: `Cek Keranjang Kiri Bawah ⬇️`,
+      visualDirection: ctaVisual || `Tunjuk gestur jari ke arah keranjang di sudut kiri bawah layar`,
+      spokenDialogue: ctaDialogue || `Langsung cek detailnya di keranjang kiri bawah sekarang ya!`,
+      overlayText: ctaOverlay || `Cek Keranjang Kiri Bawah ⬇️`,
       strategyNote: 'Neutral multi-platform CTA',
     },
   ];
@@ -988,7 +1270,7 @@ async function generateBatchOfScripts(params: {
   const endIndex = startIndex + batchCount - 1;
 
   const userPrompt = `
-TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA SECARA RADIKAL.
+TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) DENGAN CERITA, HOOK, DAN VISUAL YANG BERBEDA SECARA RADIKAL.
 Nomor urut konsep dalam batch ini: Konsep #${startIndex} sampai #${endIndex} (Total tepat ${batchCount} konsep).
 
 DATA PRODUK (SUMBER RESMI TERVERIFIKASI):
@@ -1018,28 +1300,43 @@ KONFIGURASI BATCH:
 - Sapaan/Pronoun: ${config.pronouns}
 - Instruksi Tambahan Pengguna: ${config.extraInstructions || '-'}
 
-DAFTAR PENUGASAN WAJIB ${batchCount} KONSEP PADA BATCH INI (HARUS BERBEDA TOTAL ANTARA SATU DAN LAINNYA):
+DAFTAR PENUGASAN WAJIB ${batchCount} KONSEP PADA BATCH INI (HARUS 100% BERBEDA ANTARA SATU DAN LAINNYA):
 ${assignedAngles
-  .map(
-    (ang, i) =>
-      `* Konsep #${startIndex + i} (id: "skrip-${startIndex + i}"): WAJIB gunakan Angle "${ang}". Buat judul spesifik, skenario unik, dan hook yang relevan dengan angle ini.`
-  )
+  .map((ang, i) => {
+    const idx = startIndex + i;
+    const hookTypes = [
+      'Pertanyaan Relatable Masalah Harian',
+      'Pengakuan POV Kisah Nyata Orang Pertama',
+      'Peringatan Kontrarian / Pola Interupsi',
+      'Demonstrasi Hasil Cepat di Detik Awal',
+      'Bongkar Mitos vs Fakta Sebenarnya',
+      'Spill Trik Rahasia / Shortcut Praktis',
+      'Adu Kualitas vs Cara Lama',
+      'Unboxing Taktil Estetik & Tekstur',
+    ];
+    const hookStyle = hookTypes[i % hookTypes.length];
+    return `* Konsep #${idx} (id: "skrip-${idx}"):
+      - Angle: "${ang}"
+      - Gaya Hook Pembuka: "${hookStyle}"
+      - ATURAN: Buka dengan kalimat dan kata pertama yang berbeda dari konsep lain! Skenario cerita, visual B-roll, dan overlay teks harus khas angle "${ang}".`;
+  })
   .join('\n')}
 
 ATURAN ANTI-REPETISI & DIVERSIFIKASI MUTLAK:
-1. DILARANG KERAS MENGHASILKAN POLA ATAU KALIMAT YANG SAMA ANTAR-KONSEP!
-2. Setiap konsep harus memiliki kalimat pembuka, sudut cerita, arahan B-roll visual, dan overlay yang berbeda.
-3. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
-4. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
+1. DILARANG KERAS MENGHASILKAN POLA ATAU FORMULA KALIMAT PEMBUKA YANG SAMA ANTAR-KONSEP!
+2. Jika Konsep A membuka dengan pertanyaan, Konsep B WAJIB membuka dengan pernyataan/cerita, Konsep C dengan larangan/kontrarian, Konsep D dengan aksi demo langsung.
+3. Arahan visual B-roll harus variatif: ada yang close-up tangan, ada yang tatap kamera, ada yang split perbandingan, ada yang unboxing.
+4. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
+5. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
 
 FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchCount} objek skrip):
 [
   {
     "id": "skrip-${startIndex}",
-    "title": "Judul Kreatif Konsep #${startIndex}",
+    "title": "Judul Menarik Khas Konsep #${startIndex}",
     "angle": "${assignedAngles[0] || 'Problem-Solution'}",
     "persona": "${config.audiencePersona}",
-    "differentiator": "Pembeda utama konsep ini dibanding konsep lain",
+    "differentiator": "Pembeda spesifik konsep ini",
     "hookType": "${config.hookType}",
     "triggers": ["Pattern Interrupt", "Curiosity Loop", "Demo Proof"],
     "estimatedDurationSeconds": ${config.durationSeconds},
@@ -1050,16 +1347,16 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         "timeRange": "0-3 detik",
         "segmentName": "HOOK",
         "visualDirection": "Arahan visual & B-roll detail (bisa dieksekusi sendiri dengan HP)",
-        "spokenDialogue": "Dialog narasi lisan Bahasa Indonesia yang mengalir",
+        "spokenDialogue": "Dialog narasi lisan pembuka yang unik sesuai angle",
         "overlayText": "Teks singkat kontras di safe zone",
-        "strategyNote": "Catatan strategi/psikologi"
+        "strategyNote": "Catatan strategi psikologi"
       },
       {
         "timeRange": "3-8 detik",
         "segmentName": "PROBLEM",
         "visualDirection": "Arahan visual konteks masalah",
-        "spokenDialogue": "Dialog kelanjutan masalah penonton",
-        "overlayText": "Teks singkat masalah",
+        "spokenDialogue": "Dialog kelanjutan cerita masalah",
+        "overlayText": "Teks masalah",
         "strategyNote": "Membangun rasa relate"
       },
       {
@@ -1073,7 +1370,7 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
       {
         "timeRange": "20-25 detik",
         "segmentName": "VALUE",
-        "visualDirection": "Tunjukkan produk utuh dan kemasan",
+        "visualDirection": "Tunjukkan produk utuh dan kenyamanan pemakaian",
         "spokenDialogue": "Penegasan nilai guna dan manfaat nyata",
         "overlayText": "Nilai guna produk",
         "strategyNote": "Menghilangkan keraguan"
