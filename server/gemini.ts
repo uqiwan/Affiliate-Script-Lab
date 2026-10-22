@@ -12,26 +12,30 @@ import {
   SUPPORTED_GOOGLE_MODELS,
   GEMINI_MODEL,
   parseApiKeys,
+  cleanSingleKey,
+  safeHeaderValue,
 } from '../src/utils/apiKeys.ts';
 
-export { SUPPORTED_GOOGLE_MODELS, GEMINI_MODEL, parseApiKeys };
+export { SUPPORTED_GOOGLE_MODELS, GEMINI_MODEL, parseApiKeys, cleanSingleKey, safeHeaderValue };
 
 function getAiClient(apiKey: string): GoogleGenAI {
-  const cleanKey = apiKey.trim().replace(/^["'`]|["'`]$/g, '').trim();
+  const cleanKey = cleanSingleKey(apiKey);
+  const safeVal = safeHeaderValue(cleanKey);
   const headers: Record<string, string> = {
     'User-Agent': 'aistudio-build',
-    'x-goog-api-key': cleanKey,
+    'x-goog-api-key': safeVal,
   };
-  if (cleanKey.startsWith('ya29.')) {
-    headers['Authorization'] = `Bearer ${cleanKey}`;
+  if (safeVal.startsWith('ya29.')) {
+    headers['Authorization'] = `Bearer ${safeVal}`;
   }
   return new GoogleGenAI({
-    apiKey: cleanKey,
+    apiKey: safeVal,
     httpOptions: {
       headers,
     },
   });
 }
+
 
 /**
  * Verifikasi cepat API Key Google AI Studio (mendukung banyak kunci sekaligus).
@@ -98,7 +102,7 @@ export async function testGeminiApiKey(
   // lakukan pengecekan ringan via endpoint resmi model list Google
   try {
     const directRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(keys[0])}`
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanSingleKey(keys[0]))}`
     );
     if (directRes.ok) {
       return { valid: true, count: keys.length };

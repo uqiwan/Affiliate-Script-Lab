@@ -1,55 +1,86 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import { cleanSingleKey, safeHeaderValue, parseApiKeys } from './apiKeys';
 
 // URL backend cloud utama untuk koneksi dari APK Android / perangkat mobile
 export const DEFAULT_CLOUD_BACKEND =
-  'https://ais-pre-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app';
+  'https://ais-pre-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app';
 
 export const FALLBACK_CLOUD_BACKENDS = [
-  'https://ais-pre-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app',
-  'https://ais-dev-6txwcqzwg7ooehg4ralynv-12666155654.asia-southeast1.run.app',
+  'https://ais-pre-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app',
+  'https://ais-dev-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app',
 ];
 
 /**
- * Verifikasi API Key Google AI Studio langsung ke endpoint Google.
- * Berfungsi secara adaptif dan ramah masa depan untuk seluruh format kunci keluarga Google
- * (AQ..., AQ.Ab8..., AIzaSy..., ya29..., dsb.).
- * Menggunakan prinsip kelonggaran aturan: memastikan format ada tanpa memblokir pengguna jika format kunci berubah di masa depan.
+ * Verifikasi API Key Google AI Studio langsung ke endpoint resmi Google.
+ * Bekerja langsung di APK Android native maupun Web tanpa perantara.
+ * Kebal dari error "Headers: String contains non ISO-8859-1 code point" karena menggunakan
+ * parameter URL murni dan sanitasi ketat.
  */
 export async function verifyGeminiKeyDirectly(
   key: string,
   _model?: string
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    const cleanKey = key.trim().replace(/^["'`]|["'`]$/g, '').trim();
-    if (!cleanKey || cleanKey.length < 6) {
-      return { valid: false, error: 'Harap masukkan API Key terlebih dahulu.' };
+    const keys = parseApiKeys(key);
+    if (keys.length === 0) {
+      return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid.' };
     }
 
-    // Coba uji koneksi ringan dengan header x-goog-api-key resmi Google
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-        headers: {
-          'x-goog-api-key': cleanKey,
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-    } catch {
-      // Abaikan kegagalan jaringan atau timeout pra-pengujian
+    const firstKey = cleanSingleKey(keys[0]);
+    if (!firstKey || firstKey.length < 6) {
+      return { valid: false, error: 'Format API Key terlalu pendek atau tidak valid.' };
     }
 
-    // Kelonggaran penuh: Seluruh kunci Google valid disimpan langsung
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6500);
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(firstKey)}`;
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (firstKey.startsWith('ya29.')) {
+      headers['Authorization'] = `Bearer ${safeHeaderValue(firstKey)}`;
+    }
+
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      return { valid: true };
+    }
+
+    if (res.status === 400 || res.status === 403) {
+      const errJson = await res.json().catch(() => null);
+      const errMsg = errJson?.error?.message || '';
+      if (
+        errMsg.includes('API_KEY_INVALID') ||
+        errMsg.includes('API key not valid') ||
+        errMsg.includes('PERMISSION_DENIED') ||
+        errMsg.includes('not found')
+      ) {
+        return {
+          valid: false,
+          error: 'API Key tidak valid atau ditolak oleh Google AI Studio. Pastikan Anda menyalin seluruh karakter kunci.',
+        };
+      }
+    }
+
+    // Jika status 429 (kuota penuh), kunci tetap valid terdaftar di Google
+    if (res.status === 429) {
+      return { valid: true };
+    }
+
     return { valid: true };
-  } catch {
+  } catch (netErr: any) {
+    // Toleransi penuh saat jaringan lambat / offline
+    console.warn('[verifyGeminiKeyDirectly] Offline or timeout (tolerated):', netErr);
     return { valid: true };
   }
 }
+
 
 /**
  * Mendeteksi apakah aplikasi sedang berjalan di dalam Android APK / Capacitor Native WebView.

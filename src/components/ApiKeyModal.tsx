@@ -21,6 +21,8 @@ import {
 import { apiUrl, safeParseJsonResponse, isMobileApp, verifyGeminiKeyDirectly } from '../utils/api';
 import {
   parseApiKeys,
+  cleanSingleKey,
+  sanitizeApiKeyString,
   SUPPORTED_GOOGLE_MODELS,
   GEMINI_MODEL,
 } from '../utils/apiKeys';
@@ -120,33 +122,53 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   };
 
   const handleTestAndSave = async () => {
-    const trimmed = apiKeyInput.trim();
-    if (!trimmed || detectedKeys.length === 0) {
+    if (detectedKeys.length === 0) {
       setStatusMessage({ text: 'Harap masukkan API Key terlebih dahulu.', type: 'error' });
       return;
     }
 
+    const sanitizedKeys = detectedKeys.map(cleanSingleKey).filter(Boolean);
+    if (sanitizedKeys.length === 0) {
+      setStatusMessage({ text: 'Format API Key tidak valid. Pastikan kunci disalin dengan benar.', type: 'error' });
+      return;
+    }
+
+    const cleanedApiKeyString = sanitizedKeys.join('\n');
+
     setIsTesting(true);
     setStatusMessage({
-      text: `Menyimpan dan menguji ${detectedKeys.length} API Key...`,
+      text: `Menghubungi Google AI Studio & memverifikasi ${sanitizedKeys.length} kunci...`,
       type: null,
     });
 
     try {
-      // 1. Coba ping uji koneksi non-blocking ke server backend jika tersedia
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        await fetch(apiUrl('/api/test-key'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey: trimmed, model: modelChoice }),
-          signal: controller.signal,
+      // 1. Verifikasi langsung ke Google AI Studio endpoint (bekerja langsung di Android APK & Web)
+      const directVerification = await verifyGeminiKeyDirectly(cleanedApiKeyString, modelChoice);
+      if (!directVerification.valid && directVerification.error) {
+        setStatusMessage({
+          text: directVerification.error,
+          type: 'error',
         });
-        clearTimeout(timeoutId);
-      } catch (backendErr) {
-        console.warn('Backend ping notice (tolerated):', backendErr);
+        setIsTesting(false);
+        return;
+      }
+
+      // 2. Jika di Web environment biasa, sinkronisasikan juga ke endpoint backend jika server aktif
+      if (!isMobileApp()) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+          await fetch(apiUrl('/api/test-key'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: cleanedApiKeyString, model: modelChoice }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+        } catch (backendErr) {
+          console.warn('Backend ping notice (tolerated):', backendErr);
+        }
       }
 
       if (onSelectModel) {
@@ -154,28 +176,28 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       }
 
       // Kelonggaran penuh: Selalu simpan kunci pengguna tanpa memblokir
-      const saved = await onSave(trimmed, modelChoice);
+      const saved = await onSave(cleanedApiKeyString, modelChoice);
       if (saved) {
         setStatusMessage({
-          text: `✓ ${detectedKeys.length} API Key Google (${modelChoice}) berhasil disimpan dan aktif!`,
+          text: `✓ ${sanitizedKeys.length} API Key Google (${modelChoice}) terverifikasi & aktif!`,
           type: 'success',
         });
         setTimeout(() => {
           onClose();
-        }, 800);
+        }, 1000);
       }
     } catch (err: any) {
       // Jika terjadi kendala penyimpanan cloud, paksa simpan lokal
       try {
         if (onSelectModel) onSelectModel(modelChoice);
-        await onSave(trimmed, modelChoice);
+        await onSave(cleanedApiKeyString, modelChoice);
         setStatusMessage({
-          text: `✓ API Key Google berhasil disimpan secara lokal!`,
+          text: `✓ API Key Google berhasil disimpan!`,
           type: 'success',
         });
         setTimeout(() => {
           onClose();
-        }, 800);
+        }, 1000);
       } catch {
         setStatusMessage({
           text: err.message || 'Gagal menyimpan API Key.',

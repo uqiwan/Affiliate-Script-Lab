@@ -13,7 +13,7 @@ import type {
   InputMode,
   SourceProvenance,
 } from '../types';
-import { parseApiKeys } from '../utils/apiKeys';
+import { parseApiKeys, cleanSingleKey, safeHeaderValue } from '../utils/apiKeys';
 import { countWords, evaluateDurationStatus } from '../utils/wordCount';
 
 // Candidate models prioritized for speed, reasoning, and throughput
@@ -158,7 +158,7 @@ export async function callGeminiDirect(params: {
   let exhaustedCount = 0;
 
   for (const { key: rawKey } of orderedKeys) {
-    const cleanKey = rawKey.trim().replace(/^["'`]|["'`]$/g, '').trim();
+    const cleanKey = cleanSingleKey(rawKey);
     if (!cleanKey || cleanKey.length < 6) continue;
 
     const cooldownUntil = directQuotaTracker.get(cleanKey);
@@ -212,10 +212,12 @@ export async function callGeminiDirect(params: {
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          'x-goog-api-key': cleanKey,
+          'Accept': 'application/json',
         };
         if (cleanKey.startsWith('ya29.')) {
-          headers['Authorization'] = `Bearer ${cleanKey}`;
+          headers['Authorization'] = `Bearer ${safeHeaderValue(cleanKey)}`;
+        } else {
+          headers['x-goog-api-key'] = safeHeaderValue(cleanKey);
         }
 
         const res = await fetch(endpoint, {

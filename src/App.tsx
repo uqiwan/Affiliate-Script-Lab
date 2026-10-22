@@ -18,7 +18,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { QuotaExhaustedModal } from './components/QuotaExhaustedModal';
 import { AuthWarningModal } from './components/AuthWarningModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
-import { parseApiKeys } from './utils/apiKeys';
+import { parseApiKeys, cleanSingleKey } from './utils/apiKeys';
 import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
@@ -445,16 +445,18 @@ export default function App() {
   };
 
   const handleSaveApiKey = async (newKey: string, model?: string): Promise<boolean> => {
-    setApiKey(newKey);
+    const keys = parseApiKeys(newKey);
+    const cleaned = keys.map(cleanSingleKey).filter(Boolean).join('\n');
+    setApiKey(cleaned);
     setIsQuotaExhausted(false);
-    localStorage.setItem('affiliate_script_lab_api_key', newKey);
+    localStorage.setItem('affiliate_script_lab_api_key', cleaned);
     if (model) {
       setSelectedModel(model);
       localStorage.setItem('affiliate_script_lab_model', model);
     }
     if (user) {
       try {
-        await saveUserApiKey(user.uid, newKey);
+        await saveUserApiKey(user.uid, cleaned);
       } catch (err) {
         console.error('Failed to sync api key to Firestore:', err);
       }

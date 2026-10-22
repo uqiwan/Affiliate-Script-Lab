@@ -4,6 +4,7 @@
  */
 
 import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
+import { safeHeaderValue, cleanSingleKey, parseApiKeys } from '../utils/apiKeys';
 import type {
   ProductBrief,
   GenerationConfig,
@@ -18,6 +19,15 @@ import {
   directGenerateScripts,
   directRefineScript,
 } from './directGeminiService';
+
+function buildSafeApiKeyHeader(apiKey?: string): Record<string, string> {
+  if (!apiKey) return {};
+  const keys = parseApiKeys(apiKey);
+  if (keys.length === 0) return {};
+  const cleaned = keys.map(cleanSingleKey).filter(Boolean).join(',');
+  const safeVal = safeHeaderValue(cleaned);
+  return safeVal ? { 'x-gemini-api-key': safeVal } : {};
+}
 
 export interface AnalyzeInputParams {
   inputMode: InputMode;
@@ -48,7 +58,7 @@ export async function executeExtractProduct(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+        ...buildSafeApiKeyHeader(apiKey),
       },
       body: JSON.stringify({
         inputMode: params.inputMode,
@@ -106,7 +116,7 @@ export async function executeGenerateScripts(params: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+        ...buildSafeApiKeyHeader(apiKey),
       },
       body: JSON.stringify({
         productBrief: params.productBrief,
@@ -164,7 +174,7 @@ export async function executeRefineScript(params: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+        ...buildSafeApiKeyHeader(apiKey),
       },
       body: JSON.stringify({
         script: params.script,
