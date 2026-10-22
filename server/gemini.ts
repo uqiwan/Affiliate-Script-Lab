@@ -17,12 +17,18 @@ import {
 export { SUPPORTED_GOOGLE_MODELS, GEMINI_MODEL, parseApiKeys };
 
 function getAiClient(apiKey: string): GoogleGenAI {
+  const cleanKey = apiKey.trim().replace(/^["'`]|["'`]$/g, '').trim();
+  const headers: Record<string, string> = {
+    'User-Agent': 'aistudio-build',
+    'x-goog-api-key': cleanKey,
+  };
+  if (cleanKey.startsWith('ya29.')) {
+    headers['Authorization'] = `Bearer ${cleanKey}`;
+  }
   return new GoogleGenAI({
-    apiKey: apiKey.trim(),
+    apiKey: cleanKey,
     httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
+      headers,
     },
   });
 }

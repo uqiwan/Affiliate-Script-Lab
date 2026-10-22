@@ -39,7 +39,11 @@ export const GEMINI_MODEL = 'gemini-3.8-flash';
 
 /**
  * Parsing multi API Key dari string teks (pemisah baris baru, koma, titik koma, atau spasi).
- * Mendukung kunci awalan AQ.. maupun AIzaSy..
+ * Mendukung seluruh varian format keluarga Google saat ini maupun pembaruan masa depan:
+ * - Kunci Google AI Studio terbaru: AQ... / AQ.Ab8RN6... (titik, strip, alfanumerik)
+ * - Kunci standar Google Cloud: AIzaSy...
+ * - Token OAuth / Bearer: ya29...
+ * - Kunci kustom / format pembaruan Google masa depan
  */
 export function parseApiKeys(input?: string): string[] {
   if (!input) return [];
@@ -48,8 +52,9 @@ export function parseApiKeys(input?: string): string[] {
   const seen = new Set<string>();
 
   for (const part of rawParts) {
-    const trimmed = part.trim();
-    if (trimmed.length >= 10 && !seen.has(trimmed)) {
+    const trimmed = part.trim().replace(/^["'`]|["'`]$/g, '').trim();
+    // Berikan kelonggaran penuh: terima semua format kunci dengan panjang >= 6 karakter
+    if (trimmed.length >= 6 && !seen.has(trimmed)) {
       seen.add(trimmed);
       keys.push(trimmed);
     }
