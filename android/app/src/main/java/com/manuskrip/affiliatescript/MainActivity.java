@@ -361,6 +361,30 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public String getSavedFloatingPrompterSettings() {
+            try {
+                android.content.SharedPreferences prefs = getSharedPreferences("gagaswara_prompter_prefs", android.content.Context.MODE_PRIVATE);
+                org.json.JSONObject obj = new org.json.JSONObject();
+                if (prefs.contains("speed")) obj.put("speed", prefs.getInt("speed", 3));
+                if (prefs.contains("font_size")) obj.put("fontSize", prefs.getInt("font_size", 18));
+                if (prefs.contains("opacity")) obj.put("opacity", prefs.getInt("opacity", 85));
+                if (prefs.contains("theme_id")) obj.put("themeId", prefs.getString("theme_id", "dark_pro"));
+                if (prefs.contains("preset_id")) obj.put("presetId", prefs.getString("preset_id", "standard_read"));
+                if (prefs.contains("rotation")) obj.put("rotation", prefs.getInt("rotation", 0));
+                if (prefs.contains("is_mirrored")) obj.put("isMirrored", prefs.getBoolean("is_mirrored", false));
+                if (prefs.contains("show_focus_guide")) obj.put("showFocusGuide", prefs.getBoolean("show_focus_guide", true));
+                if (prefs.contains("focus_percent")) obj.put("focusGuidePercent", prefs.getInt("focus_percent", 12));
+                if (prefs.contains("countdown_sec")) obj.put("countdownSec", prefs.getInt("countdown_sec", 3));
+                if (prefs.contains("window_width")) obj.put("windowWidth", prefs.getInt("window_width", 660));
+                if (prefs.contains("window_height")) obj.put("windowHeight", prefs.getInt("window_height", 740));
+                return obj.toString();
+            } catch (Exception e) {
+                e.printStackTrace();
+                return "";
+            }
+        }
+
+        @JavascriptInterface
         public void openAppDetailsSettings() {
             try {
                 Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);

@@ -430,12 +430,15 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         opacity,
         textColorHex: activePreset.textColor || '#FEF08A',
         presetId: activePresetId,
+        themeId: activeTheme.id,
+        backgroundColorHex: activeTheme.backgroundColor,
+        highlightColorHex: activeTheme.highlightColor,
         rotation,
         isMirrored,
         showFocusGuide,
         focusGuidePercent: focusGuidePosition,
         countdownSec: countdownEnabled ? countdownDuration : 0,
-      });
+      }, activeConcepts);
       if (launched) return;
     }
 

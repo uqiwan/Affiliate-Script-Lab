@@ -35,9 +35,9 @@ import androidx.core.app.NotificationCompat;
  * Foreground Service untuk Teleprompter Melayang (Always-on-Top Floating Window).
  * Beroperasi di atas kamera, TikTok, CapCut, dan aplikasi lain.
  * Menghadirkan:
- * 1. Tombol Geser (drag & move) yang dapat digeser bebas ke arah manapun oleh user.
+ * 1. Tombol Geser (drag & move) interaktif yang dapat digeser bebas ke arah manapun oleh user.
  * 2. Penyimpanan otomatis & restorasi setelan terakhir (posisi, ukuran, kecepatan, font, tema, rotasi).
- * 3. Dukungan 3 Tema Utama (Dark Pro, Soft Comfort, Light Clean).
+ * 3. Dukungan 3 Tema Utama (Dark Pro [default], Soft Comfort, Light Clean).
  * 4. Rotasi teleprompter (0°, 90°, 180°, 270°) dengan penyesuaian otomatis agar tidak melebihi layar HP.
  * 5. Menu Gabungan 3/4 sisi kanan bergaya web app dengan ikon minimalis.
  * 6. Skala tombol dan menu responsif dalam ukuran teleprompter apapun.
@@ -52,6 +52,7 @@ public class FloatingPrompterService extends Service {
     private WindowManager windowManager;
     private View floatingView;
     private LinearLayout dragStrip;
+    private FrameLayout moveHandle;
     private FrameLayout resizeHandle;
     private WindowManager.LayoutParams params;
     private WebView webView;
@@ -59,7 +60,7 @@ public class FloatingPrompterService extends Service {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private int minWindowWidth = 260;
-    private int minWindowHeight = 300;
+    private int minWindowHeight = 280;
     private int lastExpandedWidth = 660;
     private int lastExpandedHeight = 740;
     private int currentPositionState = 0; // 0: Atas, 1: Tengah, 2: Bawah
@@ -118,18 +119,22 @@ public class FloatingPrompterService extends Service {
         acquireWakeLock();
         startForegroundServiceNotification();
 
-        // 1. Muat setelan terakhir dari SharedPreferences sebagai default
+        // 1. Muat setelan terakhir dari SharedPreferences sebagai default prioritas
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        currentSavedSpeed = prefs.getInt("speed", 3);
-        currentSavedFontSize = prefs.getInt("font_size", 18);
-        currentSavedOpacity = prefs.getInt("opacity", 85);
-        currentSavedThemeId = prefs.getString("theme_id", "dark_pro");
-        currentSavedPresetId = prefs.getString("preset_id", "standard_read");
-        currentSavedRotation = prefs.getInt("rotation", 0);
-        currentSavedMirrored = prefs.getBoolean("is_mirrored", false);
-        currentSavedShowFocusGuide = prefs.getBoolean("show_focus_guide", true);
-        currentSavedFocusPercent = prefs.getInt("focus_percent", 12);
-        currentSavedCountdownSec = prefs.getInt("countdown_sec", 3);
+        boolean hasSavedSettings = prefs.contains("window_width") || prefs.contains("speed") || prefs.contains("theme_id");
+
+        if (hasSavedSettings) {
+            currentSavedSpeed = prefs.getInt("speed", 3);
+            currentSavedFontSize = prefs.getInt("font_size", 18);
+            currentSavedOpacity = prefs.getInt("opacity", 85);
+            currentSavedThemeId = prefs.getString("theme_id", "dark_pro");
+            currentSavedPresetId = prefs.getString("preset_id", "standard_read");
+            currentSavedRotation = prefs.getInt("rotation", 0);
+            currentSavedMirrored = prefs.getBoolean("is_mirrored", false);
+            currentSavedShowFocusGuide = prefs.getBoolean("show_focus_guide", true);
+            currentSavedFocusPercent = prefs.getInt("focus_percent", 12);
+            currentSavedCountdownSec = prefs.getInt("countdown_sec", 3);
+        }
 
         String scriptText = "Halo kreator! Naskah teleprompter melayang Gagaswara siap digunakan...";
         String conceptsJson = "";
@@ -150,7 +155,7 @@ public class FloatingPrompterService extends Service {
         int windowWidth = prefs.getInt("window_width", 660);
         int windowHeight = prefs.getInt("window_height", 740);
 
-        // 2. Jika intent membawa parameter khusus, update setelan
+        // 2. Jika intent membawa parameter naskah dan tema baru
         if (intent != null) {
             if (intent.hasExtra("scriptText") && intent.getStringExtra("scriptText") != null) {
                 scriptText = intent.getStringExtra("scriptText");
@@ -158,13 +163,14 @@ public class FloatingPrompterService extends Service {
             if (intent.hasExtra("conceptsJson") && intent.getStringExtra("conceptsJson") != null) {
                 conceptsJson = intent.getStringExtra("conceptsJson");
             }
-            if (intent.hasExtra("presetId") && intent.getStringExtra("presetId") != null) {
-                presetId = intent.getStringExtra("presetId");
-                currentSavedPresetId = presetId;
-            }
+            // Jika ada tema eksplisit dikirim dari aplikasi utama
             if (intent.hasExtra("themeId") && intent.getStringExtra("themeId") != null) {
                 themeId = intent.getStringExtra("themeId");
                 currentSavedThemeId = themeId;
+            }
+            if (intent.hasExtra("presetId") && intent.getStringExtra("presetId") != null && !hasSavedSettings) {
+                presetId = intent.getStringExtra("presetId");
+                currentSavedPresetId = presetId;
             }
             if (intent.hasExtra("backgroundColorHex") && intent.getStringExtra("backgroundColorHex") != null) {
                 bgColor = intent.getStringExtra("backgroundColorHex");
@@ -172,46 +178,8 @@ public class FloatingPrompterService extends Service {
             if (intent.hasExtra("highlightColorHex") && intent.getStringExtra("highlightColorHex") != null) {
                 highlightColor = intent.getStringExtra("highlightColorHex");
             }
-            if (intent.hasExtra("rotation")) {
-                rotation = intent.getIntExtra("rotation", rotation);
-                currentSavedRotation = rotation;
-            }
-            if (intent.hasExtra("speed")) {
-                speed = intent.getIntExtra("speed", speed);
-                currentSavedSpeed = speed;
-            }
-            if (intent.hasExtra("fontSize")) {
-                fontSize = intent.getIntExtra("fontSize", fontSize);
-                currentSavedFontSize = fontSize;
-            }
-            if (intent.hasExtra("opacity")) {
-                opacity = intent.getIntExtra("opacity", opacity);
-                currentSavedOpacity = opacity;
-            }
             if (intent.hasExtra("textColorHex") && intent.getStringExtra("textColorHex") != null) {
                 textColor = intent.getStringExtra("textColorHex");
-            }
-            if (intent.hasExtra("isMirrored")) {
-                isMirrored = intent.getBooleanExtra("isMirrored", isMirrored);
-                currentSavedMirrored = isMirrored;
-            }
-            if (intent.hasExtra("showFocusGuide")) {
-                showFocusGuide = intent.getBooleanExtra("showFocusGuide", showFocusGuide);
-                currentSavedShowFocusGuide = showFocusGuide;
-            }
-            if (intent.hasExtra("focusGuidePercent")) {
-                focusPercent = intent.getIntExtra("focusGuidePercent", focusPercent);
-                currentSavedFocusPercent = focusPercent;
-            }
-            if (intent.hasExtra("countdownSec")) {
-                countdownSec = intent.getIntExtra("countdownSec", countdownSec);
-                currentSavedCountdownSec = countdownSec;
-            }
-            if (intent.hasExtra("windowWidth")) {
-                windowWidth = intent.getIntExtra("windowWidth", windowWidth);
-            }
-            if (intent.hasExtra("windowHeight")) {
-                windowHeight = intent.getIntExtra("windowHeight", windowHeight);
             }
         }
 
@@ -301,31 +269,32 @@ public class FloatingPrompterService extends Service {
         createNotificationChannel();
 
         Intent openAppIntent = new Intent(this, MainActivity.class);
+        openAppIntent.setAction(ACTION_OPEN_APP);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pendingOpenApp = PendingIntent.getActivity(
+        PendingIntent pOpenIntent = PendingIntent.getActivity(
             this,
             0,
             openAppIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
         );
 
         Intent stopIntent = new Intent(this, FloatingPrompterService.class);
         stopIntent.setAction(ACTION_STOP_PROMPTER);
-        PendingIntent pendingStop = PendingIntent.getService(
+        PendingIntent pStopIntent = PendingIntent.getService(
             this,
             1,
             stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Teleprompter Melayang Aktif")
-            .setContentText("Menampilkan naskah video di atas kamera & aplikasi lain")
-            .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentText("Menampilkan naskah video affiliate di atas kamera")
+            .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
-            .setContentIntent(pendingOpenApp)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Tutup Prompter", pendingStop);
+            .setContentIntent(pOpenIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Tutup Prompter", pStopIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW);
 
         Notification notification = builder.build();
 
@@ -351,6 +320,52 @@ public class FloatingPrompterService extends Service {
                 nm.createNotificationChannel(channel);
             }
         }
+    }
+
+    private void updateNativeThemeColors(String themeId) {
+        try {
+            if (dragStrip == null) return;
+            if ("soft_comfort".equals(themeId)) {
+                dragStrip.setBackgroundColor(Color.parseColor("#5027272A"));
+                if (dragStrip.getChildCount() > 0) {
+                    dragStrip.getChildAt(0).setBackgroundColor(Color.parseColor("#34D399"));
+                }
+            } else if ("light_clean".equals(themeId)) {
+                dragStrip.setBackgroundColor(Color.parseColor("#60E4E4E7"));
+                if (dragStrip.getChildCount() > 0) {
+                    dragStrip.getChildAt(0).setBackgroundColor(Color.parseColor("#2563EB"));
+                }
+            } else {
+                dragStrip.setBackgroundColor(Color.parseColor("#4018181B"));
+                if (dragStrip.getChildCount() > 0) {
+                    dragStrip.getChildAt(0).setBackgroundColor(Color.parseColor("#FACC15"));
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void cyclePositionInternal() {
+        try {
+            if (windowManager == null || floatingView == null || params == null) return;
+            DisplayMetrics dm = new DisplayMetrics();
+            windowManager.getDefaultDisplay().getMetrics(dm);
+            int screenH = dm.heightPixels;
+            int screenW = dm.widthPixels;
+
+            currentPositionState = (currentPositionState + 1) % 3;
+            if (currentPositionState == 0) { // Posisi Atas
+                params.y = (int)(dm.density * 36);
+                params.x = Math.max(0, (screenW - params.width) / 2);
+            } else if (currentPositionState == 1) { // Posisi Tengah
+                params.y = Math.max(0, (screenH - params.height) / 2);
+                params.x = Math.max(0, (screenW - params.width) / 2);
+            } else { // Posisi Bawah
+                params.y = Math.max(0, screenH - params.height - (int)(dm.density * 50));
+                params.x = Math.max(0, (screenW - params.width) / 2);
+            }
+            windowManager.updateViewLayout(floatingView, params);
+            savePrompterState();
+        } catch (Exception ignored) {}
     }
 
     private void initFloatingWindow(
@@ -400,8 +415,8 @@ public class FloatingPrompterService extends Service {
 
         // Jika orientasi rotasi horizontal (90 atau 270), sesuaikan ukuran agar pas dalam batas layar HP
         if (rotation == 90 || rotation == 270) {
-            int swapW = Math.min(Math.max(height, 500), dm.widthPixels - 16);
-            int swapH = Math.min(Math.max(width, 320), (int)(dm.heightPixels * 0.85f));
+            int swapW = Math.min(Math.max(height, 460), dm.widthPixels - 16);
+            int swapH = Math.min(Math.max(width, 300), (int)(dm.heightPixels * 0.82f));
             width = swapW;
             height = swapH;
         }
@@ -449,15 +464,17 @@ public class FloatingPrompterService extends Service {
         dragStrip.setGravity(Gravity.CENTER);
         dragStrip.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            24
+            (int) (14 * dm.density)
         ));
-        dragStrip.setBackgroundColor(Color.parseColor("#4018181B")); // zinc-900 translusen
+        dragStrip.setBackgroundColor(Color.parseColor("#4018181B"));
 
         View handlePill = new View(this);
-        LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(54, 5);
+        LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams((int) (48 * dm.density), (int) (4 * dm.density));
         handlePill.setLayoutParams(pillParams);
-        handlePill.setBackgroundColor(Color.parseColor("#EAB308")); // Amber-500
+        handlePill.setBackgroundColor(Color.parseColor("#FACC15"));
         dragStrip.addView(handlePill);
+
+        updateNativeThemeColors(themeId);
 
         // Drag listener pada strip atas
         dragStrip.setOnTouchListener(new View.OnTouchListener() {
@@ -476,8 +493,10 @@ public class FloatingPrompterService extends Service {
                         initialTouchY = event.getRawY();
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        params.x = Math.max(0, initialX + (int) (event.getRawX() - initialTouchX));
-                        params.y = Math.max(0, initialY + (int) (event.getRawY() - initialTouchY));
+                        DisplayMetrics curDm = new DisplayMetrics();
+                        windowManager.getDefaultDisplay().getMetrics(curDm);
+                        params.x = Math.max(0, Math.min(curDm.widthPixels - 40, initialX + (int) (event.getRawX() - initialTouchX)));
+                        params.y = Math.max(0, Math.min(curDm.heightPixels - 40, initialY + (int) (event.getRawY() - initialTouchY)));
                         try {
                             windowManager.updateViewLayout(floatingView, params);
                         } catch (Exception ignored) {}
@@ -542,9 +561,65 @@ public class FloatingPrompterService extends Service {
         columnContainer.addView(webView);
         rootLayout.addView(columnContainer);
 
+        // Native Move Handle di Sudut Kiri Bawah (Tombol Geser Paling Kiri)
+        // Menjamin fitur geser 100% responsif tanpa hambatan koordinat WebView
+        moveHandle = new FrameLayout(this);
+        int moveW = (int) (44 * dm.density);
+        int moveH = (int) (38 * dm.density);
+        FrameLayout.LayoutParams moveParams = new FrameLayout.LayoutParams(moveW, moveH);
+        moveParams.gravity = Gravity.BOTTOM | Gravity.START;
+        moveHandle.setLayoutParams(moveParams);
+        moveHandle.setBackgroundColor(Color.TRANSPARENT);
+
+        moveHandle.setOnTouchListener(new View.OnTouchListener() {
+            private int initialX;
+            private int initialY;
+            private float initialTouchX;
+            private float initialTouchY;
+            private float totalMove;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialX = params.x;
+                        initialY = params.y;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        totalMove = 0;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - initialTouchX;
+                        float dy = event.getRawY() - initialTouchY;
+                        totalMove += Math.abs(dx) + Math.abs(dy);
+                        DisplayMetrics curDm = new DisplayMetrics();
+                        windowManager.getDefaultDisplay().getMetrics(curDm);
+                        int maxScrW = curDm.widthPixels;
+                        int maxScrH = curDm.heightPixels;
+
+                        params.x = Math.max(0, Math.min(maxScrW - 40, initialX + (int) dx));
+                        params.y = Math.max(0, Math.min(maxScrH - 40, initialY + (int) dy));
+                        try {
+                            windowManager.updateViewLayout(floatingView, params);
+                        } catch (Exception ignored) {}
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (totalMove < (12 * dm.density)) {
+                            // Ketukan singkat: siklus posisi (Atas -> Tengah -> Bawah)
+                            cyclePositionInternal();
+                        } else {
+                            savePrompterState();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+        rootLayout.addView(moveHandle);
+
         // Native Resize Handle di Sudut Kanan Bawah
         resizeHandle = new FrameLayout(this);
-        int resizePx = (int) (18 * dm.density);
+        int resizePx = (int) (22 * dm.density);
         FrameLayout.LayoutParams resizeParams = new FrameLayout.LayoutParams(resizePx, resizePx);
         resizeParams.gravity = Gravity.BOTTOM | Gravity.END;
         resizeHandle.setLayoutParams(resizeParams);
@@ -640,11 +715,13 @@ public class FloatingPrompterService extends Service {
                         params.width = pillW;
                         params.height = pillH;
                         if (dragStrip != null) dragStrip.setVisibility(View.GONE);
+                        if (moveHandle != null) moveHandle.setVisibility(View.GONE);
                         if (resizeHandle != null) resizeHandle.setVisibility(View.GONE);
                     } else {
                         params.width = lastExpandedWidth > 0 ? lastExpandedWidth : 660;
                         params.height = lastExpandedHeight > 0 ? lastExpandedHeight : 740;
                         if (dragStrip != null) dragStrip.setVisibility(View.VISIBLE);
+                        if (moveHandle != null) moveHandle.setVisibility(View.VISIBLE);
                         if (resizeHandle != null) resizeHandle.setVisibility(View.VISIBLE);
                     }
                     windowManager.updateViewLayout(floatingView, params);
@@ -654,29 +731,7 @@ public class FloatingPrompterService extends Service {
 
         @JavascriptInterface
         public void cyclePosition() {
-            mainHandler.post(() -> {
-                try {
-                    if (windowManager == null || floatingView == null || params == null) return;
-                    DisplayMetrics dm = new DisplayMetrics();
-                    windowManager.getDefaultDisplay().getMetrics(dm);
-                    int screenH = dm.heightPixels;
-                    int screenW = dm.widthPixels;
-
-                    currentPositionState = (currentPositionState + 1) % 3;
-                    if (currentPositionState == 0) { // Posisi Atas
-                        params.y = (int)(dm.density * 36);
-                        params.x = Math.max(0, (screenW - params.width) / 2);
-                    } else if (currentPositionState == 1) { // Posisi Tengah
-                        params.y = Math.max(0, (screenH - params.height) / 2);
-                        params.x = Math.max(0, (screenW - params.width) / 2);
-                    } else { // Posisi Bawah
-                        params.y = Math.max(0, screenH - params.height - (int)(dm.density * 50));
-                        params.x = Math.max(0, (screenW - params.width) / 2);
-                    }
-                    windowManager.updateViewLayout(floatingView, params);
-                    savePrompterState();
-                } catch (Exception ignored) {}
-            });
+            mainHandler.post(() -> cyclePositionInternal());
         }
 
         @JavascriptInterface
@@ -689,8 +744,11 @@ public class FloatingPrompterService extends Service {
                     int screenW = dm.widthPixels;
                     int screenH = dm.heightPixels;
 
-                    params.x = Math.max(0, Math.min(screenW - 50, params.x + dx));
-                    params.y = Math.max(0, Math.min(screenH - 50, params.y + dy));
+                    int scaledDx = (int) (dx * dm.density);
+                    int scaledDy = (int) (dy * dm.density);
+
+                    params.x = Math.max(0, Math.min(screenW - 50, params.x + scaledDx));
+                    params.y = Math.max(0, Math.min(screenH - 50, params.y + scaledDy));
                     windowManager.updateViewLayout(floatingView, params);
                 } catch (Exception ignored) {}
             });
@@ -714,17 +772,17 @@ public class FloatingPrompterService extends Service {
 
                     // Bila rotasi 90 atau 270 (posisi horizontal/landscape)
                     if (degrees == 90 || degrees == 270) {
-                        int targetW = Math.max(lastExpandedHeight, 500);
-                        int targetH = Math.max(lastExpandedWidth, 340);
+                        int targetW = Math.max(lastExpandedHeight, 460);
+                        int targetH = Math.max(lastExpandedWidth, 300);
                         // Otomatis mengecil agar tidak melebihi batas layar HP
                         params.width = Math.min(targetW, screenW - 16);
-                        params.height = Math.min(targetH, (int)(screenH * 0.85f));
+                        params.height = Math.min(targetH, (int)(screenH * 0.82f));
                     } else {
                         // Rotasi 0 atau 180 (posisi vertikal/portrait)
-                        int targetW = Math.max(lastExpandedWidth, 340);
-                        int targetH = Math.max(lastExpandedHeight, 520);
+                        int targetW = Math.max(lastExpandedWidth, 320);
+                        int targetH = Math.max(lastExpandedHeight, 460);
                         params.width = Math.min(targetW, screenW - 16);
-                        params.height = Math.min(targetH, (int)(screenH * 0.88f));
+                        params.height = Math.min(targetH, (int)(screenH * 0.85f));
                     }
 
                     // Pastikan tidak keluar layar
@@ -746,6 +804,7 @@ public class FloatingPrompterService extends Service {
             mainHandler.post(() -> {
                 try {
                     currentSavedThemeId = themeId;
+                    updateNativeThemeColors(themeId);
                     savePrompterState();
                 } catch (Exception ignored) {}
             });
@@ -776,6 +835,7 @@ public class FloatingPrompterService extends Service {
                     currentSavedShowFocusGuide = showFocusGuide;
                     currentSavedFocusPercent = focusPercent;
                     currentSavedCountdownSec = countdownSec;
+                    updateNativeThemeColors(themeId);
                     savePrompterState();
                 } catch (Exception ignored) {}
             });
@@ -790,7 +850,6 @@ public class FloatingPrompterService extends Service {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                     launchIntent.putExtra("open_full_prompter", true);
                     startActivity(launchIntent);
-                    // HENTIKAN FloatingPrompterService agar TIDAK ada 2 teleprompter yang muncul bersamaan
                     stopSelf();
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -814,7 +873,7 @@ public class FloatingPrompterService extends Service {
     }
 
     /**
-     * Membangun HTML Teleprompter Melayang dengan desain 100% identik dengan komponen React (FloatingTeleprompter.tsx).
+     * Membangun HTML Teleprompter Melayang dengan desain identik dengan komponen React (FloatingTeleprompter.tsx).
      */
     private String buildFloatingHtml(
         String scriptText,
@@ -846,6 +905,8 @@ public class FloatingPrompterService extends Service {
         String resolvedCardText = "#FFFFFF";
         String resolvedDockBg = "rgba(9, 9, 11, 0.96)";
         String resolvedDockBorder = "#27272A";
+        String resolvedBtnBg = "#18181B";
+        String resolvedBtnText = "#E4E4E7";
 
         if ("soft_comfort".equals(safeThemeId)) {
             resolvedBgRgb = "24, 24, 27";
@@ -856,6 +917,8 @@ public class FloatingPrompterService extends Service {
             resolvedCardText = "#FAF9F6";
             resolvedDockBg = "rgba(24, 24, 27, 0.96)";
             resolvedDockBorder = "#3F3F46";
+            resolvedBtnBg = "#27272A";
+            resolvedBtnText = "#FAF9F6";
         } else if ("light_clean".equals(safeThemeId)) {
             resolvedBgRgb = "255, 255, 255";
             resolvedText = "#18181B";
@@ -865,6 +928,8 @@ public class FloatingPrompterService extends Service {
             resolvedCardText = "#18181B";
             resolvedDockBg = "rgba(244, 244, 245, 0.96)";
             resolvedDockBorder = "#E4E4E7";
+            resolvedBtnBg = "#FFFFFF";
+            resolvedBtnText = "#18181B";
         }
 
         if (highlightColorHex != null && !highlightColorHex.isEmpty()) {
@@ -891,7 +956,8 @@ public class FloatingPrompterService extends Service {
             "      box-shadow: 0 20px 45px rgba(0,0,0,0.75);\n" +
             "      overflow: hidden; position: relative;\n" +
             "      background-color: rgba(" + resolvedBgRgb + ", " + (opacity / 100.0) + ");\n" +
-            "      transition: background-color 0.15s ease;\n" +
+            "      transition: background-color 0.15s ease, transform 0.25s ease;\n" +
+            "      transform-origin: center center;\n" +
             "    }\n" +
             "    #content-area {\n" +
             "      flex: 1; position: relative; overflow: hidden; cursor: pointer;\n" +
@@ -918,7 +984,6 @@ public class FloatingPrompterService extends Service {
             "    #script-content {\n" +
             "      transition: transform 0.2s ease;\n" +
             "    }\n" +
-            "    /* Header Pemisah Konsep Sesuai Tema */\n" +
             "    .concept-header {\n" +
             "      display: flex; align-items: center; justify-content: space-between; gap: 8px;\n" +
             "      padding: 8px 12px; border-radius: 12px; margin: 10px 0 8px 0;\n" +
@@ -936,11 +1001,9 @@ public class FloatingPrompterService extends Service {
             "    .prompter-line {\n" +
             "      margin-bottom: 14px; transition: font-size 0.15s ease; color: " + resolvedText + ";\n" +
             "    }\n" +
-            "    /* Kata Penekanan / Huruf Kapital Berwarna Cerah Sesuai Tema */\n" +
             "    .highlight-word {\n" +
             "      font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; color: " + resolvedHighlight + ";\n" +
             "    }\n" +
-            "    /* Garis Bantu Jeda Intonasi (/ dan //) */\n" +
             "    .pause-short {\n" +
             "      color: " + resolvedHighlight + "; font-weight: bold; margin: 0 3px; opacity: 0.9; user-select: none;\n" +
             "    }\n" +
@@ -951,7 +1014,6 @@ public class FloatingPrompterService extends Service {
             "      border-left: 4px solid " + resolvedHighlight + " !important; padding-left: 10px !important;\n" +
             "      border-radius: 0 12px 12px 0 !important; background: rgba(15, 23, 42, 0.65) !important;\n" +
             "    }\n" +
-            "    /* Hitung Mundur (Countdown) */\n" +
             "    #countdown-overlay {\n" +
             "      position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,0.85);\n" +
             "      display: none; flex-direction: column; align-items: center; justify-content: center;\n" +
@@ -964,7 +1026,6 @@ public class FloatingPrompterService extends Service {
             "      0%, 100% { transform: scale(1); }\n" +
             "      50% { transform: scale(1.18); }\n" +
             "    }\n" +
-            "    /* Tap Feedback Pulse */\n" +
             "    #tap-feedback {\n" +
             "      position: absolute; inset: 0; z-index: 35; pointer-events: none;\n" +
             "      display: none; align-items: center; justify-content: center;\n" +
@@ -980,7 +1041,6 @@ public class FloatingPrompterService extends Service {
             "      100% { opacity: 0; transform: scale(1.28); }\n" +
             "    }\n" +
             "\n" +
-            "    /* Bottom Dock Bar - Responsif, Sejajar, Simetris, Rapi */\n" +
             "    :root {\n" +
             "      --dock-btn-size: 26px;\n" +
             "      --dock-icon-size: 12px;\n" +
@@ -990,20 +1050,19 @@ public class FloatingPrompterService extends Service {
             "      border-top: 1px solid " + resolvedDockBorder + "; padding: 0 3px;\n" +
             "      display: flex; align-items: center; justify-content: space-between; gap: 2px;\n" +
             "      z-index: 30; width: 100%; box-sizing: border-box; overflow: hidden;\n" +
-            "      transition: opacity 0.2s ease;\n" +
+            "      transition: opacity 0.2s ease, background 0.15s ease;\n" +
             "    }\n" +
             "    .dock-btn {\n" +
             "      border: 1px solid #3F3F46; outline: none; border-radius: 7px;\n" +
             "      display: flex; align-items: center; justify-content: center;\n" +
-            "      background: #18181B; color: #D4D4D8; cursor: pointer;\n" +
+            "      background: " + resolvedBtnBg + "; color: " + resolvedBtnText + "; cursor: pointer;\n" +
             "      width: var(--dock-btn-size); height: var(--dock-btn-size); min-width: 0; flex-shrink: 1;\n" +
             "      transition: background 0.15s, transform 0.1s;\n" +
-            "      touch-action: none;\n" +
             "    }\n" +
             "    .dock-btn svg { width: var(--dock-icon-size); height: var(--dock-icon-size); }\n" +
-            "    .dock-btn:active { transform: scale(0.92); background: #27272A; }\n" +
+            "    .dock-btn:active { transform: scale(0.92); opacity: 0.85; }\n" +
             "\n" +
-            "    /* Tombol Geser (Move Handle) */\n" +
+            "    /* Tombol Geser (Move Handle) Paling Kiri */\n" +
             "    #move-btn {\n" +
             "      border: 1px solid #F59E0B !important;\n" +
             "      background: rgba(245, 158, 11, 0.2) !important;\n" +
@@ -1012,7 +1071,6 @@ public class FloatingPrompterService extends Service {
             "    }\n" +
             "    #move-btn:active { cursor: grabbing; background: #F59E0B !important; color: black !important; }\n" +
             "\n" +
-            "    /* Tombol Tutup Kontras Tinggi (Merah Bersih, Selalu Terlihat Jelas) */\n" +
             "    .dock-btn-close {\n" +
             "      border: 1px solid rgba(239, 68, 68, 0.6) !important;\n" +
             "      background: rgba(239, 68, 68, 0.25) !important;\n" +
@@ -1030,7 +1088,7 @@ public class FloatingPrompterService extends Service {
             "    }\n" +
             "    #hero-play svg { width: var(--dock-icon-size); height: var(--dock-icon-size); }\n" +
             "    #hero-play:active { transform: scale(0.92); }\n" +
-            "    /* Speed Stepper */\n" +
+            "\n" +
             "    .stepper-box {\n" +
             "      display: flex; align-items: center; background: #18181B; border-radius: 7px;\n" +
             "      padding: 0 1px; border: 1px solid #3F3F46; height: var(--dock-btn-size); flex-shrink: 1; min-width: 0;\n" +
@@ -1047,10 +1105,10 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "    /* Settings Panel: Menu Gabungan 3/4 Sebelah Kanan (Sesuai Web App) */\n" +
             "    #settings-panel {\n" +
-            "      position: absolute; bottom: calc(var(--dock-btn-size) + 12px); right: 4px; left: auto;\n" +
+            "      position: absolute; bottom: calc(var(--dock-btn-size) + 12px); right: 6px; left: auto;\n" +
             "      width: 75%; max-width: 320px; z-index: 50;\n" +
-            "      background: rgba(24, 24, 27, 0.96); border: 1px solid rgba(113, 113, 122, 0.6);\n" +
-            "      border-radius: 16px; padding: 10px; display: none; flex-direction: column;\n" +
+            "      background: rgba(39, 39, 42, 0.96); border: 1px solid rgba(82, 82, 91, 0.8);\n" +
+            "      border-radius: 18px; padding: 10px; display: none; flex-direction: column;\n" +
             "      gap: 8px; color: #E4E4E7;\n" +
             "      box-shadow: 0 16px 36px rgba(0,0,0,0.85); max-height: 80%; overflow-y: auto;\n" +
             "      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);\n" +
@@ -1090,7 +1148,6 @@ public class FloatingPrompterService extends Service {
             "      border-color: #F59E0B; background: #F59E0B; color: black;\n" +
             "    }\n" +
             "\n" +
-            "    /* Mode Minimized Pill (Identik Web) */\n" +
             "    #minimized-pill {\n" +
             "      display: none; width: 100%; height: 100%;\n" +
             "      background: rgba(24, 24, 27, 0.96); border: 2px solid #F59E0B; border-radius: 9999px;\n" +
@@ -1167,7 +1224,7 @@ public class FloatingPrompterService extends Service {
             "          <span>Teks</span>\n" +
             "        </div>\n" +
             "        <div id=\"tab-countdown\" class=\"tab-item\" onclick=\"switchTab('countdown')\">\n" +
-            "          <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><line x1=\"10\" y1=\"2\" x2=\"14\" y2=\"2\"/><line x1=\"12\" y1=\"14\" x2=\"15\" y2=\"11\"/><circle cx=\"12\" cy=\"14\" r=\"8\"/></svg>\n" +
+            "          <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>\n" +
             "          <span>Countdown</span>\n" +
             "        </div>\n" +
             "        <div id=\"tab-layar\" class=\"tab-item\" onclick=\"switchTab('layar')\">\n" +
@@ -1176,26 +1233,62 @@ public class FloatingPrompterService extends Service {
             "        </div>\n" +
             "      </div>\n" +
             "\n" +
-            "      <!-- Subtab Teks: 3 Preset Tema, Ukuran Font & 10 Gaya Subtitle -->\n" +
+            "      <!-- Subtab Teks: 3 Preset Tema (Dropdown Grouped), Ukuran Font & 10 Gaya Subtitle -->\n" +
             "      <div id=\"panel-teks\" style=\"display:flex; flex-direction:column; gap:7px;\">\n" +
-            "        <!-- 3 PRESET TEMA TELEPROMPTER -->\n" +
-            "        <div class=\"setting-group\" style=\"background:rgba(0,0,0,0.35); padding:6px; border-radius:10px; border:1px solid #27272A;\">\n" +
+            "        <!-- 3 PRESET TEMA TELEPROMPTER (DROPDOWN GROUPED SEPERTI WEB APP) -->\n" +
+            "        <div class=\"setting-group\" style=\"background:rgba(0,0,0,0.35); padding:7px; border-radius:12px; border:1px solid #27272A;\">\n" +
             "          <div class=\"setting-label\" style=\"margin-bottom:4px;\">\n" +
-            "            <span style=\"color:#E4E4E7; font-weight:bold;\">Pilihan Tema Teleprompter:</span>\n" +
+            "            <span style=\"color:#E4E4E7; font-weight:bold; display:flex; align-items:center; gap:4px;\">\n" +
+            "              <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"#F59E0B\" stroke-width=\"2\"><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z\"/></svg>\n" +
+            "              <span>Tema Teleprompter:</span>\n" +
+            "            </span>\n" +
+            "            <span style=\"font-size:9px; color:#A1A1AA; font-weight:bold; text-transform:uppercase;\">Pilihan</span>\n" +
             "          </div>\n" +
-            "          <div style=\"display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px;\" id=\"theme-buttons-container\">\n" +
-            "            <button type=\"button\" onclick=\"selectTheme('dark_pro')\" id=\"btn-theme-dark_pro\" class=\"pill-btn\" style=\"display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px;\">\n" +
-            "              <span style=\"width:16px; height:16px; border-radius:50%; background:#000000; border:1px solid #4B5563; display:inline-block; position:relative;\"><span style=\"position:absolute; bottom:0; right:0; width:5px; height:5px; border-radius:50%; background:#FACC15;\"></span></span>\n" +
-            "              <span style=\"font-size:9px; font-weight:bold;\">Dark Pro</span>\n" +
-            "            </button>\n" +
-            "            <button type=\"button\" onclick=\"selectTheme('soft_comfort')\" id=\"btn-theme-soft_comfort\" class=\"pill-btn\" style=\"display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px;\">\n" +
-            "              <span style=\"width:16px; height:16px; border-radius:50%; background:#18181B; border:1px solid #4B5563; display:inline-block; position:relative;\"><span style=\"position:absolute; bottom:0; right:0; width:5px; height:5px; border-radius:50%; background:#34D399;\"></span></span>\n" +
-            "              <span style=\"font-size:9px; font-weight:bold;\">Comfort</span>\n" +
-            "            </button>\n" +
-            "            <button type=\"button\" onclick=\"selectTheme('light_clean')\" id=\"btn-theme-light_clean\" class=\"pill-btn\" style=\"display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px;\">\n" +
-            "              <span style=\"width:16px; height:16px; border-radius:50%; background:#FFFFFF; border:1px solid #9CA3AF; display:inline-block; position:relative;\"><span style=\"position:absolute; bottom:0; right:0; width:5px; height:5px; border-radius:50%; background:#2563EB;\"></span></span>\n" +
-            "              <span style=\"font-size:9px; font-weight:bold;\">Light</span>\n" +
-            "            </button>\n" +
+            "\n" +
+            "          <!-- Dropdown Trigger Button -->\n" +
+            "          <div id=\"theme-dropdown-trigger\" onclick=\"toggleThemeDropdown()\" style=\"width:100%; display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:9px; background:#18181B; border:1px solid #F59E0B; cursor:pointer;\">\n" +
+            "            <div style=\"display:flex; align-items:center; gap:6px;\">\n" +
+            "              <span id=\"theme-preview-dot\" style=\"width:14px; height:14px; border-radius:50%; background:#000; border:1px solid #4B5563; position:relative; display:inline-block;\"><span id=\"theme-preview-subdot\" style=\"position:absolute; bottom:0; right:0; width:4px; height:4px; border-radius:50%; background:#FACC15;\"></span></span>\n" +
+            "              <span id=\"theme-current-name\" style=\"font-size:10px; font-weight:bold; color:#FFFFFF;\">Dark Pro</span>\n" +
+            "              <span style=\"font-size:8px; font-weight:bold; background:rgba(245,158,11,0.25); color:#F59E0B; padding:1px 4px; border-radius:4px;\">Aktif</span>\n" +
+            "            </div>\n" +
+            "            <svg id=\"theme-dropdown-chevron\" viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"#A1A1AA\" stroke-width=\"2\"><polyline points=\"6 9 12 15 18 9\"/></svg>\n" +
+            "          </div>\n" +
+            "\n" +
+            "          <!-- Dropdown Collapsible Menu -->\n" +
+            "          <div id=\"theme-dropdown-options\" style=\"display:none; flex-direction:column; gap:3px; margin-top:4px; border-top:1px solid #27272A; padding-top:4px;\">\n" +
+            "            <div class=\"theme-option\" onclick=\"selectTheme('dark_pro')\" style=\"display:flex; align-items:center; justify-content:space-between; padding:5px 7px; border-radius:8px; background:#18181B; border:1px solid #27272A; cursor:pointer;\">\n" +
+            "              <div style=\"display:flex; align-items:center; gap:6px;\">\n" +
+            "                <span style=\"width:14px; height:14px; border-radius:50%; background:#000; border:1px solid #4B5563; position:relative; display:inline-block;\"><span style=\"position:absolute; bottom:0; right:0; width:4px; height:4px; border-radius:50%; background:#FACC15;\"></span></span>\n" +
+            "                <div>\n" +
+            "                  <div style=\"font-size:10px; font-weight:bold; color:#FFF;\">Dark Pro (Default)</div>\n" +
+            "                  <div style=\"font-size:8px; color:#A1A1AA;\">Latar hitam kontras tinggi</div>\n" +
+            "                </div>\n" +
+            "              </div>\n" +
+            "              <span id=\"check-dark_pro\" style=\"color:#F59E0B; font-weight:bold; font-size:11px;\">✓</span>\n" +
+            "            </div>\n" +
+            "\n" +
+            "            <div class=\"theme-option\" onclick=\"selectTheme('soft_comfort')\" style=\"display:flex; align-items:center; justify-content:space-between; padding:5px 7px; border-radius:8px; background:#18181B; border:1px solid #27272A; cursor:pointer;\">\n" +
+            "              <div style=\"display:flex; align-items:center; gap:6px;\">\n" +
+            "                <span style=\"width:14px; height:14px; border-radius:50%; background:#18181B; border:1px solid #4B5563; position:relative; display:inline-block;\"><span style=\"position:absolute; bottom:0; right:0; width:4px; height:4px; border-radius:50%; background:#34D399;\"></span></span>\n" +
+            "                <div>\n" +
+            "                  <div style=\"font-size:10px; font-weight:bold; color:#FFF;\">Soft Comfort</div>\n" +
+            "                  <div style=\"font-size:8px; color:#A1A1AA;\">Abu-abu gelap nyaman di mata</div>\n" +
+            "                </div>\n" +
+            "              </div>\n" +
+            "              <span id=\"check-soft_comfort\" style=\"color:#F59E0B; font-weight:bold; font-size:11px; display:none;\">✓</span>\n" +
+            "            </div>\n" +
+            "\n" +
+            "            <div class=\"theme-option\" onclick=\"selectTheme('light_clean')\" style=\"display:flex; align-items:center; justify-content:space-between; padding:5px 7px; border-radius:8px; background:#18181B; border:1px solid #27272A; cursor:pointer;\">\n" +
+            "              <div style=\"display:flex; align-items:center; gap:6px;\">\n" +
+            "                <span style=\"width:14px; height:14px; border-radius:50%; background:#FFFFFF; border:1px solid #9CA3AF; position:relative; display:inline-block;\"><span style=\"position:absolute; bottom:0; right:0; width:4px; height:4px; border-radius:50%; background:#2563EB;\"></span></span>\n" +
+            "                <div>\n" +
+            "                  <div style=\"font-size:10px; font-weight:bold; color:#FFF;\">Light Clean</div>\n" +
+            "                  <div style=\"font-size:8px; color:#A1A1AA;\">Latar putih teks hitam tajam</div>\n" +
+            "                </div>\n" +
+            "              </div>\n" +
+            "              <span id=\"check-light_clean\" style=\"color:#F59E0B; font-weight:bold; font-size:11px; display:none;\">✓</span>\n" +
+            "            </div>\n" +
             "          </div>\n" +
             "        </div>\n" +
             "\n" +
@@ -1326,7 +1419,6 @@ public class FloatingPrompterService extends Service {
             "    const RAW_SCRIPT = \"" + scriptJson + "\";\n" +
             "    const RAW_CONCEPTS_JSON = \"" + conceptsJsonEscaped + "\";\n" +
             "\n" +
-            "    // 10 Preset Subtitle Resmi Gagaswara\n" +
             "    const SUBTITLE_PRESETS = [\n" +
             "      { id: 'standard_read', name: '1. Standard Read', textColor: '#FFFFFF', highlightColor: '#FACC15', textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.95)', fontWeight: '400', lineHeight: '1.45', letterSpacing: 'normal', isLineFocus: false },\n" +
             "      { id: 'large_text', name: '2. Large Text', textColor: '#FFFFFF', highlightColor: '#FEF08A', textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 3px 6px rgba(0,0,0,0.95)', fontWeight: '700', lineHeight: '1.45', letterSpacing: 'normal', isLineFocus: false },\n" +
@@ -1545,6 +1637,17 @@ public class FloatingPrompterService extends Service {
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
+            "    function toggleThemeDropdown() {\n" +
+            "      const menu = document.getElementById('theme-dropdown-options');\n" +
+            "      const chevron = document.getElementById('theme-dropdown-chevron');\n" +
+            "      if (!menu) return;\n" +
+            "      const isHidden = menu.style.display === 'none' || !menu.style.display;\n" +
+            "      menu.style.display = isHidden ? 'flex' : 'none';\n" +
+            "      if (chevron) {\n" +
+            "        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';\n" +
+            "      }\n" +
+            "    }\n" +
+            "\n" +
             "    function selectTheme(themeId) {\n" +
             "      currentThemeId = themeId;\n" +
             "      let bgRgb = '0, 0, 0';\n" +
@@ -1555,6 +1658,7 @@ public class FloatingPrompterService extends Service {
             "      let cardText = '#FFFFFF';\n" +
             "      let dockBg = 'rgba(9, 9, 11, 0.96)';\n" +
             "      let dockBorder = '#27272A';\n" +
+            "      let themeName = 'Dark Pro';\n" +
             "\n" +
             "      if (themeId === 'soft_comfort') {\n" +
             "        bgRgb = '24, 24, 27';\n" +
@@ -1565,6 +1669,7 @@ public class FloatingPrompterService extends Service {
             "        cardText = '#FAF9F6';\n" +
             "        dockBg = 'rgba(24, 24, 27, 0.96)';\n" +
             "        dockBorder = '#3F3F46';\n" +
+            "        themeName = 'Soft Comfort';\n" +
             "      } else if (themeId === 'light_clean') {\n" +
             "        bgRgb = '255, 255, 255';\n" +
             "        textCol = '#18181B';\n" +
@@ -1574,6 +1679,7 @@ public class FloatingPrompterService extends Service {
             "        cardText = '#18181B';\n" +
             "        dockBg = 'rgba(244, 244, 245, 0.96)';\n" +
             "        dockBorder = '#E4E4E7';\n" +
+            "        themeName = 'Light Clean';\n" +
             "      }\n" +
             "\n" +
             "      currentBgRgb = bgRgb;\n" +
@@ -1593,22 +1699,30 @@ public class FloatingPrompterService extends Service {
             "        bottomDock.style.borderTopColor = dockBorder;\n" +
             "      }\n" +
             "\n" +
-            "      renderThemeButtonsActive();\n" +
+            "      const nameEl = document.getElementById('theme-current-name');\n" +
+            "      if (nameEl) nameEl.innerText = themeName;\n" +
+            "      const dotEl = document.getElementById('theme-preview-dot');\n" +
+            "      if (dotEl) dotEl.style.background = 'rgb(' + bgRgb + ')';\n" +
+            "      const subdotEl = document.getElementById('theme-preview-subdot');\n" +
+            "      if (subdotEl) subdotEl.style.background = hlCol;\n" +
+            "\n" +
+            "      ['dark_pro', 'soft_comfort', 'light_clean'].forEach(id => {\n" +
+            "        const chk = document.getElementById('check-' + id);\n" +
+            "        if (chk) chk.style.display = (id === themeId) ? 'inline' : 'none';\n" +
+            "      });\n" +
+            "\n" +
+            "      // Tutup menu dropdown setelah memilih\n" +
+            "      const menu = document.getElementById('theme-dropdown-options');\n" +
+            "      if (menu) menu.style.display = 'none';\n" +
+            "      const chevron = document.getElementById('theme-dropdown-chevron');\n" +
+            "      if (chevron) chevron.style.transform = 'rotate(0deg)';\n" +
+            "\n" +
             "      parseAndRenderScript();\n" +
             "\n" +
             "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.saveTheme) {\n" +
             "        window.AndroidPrompterBridge.saveTheme(themeId, bgRgb, hlCol);\n" +
             "      }\n" +
             "      saveAllSettings();\n" +
-            "    }\n" +
-            "\n" +
-            "    function renderThemeButtonsActive() {\n" +
-            "      ['dark_pro', 'soft_comfort', 'light_clean'].forEach(id => {\n" +
-            "        const b = document.getElementById('btn-theme-' + id);\n" +
-            "        if (b) {\n" +
-            "          b.className = 'pill-btn' + (currentThemeId === id ? ' active' : '');\n" +
-            "        }\n" +
-            "      });\n" +
             "    }\n" +
             "\n" +
             "    function saveAllSettings() {\n" +
@@ -1761,33 +1875,50 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "    function rotatePrompter() {\n" +
             "      currentRotation = (currentRotation + 90) % 360;\n" +
-            "      const badge = document.getElementById('rot-badge');\n" +
-            "      const rotLabel = document.getElementById('panel-rot-label');\n" +
-            "      if (currentRotation !== 0) {\n" +
-            "        badge.style.display = 'inline-block';\n" +
-            "        badge.innerText = currentRotation + '°';\n" +
-            "      } else {\n" +
-            "        badge.style.display = 'none';\n" +
-            "      }\n" +
-            "      if (rotLabel) rotLabel.innerText = 'Rotasi: ' + currentRotation + '°';\n" +
-            "\n" +
-            "      // Rotasikan seluruh orientasi jendela teleprompter via bridge ke Android WindowManager\n" +
+            "      applyPrompterRotation(currentRotation);\n" +
             "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.setPrompterRotation) {\n" +
             "        window.AndroidPrompterBridge.setPrompterRotation(currentRotation);\n" +
-            "      }\n" +
-            "      if (currentRotation === 180) {\n" +
-            "        appContainer.style.transform = 'rotate(180deg)';\n" +
-            "      } else {\n" +
-            "        appContainer.style.transform = 'none';\n" +
             "      }\n" +
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
+            "    function applyPrompterRotation(degrees) {\n" +
+            "      currentRotation = degrees;\n" +
+            "      const appContainer = document.getElementById('app-container');\n" +
+            "      const badge = document.getElementById('rot-badge');\n" +
+            "      const rotLabel = document.getElementById('panel-rot-label');\n" +
+            "\n" +
+            "      if (badge) {\n" +
+            "        if (currentRotation !== 0) {\n" +
+            "          badge.style.display = 'inline-block';\n" +
+            "          badge.innerText = currentRotation + '°';\n" +
+            "        } else {\n" +
+            "          badge.style.display = 'none';\n" +
+            "        }\n" +
+            "      }\n" +
+            "      if (rotLabel) rotLabel.innerText = 'Rotasi: ' + currentRotation + '°';\n" +
+            "\n" +
+            "      var w = window.innerWidth || document.documentElement.clientWidth;\n" +
+            "      var h = window.innerHeight || document.documentElement.clientHeight;\n" +
+            "\n" +
+            "      if (currentRotation === 90 || currentRotation === 270) {\n" +
+            "        var scale = Math.min(w / h, h / w, 1);\n" +
+            "        appContainer.style.transformOrigin = 'center center';\n" +
+            "        appContainer.style.transform = 'rotate(' + currentRotation + 'deg) scale(' + scale + ')';\n" +
+            "      } else if (currentRotation === 180) {\n" +
+            "        appContainer.style.transformOrigin = 'center center';\n" +
+            "        appContainer.style.transform = 'rotate(180deg)';\n" +
+            "      } else {\n" +
+            "        appContainer.style.transformOrigin = 'center center';\n" +
+            "        appContainer.style.transform = 'none';\n" +
+            "      }\n" +
+            "    }\n" +
+            "\n" +
             "    function updateResponsiveDock() {\n" +
             "      var w = window.innerWidth || document.documentElement.clientWidth;\n" +
-            "      var targetBtnSize = Math.floor((w - 20) / 10.6);\n" +
-            "      var btnSize = Math.max(16, Math.min(30, targetBtnSize));\n" +
-            "      var iconSize = Math.max(8, Math.min(14, Math.floor(btnSize * 0.48)));\n" +
+            "      var targetBtnSize = Math.floor((w - 24) / 10.5);\n" +
+            "      var btnSize = Math.max(18, Math.min(32, targetBtnSize));\n" +
+            "      var iconSize = Math.max(9, Math.min(15, Math.floor(btnSize * 0.48)));\n" +
             "      document.documentElement.style.setProperty('--dock-btn-size', btnSize + 'px');\n" +
             "      document.documentElement.style.setProperty('--dock-icon-size', iconSize + 'px');\n" +
             "      var dockEl = document.getElementById('bottom-dock');\n" +
@@ -1797,67 +1928,16 @@ public class FloatingPrompterService extends Service {
             "    window.addEventListener('orientationchange', updateResponsiveDock);\n" +
             "    setTimeout(updateResponsiveDock, 50);\n" +
             "\n" +
-            "    function cycleMovePosition() {\n" +
-            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.cyclePosition) {\n" +
-            "        window.AndroidPrompterBridge.cyclePosition();\n" +
+            "    function openFullApp() {\n" +
+            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.openFullApp) {\n" +
+            "        window.AndroidPrompterBridge.openFullApp();\n" +
             "      }\n" +
             "    }\n" +
             "\n" +
-            "    // Setup fitur tombol geser interaktif (drag touch bebas ke segala arah)\n" +
-            "    function setupMoveButtonDrag() {\n" +
-            "      const moveBtn = document.getElementById('move-btn');\n" +
-            "      if (!moveBtn) return;\n" +
-            "\n" +
-            "      let isMoveDragging = false;\n" +
-            "      let startTouchX = 0;\n" +
-            "      let startTouchY = 0;\n" +
-            "      let totalDelta = 0;\n" +
-            "\n" +
-            "      moveBtn.addEventListener('touchstart', function(e) {\n" +
-            "        if (e.touches && e.touches.length > 0) {\n" +
-            "          isMoveDragging = true;\n" +
-            "          totalDelta = 0;\n" +
-            "          startTouchX = e.touches[0].screenX;\n" +
-            "          startTouchY = e.touches[0].screenY;\n" +
-            "          e.preventDefault();\n" +
-            "          e.stopPropagation();\n" +
-            "        }\n" +
-            "      }, { passive: false });\n" +
-            "\n" +
-            "      moveBtn.addEventListener('touchmove', function(e) {\n" +
-            "        if (!isMoveDragging || !e.touches || e.touches.length === 0) return;\n" +
-            "        const curX = e.touches[0].screenX;\n" +
-            "        const curY = e.touches[0].screenY;\n" +
-            "        const dx = Math.round(curX - startTouchX);\n" +
-            "        const dy = Math.round(curY - startTouchY);\n" +
-            "        totalDelta += Math.abs(dx) + Math.abs(dy);\n" +
-            "\n" +
-            "        if (dx !== 0 || dy !== 0) {\n" +
-            "          startTouchX = curX;\n" +
-            "          startTouchY = curY;\n" +
-            "          if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.moveDelta) {\n" +
-            "            window.AndroidPrompterBridge.moveDelta(dx, dy);\n" +
-            "          }\n" +
-            "        }\n" +
-            "        e.preventDefault();\n" +
-            "        e.stopPropagation();\n" +
-            "      }, { passive: false });\n" +
-            "\n" +
-            "      moveBtn.addEventListener('touchend', function(e) {\n" +
-            "        if (isMoveDragging) {\n" +
-            "          isMoveDragging = false;\n" +
-            "          if (totalDelta < 6) {\n" +
-            "            // Ketukan tanpa geser: pindahkan posisi (Atas, Tengah, Bawah)\n" +
-            "            cycleMovePosition();\n" +
-            "          } else {\n" +
-            "            if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.saveCurrentPosition) {\n" +
-            "              window.AndroidPrompterBridge.saveCurrentPosition();\n" +
-            "            }\n" +
-            "          }\n" +
-            "          e.preventDefault();\n" +
-            "          e.stopPropagation();\n" +
-            "        }\n" +
-            "      }, { passive: false });\n" +
+            "    function closePrompter() {\n" +
+            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.closePrompter) {\n" +
+            "        window.AndroidPrompterBridge.closePrompter();\n" +
+            "      }\n" +
             "    }\n" +
             "\n" +
             "    function toggleMinimize() {\n" +
@@ -1874,18 +1954,6 @@ public class FloatingPrompterService extends Service {
             "        if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.setMinimized) {\n" +
             "          window.AndroidPrompterBridge.setMinimized(false);\n" +
             "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "\n" +
-            "    function openFullApp() {\n" +
-            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.openFullApp) {\n" +
-            "        window.AndroidPrompterBridge.openFullApp();\n" +
-            "      }\n" +
-            "    }\n" +
-            "\n" +
-            "    function closePrompter() {\n" +
-            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.closePrompter) {\n" +
-            "        window.AndroidPrompterBridge.closePrompter();\n" +
             "      }\n" +
             "    }\n" +
             "\n" +
@@ -1964,11 +2032,9 @@ public class FloatingPrompterService extends Service {
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
-            "    // Booting Initialization\n" +
-            "    renderThemeButtonsActive();\n" +
             "    renderPresetsList();\n" +
             "    parseAndRenderScript();\n" +
-            "    setupMoveButtonDrag();\n" +
+            "    applyPrompterRotation(currentRotation);\n" +
             "    updateResponsiveDock();\n" +
             "  </script>\n" +
             "</body>\n" +

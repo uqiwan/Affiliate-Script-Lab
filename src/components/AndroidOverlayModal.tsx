@@ -22,6 +22,8 @@ import {
   FlipHorizontal,
   Play,
   RotateCcw,
+  Palette,
+  ChevronDown,
 } from 'lucide-react';
 import {
   AndroidPrompterConfig,
@@ -30,6 +32,12 @@ import {
   launchAndroidFloatingPrompter,
   openAndroidAppDetails,
 } from '../utils/androidPrompterSettings';
+import {
+  TELEPROMPTER_THEMES,
+  TeleprompterThemeId,
+  getStoredPrompterTheme,
+  saveStoredPrompterTheme,
+} from '../utils/teleprompterThemes';
 
 interface AndroidOverlayModalProps {
   isOpen: boolean;
@@ -51,6 +59,7 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
 
   // Android prompter settings
   const [config, setConfig] = useState<AndroidPrompterConfig>(() => loadAndroidPrompterConfig());
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
@@ -300,37 +309,109 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
                 </div>
               </div>
 
-              {/* Setelan 3: Warna Subtitle Teks */}
+              {/* Setelan 3: Tema Teleprompter Melayang (Dropdown Ringkas, Default: Dark Pro) */}
               <div className="p-3.5 rounded-xl bg-zinc-800/60 border border-zinc-700/60 space-y-2">
-                <span className="font-semibold text-white block">Pilihan Warna Subtitle:</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { label: 'Kuning Subtitle', hex: '#FEF08A' },
-                    { label: 'Putih Kontras', hex: '#FFFFFF' },
-                    { label: 'Hijau Neon', hex: '#34D399' },
-                    { label: 'Cyan Cerah', hex: '#38BDF8' },
-                  ].map((color) => {
-                    const isSelected = config.textColorHex === color.hex;
-                    return (
-                      <button
-                        key={color.hex}
-                        type="button"
-                        onClick={() => handleUpdateConfig({ textColorHex: color.hex })}
-                        className={`py-2 px-2.5 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-amber-500/20 border-amber-500 text-white font-bold'
-                            : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
-                        }`}
-                      >
-                        <span
-                          style={{ backgroundColor: color.hex }}
-                          className="w-3 h-3 rounded-full shrink-0 shadow-xs"
-                        />
-                        <span className="text-[11px] truncate">{color.label}</span>
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white flex items-center gap-1.5">
+                    <Palette className="w-4 h-4 text-amber-400" />
+                    <span>Tema Teleprompter Melayang:</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase">Pilihan</span>
                 </div>
+
+                {(() => {
+                  const currentThemeId = (config.themeId as TeleprompterThemeId) || 'dark_pro';
+                  const activeTheme = TELEPROMPTER_THEMES[currentThemeId] || TELEPROMPTER_THEMES.dark_pro;
+                  const themesList = Object.values(TELEPROMPTER_THEMES);
+
+                  return (
+                    <div className="space-y-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-xs active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            style={{ backgroundColor: activeTheme.previewSwatch.bg }}
+                            className="w-6 h-6 rounded-full flex items-center justify-center border border-zinc-500 shadow-xs shrink-0 relative overflow-hidden"
+                          >
+                            <span style={{ color: activeTheme.previewSwatch.text }} className="text-[10px] font-black">
+                              T
+                            </span>
+                            <span
+                              style={{ backgroundColor: activeTheme.previewSwatch.highlight }}
+                              className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                            />
+                          </div>
+                          <div className="min-w-0 text-left">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-white">{activeTheme.name}</span>
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300">
+                                Aktif
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-400 truncate mt-0.5">{activeTheme.tagline}</p>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-zinc-400 transition-transform duration-200 shrink-0 ml-1.5 ${
+                            themeDropdownOpen ? 'rotate-180 text-amber-400' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {themeDropdownOpen && (
+                        <div className="pt-1.5 space-y-1 animate-in fade-in duration-150">
+                          {themesList.map((t) => {
+                            const isSelected = currentThemeId === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateConfig({
+                                    themeId: t.id,
+                                    textColorHex: t.textColor,
+                                    backgroundColorHex: t.backgroundColor,
+                                    highlightColorHex: t.highlightColor,
+                                  });
+                                  saveStoredPrompterTheme(t.id);
+                                  setThemeDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/50'
+                                    : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div
+                                    style={{ backgroundColor: t.previewSwatch.bg }}
+                                    className="w-5 h-5 rounded-full flex items-center justify-center border border-zinc-500 shadow-xs shrink-0 relative overflow-hidden"
+                                  >
+                                    <span style={{ color: t.previewSwatch.text }} className="text-[9px] font-bold">
+                                      T
+                                    </span>
+                                    <span
+                                      style={{ backgroundColor: t.previewSwatch.highlight }}
+                                      className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-semibold block">{t.name}</span>
+                                    <span className="text-[9px] text-zinc-400 block truncate">{t.tagline}</span>
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0 stroke-[2.5]" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Setelan 4: Fitur Pendukung (Garis Tatap Mata, Mirror, Countdown) */}
