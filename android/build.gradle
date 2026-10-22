@@ -1,3 +1,4 @@
+```gradle
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
     repositories {
@@ -16,8 +17,23 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin' &&
+                details.requested.name in [
+                    'kotlin-stdlib',
+                    'kotlin-stdlib-common',
+                    'kotlin-stdlib-jdk7',
+                    'kotlin-stdlib-jdk8'
+                ]) {
+                details.useVersion '1.8.22'
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+```
