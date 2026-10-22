@@ -75,12 +75,11 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
   activeInputMode = 'images',
   config,
   productName,
-  realProgressPercent,
-  realStepIndex,
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [activeTipIndex, setActiveTipIndex] = useState<number>(0);
-  const [progressPercent, setProgressPercent] = useState<number>(15);
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(12);
 
   const isVisible = isAnalyzing || isGenerating;
 
@@ -88,7 +87,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
   const analyzingSteps = useMemo(
     () => [
       'Membaca & mengekstrak data dari sumber informasi produk...',
-      'Mengidentifikasi fitur nyata, spesifikasi & kemasan...',
+      'Mengidentifikasi fitur nyata, kemasan & spesifikasi...',
       'Menganalisis persona target pembeli & masalah relevan...',
       'Menyusun Product Brief terverifikasi bebas klaim palsu...',
     ],
@@ -108,48 +107,64 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
 
   const steps = isAnalyzing ? analyzingSteps : generatingSteps;
 
-  // Sync real-time step index if provided
+  // Autonomous, smooth monotonic progress engine (0% -> 100%)
+  // Stabil, rata, tidak ada lonjakan tiba-tiba, dan tidak pernah mentok di 10%
   useEffect(() => {
     if (!isVisible) {
+      setProgressPercent(0);
       setCurrentStepIndex(0);
-      setProgressPercent(15);
       return;
     }
 
-    if (realStepIndex !== undefined) {
-      setCurrentStepIndex(Math.max(0, Math.min(steps.length - 1, realStepIndex)));
-    }
-  }, [isVisible, realStepIndex, steps.length]);
+    const startTime = Date.now();
+    // Perkiraan durasi realistis berdasarkan jenis tugas
+    const scriptCount = config?.scriptCount || 5;
+    const expectedDurationMs = isAnalyzing
+      ? 13500 // Ekstraksi brief biasanya ~11-14 detik
+      : Math.max(16000, scriptCount * 3600 + 4000); // Generate skrip ~16-30 detik
 
-  // Accurate linear progress bar: smoothly animates towards real progress percent or calculated step percent
-  useEffect(() => {
-    if (!isVisible) return;
+    setProgressPercent(2);
+    setCurrentStepIndex(0);
+    setRemainingSeconds(Math.ceil(expectedDurationMs / 1000));
 
-    if (realProgressPercent !== undefined) {
-      // Linear and immediate tracking to actual stage
-      setProgressPercent(Math.max(10, Math.min(100, Math.round(realProgressPercent))));
-      return;
-    }
+    const ticker = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const ratio = elapsed / expectedDurationMs;
 
-    // Fallback: smooth monotonic linear progress bar
-    const progressTimer = setInterval(() => {
-      setProgressPercent((prev) => {
-        const baseTarget = Math.round(((currentStepIndex + 1) / steps.length) * 94);
-        const dynamicMax = currentStepIndex === steps.length - 1 ? 98 : baseTarget;
+      let calculatedPct: number;
+      if (ratio <= 1.0) {
+        // Fase reguler: progres stabil dan merata dari 2% menuju 93%
+        calculatedPct = Math.min(93, Math.max(2, Math.floor(ratio * 93)));
+      } else {
+        // Jika server membutuhkan sedikit waktu tambahan di akhir:
+        // merangkak halus +1% setiap 1.5 detik hingga maksimal 98% (tidak pernah beku)
+        const overtimeMs = elapsed - expectedDurationMs;
+        const extraPct = Math.min(5, Math.floor(overtimeMs / 1500));
+        calculatedPct = Math.min(98, 93 + extraPct);
+      }
 
-        if (prev < dynamicMax) {
-          return prev + 1;
-        } else if (prev < 98 && currentStepIndex === steps.length - 1) {
-          return prev + 1;
-        }
-        return prev;
-      });
-    }, 120);
+      setProgressPercent(calculatedPct);
 
-    return () => clearInterval(progressTimer);
-  }, [isVisible, currentStepIndex, realProgressPercent, steps.length]);
+      // Sinkronisasi tahap checklist (4 milestone) secara proporsional dan teratur
+      if (calculatedPct >= 75) {
+        setCurrentStepIndex(3);
+      } else if (calculatedPct >= 50) {
+        setCurrentStepIndex(2);
+      } else if (calculatedPct >= 25) {
+        setCurrentStepIndex(1);
+      } else {
+        setCurrentStepIndex(0);
+      }
 
-  // Tip carousel rotation every 4 seconds
+      // Hitung mundur sisa detik perkiraan
+      const leftSec = Math.max(1, Math.ceil((expectedDurationMs - elapsed) / 1000));
+      setRemainingSeconds(leftSec);
+    }, 60);
+
+    return () => clearInterval(ticker);
+  }, [isVisible, isAnalyzing, config?.scriptCount, steps.length]);
+
+  // Tip carousel rotation every 4.2 seconds
   useEffect(() => {
     if (!isVisible) return;
 
@@ -378,7 +393,9 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
         <div className="flex items-center justify-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-300 font-medium">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
           <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-          <span>Estimasi proses ~8–15 detik. Anda dapat bersantai sejenak.</span>
+          <span>
+            Estimasi selesai: ~{remainingSeconds} detik lagi. Proses berjalan stabil.
+          </span>
         </div>
       </div>
     </div>

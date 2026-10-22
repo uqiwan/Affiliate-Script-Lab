@@ -340,9 +340,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // keep rawMsg
   }
 
-  const isQuota = rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('Quota exceeded');
+  const isQuota =
+    Boolean((err as any)?.isQuotaExhausted) ||
+    rawMsg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+    rawMsg.includes('429') ||
+    rawMsg.includes('RESOURCE_EXHAUSTED') ||
+    rawMsg.includes('quota') ||
+    rawMsg.includes('Quota exceeded');
   const isTimeout = err.status === 504 || rawMsg.includes('timeout') || rawMsg.includes('melebihi batas waktu');
-  const status = isQuota ? 429 : (err.status || (isTimeout ? 504 : 500));
+  let status = isQuota ? 429 : (err.status || (isTimeout ? 504 : 500));
 
   if (isTimeout) {
     console.log('[Server Timeout Notice] Permintaan melebihi batas waktu.');
@@ -353,7 +359,11 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 
   let message = 'Terjadi kesalahan saat memproses permintaan AI. Silakan coba kembali.';
-  if (
+
+  if (isQuota) {
+    status = 429;
+    message = 'Token/kuota dari seluruh API Key Google Anda telah habis. Harap ganti atau masukkan API Key Google AI Studio baru yang masih memiliki kuota.';
+  } else if (
     rawMsg.includes('API_KEY_INVALID') ||
     rawMsg.includes('API key not valid') ||
     rawMsg.includes('PERMISSION_DENIED')
@@ -365,11 +375,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     rawMsg.includes('UNAVAILABLE')
   ) {
     message = 'Layanan AI sedang mengalami lonjakan antrean sementara (503). Sistem telah mencoba kembali otomatis. Silakan coba klik tombol sekali lagi dalam beberapa detik.';
-  } else if (
-    rawMsg.includes('429') ||
-    rawMsg.includes('RESOURCE_EXHAUSTED')
-  ) {
-    message = 'Batas permintaan API tercapai (Rate Limit / Quota Habis). Harap tunggu beberapa detik atau gunakan API Key dengan kuota aktif.';
   } else if (
     status === 504 ||
     rawMsg.includes('timeout') ||
@@ -387,6 +392,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
   res.status(status).json({
     error: message,
+    isQuotaExhausted: isQuota,
   });
 });
 

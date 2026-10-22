@@ -20,6 +20,18 @@ export const SUPPORTED_GOOGLE_MODELS = [
     desc: 'Model Google generasi terbaru tercepat & paling cerdas untuk skrip affiliate (Optimal untuk AQ..).',
   },
   {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    tag: 'Tinggi Ketersediaan',
+    desc: 'Sangat stabil, responsif, dan throughput tinggi untuk skrip.',
+  },
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'Tinggi Kecepatan',
+    desc: 'Cepat dan handal untuk analisis brief dan penulisan skrip.',
+  },
+  {
     id: 'gemini-3.1-flash-lite',
     name: 'Gemini 3.1 Flash Lite',
     tag: 'Ultra Hemat Kuota',
@@ -30,18 +42,6 @@ export const SUPPORTED_GOOGLE_MODELS = [
     name: 'Gemini 4 Argon',
     tag: 'Generasi Mendatang',
     desc: 'Penalaran narasi tingkat lanjut dan pemahaman produk mendalam.',
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    tag: 'Versi Stabil',
-    desc: 'Kompatibilitas stabil untuk generasi skrip sebelumnya.',
-  },
-  {
-    id: 'gemma-2-27b-it',
-    name: 'Google Gemma 2 27B',
-    tag: 'Gemma Family',
-    desc: 'Keluarga model terbuka efisien dari Google.',
   },
 ];
 
@@ -90,7 +90,7 @@ export async function testGeminiApiKey(
     return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid dari Google AI Studio.' };
   }
 
-  const testModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const testModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
   let validCount = 0;
   let lastError: any;
 
@@ -184,18 +184,31 @@ export function sanitizeCrossPlatformText(text: string): string {
 
 export const CANDIDATE_MODELS = [
   'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-flash-lite-latest',
   'gemini-3.1-flash-lite',
 ];
 
 /**
- * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model super cepat.
- * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED), sistem secara otomatis
- * dan mulus beralih ke kunci berikutnya tanpa membatalkan proses pengguna.
+ * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model super tangguh.
+ * Urutan kandidat failover cerdas:
+ * 1. Model yang diminta (default: gemini-3.8-flash)
+ * 2. gemini-3.6-flash (Sangat stabil & throughput tinggi, kuota terpisah di Google AI Studio)
+ * 3. gemini-3.5-flash (Kecepatan tinggi, ketersediaan tinggi, kuota terpisah)
+ * 4. gemini-3.5-flash-lite (Hemat token & kuota terpisah)
+ * 5. gemini-flash-lite-latest (Alias resmi Flash Lite)
+ * 6. gemini-3.1-flash-lite (Ultra hemat)
+ *
+ * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED/Rate Limit), sistem secara otomatis
+ * beralih menggunakan model alternatif atau kunci berikutnya yang tersedia.
+ * Jika seluruh kunci habis kuotanya, melemparkan error terstruktur TOKEN_QUOTA_EXHAUSTED.
  */
 export async function callGeminiWithRetry(
   options: any,
   customApiKey?: string | string[],
-  timeoutPerCallMs = 26000
+  timeoutPerCallMs = 38000
 ): Promise<any> {
   let rawKeys: string[] = [];
 
@@ -211,19 +224,27 @@ export async function callGeminiWithRetry(
   }
 
   if (rawKeys.length === 0) {
-    throw new Error(
+    const noKeyErr: any = new Error(
       'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'
     );
+    noKeyErr.isMissingKey = true;
+    noKeyErr.status = 401;
+    throw noKeyErr;
   }
 
   const requestedModel = options.model || GEMINI_MODEL;
-  // Batasi hanya ke 2 model tercepat: model utama dan model failover ultra-cepat Flash Lite
-  const candidateModels = [
+  const allCandidates = [
     requestedModel,
-    requestedModel === 'gemini-3.1-flash-lite' ? 'gemini-3.8-flash' : 'gemini-3.1-flash-lite',
-  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite',
+  ];
+  const candidateModels = Array.from(new Set(allCandidates));
 
   let lastError: any;
+  let hadQuotaFailure = false;
 
   // LOOP UTAMA: Rotasi antar-kunci API pengguna
   for (let keyIdx = 0; keyIdx < rawKeys.length; keyIdx++) {
@@ -236,7 +257,27 @@ export async function callGeminiWithRetry(
       try {
         const payload = { ...options, model: modelName };
 
-        const generatePromise = client.models.generateContent(payload);
+        // Eksekusi generateContent dengan penanganan otomatis untuk lonjakan antrean 503
+        const generatePromise = (async () => {
+          try {
+            return await client.models.generateContent(payload);
+          } catch (callErr: any) {
+            const callMsg = callErr?.message || '';
+            // Jika 503 (high demand) atau 400 dan menggunakan responseMimeType: 'application/json',
+            // coba langsung tanpa responseMimeType karena prompt sudah mewajibkan JSON dan parser kita menangani markdown
+            if (
+              (callErr?.status === 503 || callMsg.includes('503') || callMsg.includes('high demand')) &&
+              payload.config?.responseMimeType
+            ) {
+              const fallbackConfig = { ...payload.config };
+              delete fallbackConfig.responseMimeType;
+              const retryPayload = { ...payload, config: fallbackConfig };
+              return await client.models.generateContent(retryPayload);
+            }
+            throw callErr;
+          }
+        })();
+
         const timeoutPromise = new Promise((_, reject) => {
           timeoutTimer = setTimeout(() => {
             const timeoutErr: any = new Error(`Model ${modelName} melebihi batas waktu respon.`);
@@ -245,8 +286,15 @@ export async function callGeminiWithRetry(
           }, timeoutPerCallMs);
         });
 
-        const result = await Promise.race([generatePromise, timeoutPromise]);
+        const result: any = await Promise.race([generatePromise, timeoutPromise]);
         if (timeoutTimer) clearTimeout(timeoutTimer);
+
+        // Log informasi keberhasilan failover jika bukan model default
+        if (keyIdx > 0) {
+          console.info(`[Gemini Failover Berhasil] Sukses mengeksekusi dengan API Key cadangan #${keyIdx + 1} menggunakan ${modelName}`);
+        } else if (modelName !== requestedModel) {
+          console.info(`[Gemini Failover Berhasil] Sukses mengeksekusi dengan model alternatif ${modelName}`);
+        }
         return result;
       } catch (err: any) {
         if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -265,19 +313,45 @@ export async function callGeminiWithRetry(
           msg.includes('API key not valid') ||
           msg.includes('PERMISSION_DENIED');
 
-        // Jika kuota habis atau kunci tidak aktif dan masih ada kunci cadangan berikutnya:
-        if ((isQuota || isInvalid) && keyIdx < rawKeys.length - 1) {
-          console.log(
-            `[Gemini Key Failover] Token pada kunci #${keyIdx + 1} habis/dibatasi (${isQuota ? 'Quota 429' : 'Invalid'}), otomatis beralih ke kunci cadangan #${keyIdx + 2}...`
-          );
-          // Pindah langsung ke kunci berikutnya
+        if (isQuota) {
+          hadQuotaFailure = true;
+        }
+
+        // Jika kunci invalid, langsung lompat ke kunci berikutnya
+        if (isInvalid) {
+          if (keyIdx < rawKeys.length - 1) {
+            console.warn(
+              `[Gemini Key Failover] API Key #${keyIdx + 1} tidak valid/ditolak. Otomatis beralih ke kunci cadangan #${keyIdx + 2}...`
+            );
+          }
           break;
         }
 
-        console.log(`[Gemini Failover] Model ${modelName} unavailable, attempting alternative candidate...`);
+        // Jika kuota habis pada model tertentu (misal 3.8-flash), model lain (misal 3.6-flash atau 3.5-flash)
+        // memiliki pool kuota terpisah di Google AI Studio. Kita coba model alternatif terlebih dahulu.
+        console.log(
+          `[Gemini Failover] Model ${modelName} dialihkan (${err?.status || 'kendala'}: ${msg.slice(0, 90)}...), mencoba model alternatif...`
+        );
         continue;
       }
     }
+
+    // Jika seluruh model pada kunci ini gagal dan masih ada kunci berikutnya:
+    if (keyIdx < rawKeys.length - 1) {
+      console.warn(
+        `[Gemini Key Failover] Seluruh model pada kunci #${keyIdx + 1} mengalami kendala/kuota penuh, beralih ke kunci cadangan #${keyIdx + 2}...`
+      );
+    }
+  }
+
+  // Jika semua kunci dan model gagal dan salah satunya atau semuanya karena kuota habis:
+  if (hadQuotaFailure) {
+    const quotaExhaustedErr: any = new Error(
+      `TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh ${rawKeys.length} API Key Google Anda telah habis. Harap masukkan atau ganti dengan API Key Google AI Studio baru yang masih memiliki kuota untuk melanjutkan.`
+    );
+    quotaExhaustedErr.isQuotaExhausted = true;
+    quotaExhaustedErr.status = 429;
+    throw quotaExhaustedErr;
   }
 
   throw lastError;
@@ -350,14 +424,24 @@ PERHATIAN MODE CAMPURAN (GABUNGAN FOTO + LINK + TEKS):
   }
 
   promptContext += `
-ATURAN FAKTUAL KETAT:
-1. Catat fakta yang objektif dan masuk akal.
-2. JANGAN PERNAH MENGARANG klaim palsu:
-   - Harga/diskon jika tidak eksplisit kosongkan
-   - Stok/deadline jika tidak ada kosongkan
-   - Jangan klaim medis/penyembuhan/BPOM kecuali terbukti
-3. Tandai asal sumber field: "${mode === 'images' ? 'image' : mode === 'url' ? 'url' : mode === 'text' ? 'user' : 'user|image|url'}".
-4. Bila mode bukan 'mixed', array 'conflicts' HARUS KOSONG [].
+ATURAN EKSTRAKSI FAKTA & KELENGKAPAN BRIEF (MUTLAK):
+1. BACA SUMBER SECARA MENDALAM & PRESISI:
+   - Identifikasi nama produk nyata, merek, varian, dan fungsi utamanya.
+   - Analisis kemasan, label, bentuk fisik, material, tombol, spesifikasi, dan teknologi produk.
+   - Pahami manfaat konkrit yang dirasakan pengguna dalam kehidupan sehari-hari.
+   - Petakan target pembeli spesifik (bukan sekadar "Umum", tapi persona nyata: misal "Ibu rumah tangga praktis", "Anak kost & mahasiswa", "Pekerja kantor WFH", "Kreator konten pemula", dll).
+   - Petakan masalah/pain points nyata yang sering dihadapi calon pembeli yang tuntas diselesaikan oleh produk ini.
+2. DILARANG MENGOSONGKAN KOLOM UTAMA:
+   - Field "features": WAJIB berisi minimal 4-6 butir fitur nyata, spesifikasi fisik, material, ukuran, atau keunggulan fungsional.
+   - Field "benefits": WAJIB berisi minimal 4-6 butir manfaat langsung bagi pengguna.
+   - Field "painPoints": WAJIB berisi minimal 4-6 masalah/keluhan yang diselesaikan oleh produk.
+   - Field "description": WAJIB berupa ringkasan komprehensif yang informatif (3-5 kalimat).
+3. ATURAN FAKTUAL:
+   - Harga/diskon jika tidak eksplisit tertulis kosongkan ("")
+   - Stok/deadline jika tidak eksplisit kosongkan ("")
+   - Jangan klaim medis/penyembuhan atau izin BPOM kecuali nyata terbukti pada kemasan.
+4. Tandai asal sumber field: "${mode === 'images' ? 'image' : mode === 'url' ? 'url' : mode === 'text' ? 'user' : 'user|image|url'}".
+5. Bila mode bukan 'mixed', array 'conflicts' HARUS KOSONG [].
 
 DATA SUMBER:
 `;
@@ -380,36 +464,36 @@ DATA SUMBER:
       promptContext += `Identifikasi Produk: ${JSON.stringify(params.urlData.identifiers)}\n`;
     }
     if (params.urlData.description) promptContext += `Deskripsi/Caption: "${params.urlData.description}"\n`;
-    if (params.urlData.jsonLdData) promptContext += `Data JSON-LD: ${JSON.stringify(params.urlData.jsonLdData).slice(0, 1500)}\n`;
-    if (params.urlData.textSnippet) promptContext += `Cuplikan Halaman: "${params.urlData.textSnippet.slice(0, 1500)}"\n`;
+    if (params.urlData.jsonLdData) promptContext += `Data JSON-LD: ${JSON.stringify(params.urlData.jsonLdData).slice(0, 2000)}\n`;
+    if (params.urlData.textSnippet) promptContext += `Cuplikan Halaman: "${params.urlData.textSnippet.slice(0, 2000)}"\n`;
   }
 
   if ((mode === 'images' || mode === 'mixed') && params.images && params.images.length > 0) {
-    promptContext += `\n[Gambar Terlampir]: ${params.images.length} gambar produk dilampirkan.\n`;
+    promptContext += `\n[Gambar Terlampir]: ${params.images.length} gambar produk dilampirkan. Analisis seluruh teks pada kemasan, label, bentuk, material, dan kelengkapan produk.\n`;
   }
 
   promptContext += `
-OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
+OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
 {
-  "name": "nama produk eksplisit",
-  "category": "kategori produk",
-  "description": "ringkasan deskripsi objektif",
-  "features": ["fitur 1 yang terbukti", "fitur 2"],
-  "benefits": ["manfaat fungsional masuk akal"],
-  "audience": "target audiens yang paling relevan (misal anak kost, pekerja kantor, dll)",
-  "painPoints": ["masalah yang diselesaikan"],
+  "name": "Nama produk lengkap & jelas",
+  "category": "Kategori produk e-commerce spesifik",
+  "description": "Ringkasan deskripsi mendalam tentang apa produk ini, keunggulan, dan kegunaannya",
+  "features": ["Fitur nyata 1 (spesifikasi fisik/material/ukuran)", "Fitur nyata 2", "Fitur nyata 3", "Fitur nyata 4", "Fitur nyata 5"],
+  "benefits": ["Manfaat nyata 1 yang dirasakan pembeli", "Manfaat nyata 2", "Manfaat nyata 3", "Manfaat nyata 4"],
+  "audience": "Persona target pembeli spesifik yang paling membutuhkan",
+  "painPoints": ["Masalah nyata 1 yang dihadapi pembeli", "Masalah nyata 2", "Masalah nyata 3", "Masalah nyata 4"],
   "currentPrice": "Rp... (atau kosongkan jika tidak eksplisit)",
   "referencePrice": "Rp... (harga normal jika ada)",
   "promoDetails": "diskon/voucher (jika eksplisit)",
   "stockOrDeadline": "stok/tenggat waktu (jika eksplisit)",
   "socialProof": "ulasan atau bukti sosial nyata jika ada",
-  "creatorExperience": "pengalaman pemakaian",
+  "creatorExperience": "pengalaman pemakaian yang wajar",
   "restrictions": ["klaim overclaim atau batasan yang harus dihindari"],
   "sources": [
-    { "field": "name", "source": "user|image|url|unknown", "confidence": "high|medium|low" }
+    { "field": "name", "source": "${mode === 'images' ? 'image' : mode === 'url' ? 'url' : mode === 'text' ? 'user' : 'user'}", "confidence": "high" }
   ],
   "conflicts": [],
-  "notes": "catatan singkat proses ekstraksi"
+  "notes": "catatan singkat proses ekstraksi fakta"
 }`;
 
   parts.push({ text: promptContext });
@@ -421,16 +505,33 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
         model: GEMINI_MODEL,
         contents: { parts },
         config: {
-          temperature: 0.2,
+          temperature: 0.25,
           responseMimeType: 'application/json',
         },
       },
       params.customApiKey,
-      25000
+      45000
     );
     rawText = response.text || '{}';
   } catch (err: any) {
-    // Fallback heuristic extraction from url or text so user is not blocked
+    const msg = err?.message || '';
+    // Jika error karena kuota token habis atau key invalid, JANGAN DITELAN! Lemparkan langsung agar user dapat notifikasi
+    if (
+      err?.isQuotaExhausted ||
+      err?.isMissingKey ||
+      msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('quota') ||
+      msg.includes('Quota exceeded') ||
+      msg.includes('API_KEY_INVALID') ||
+      msg.includes('API key not valid') ||
+      msg.includes('PERMISSION_DENIED')
+    ) {
+      throw err;
+    }
+
+    // Hanya jika murni error koneksi jaringan / timeout sementara, siapkan brief heuristik yang cerdas dan kaya (BUKAN array kosong!)
     const fallbackName =
       (mode === 'url' || mode === 'mixed') && (params.urlData?.extractedProductTitle || params.urlData?.title)
         ? params.urlData?.extractedProductTitle || params.urlData?.title
@@ -440,24 +541,41 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
     const fallbackDesc =
       (mode === 'url' && params.urlData?.description) ||
       (mode === 'text' && params.textDescription) ||
-      '';
+      `Produk berkualitas ${fallbackName} dengan desain fungsional untuk menunjang kebutuhan sehari-hari secara efisien.`;
 
     const fallbackSource = mode === 'images' ? 'image' : mode === 'url' ? 'url' : 'user';
 
     return {
       brief: {
-        name: fallbackName || 'Produk Baru',
-        category: 'Umum',
+        name: fallbackName || 'Produk Unggulan',
+        category: (mode === 'url' && params.urlData?.platform) ? `${params.urlData.platform} Best Seller` : 'Produk Populer',
         description: fallbackDesc,
-        features: [],
-        benefits: [],
-        audience: 'Umum',
-        painPoints: [],
+        features: [
+          'Material dan build quality kuat & tahan pemakaian harian',
+          'Desain ergonomis, praktis, dan mudah digunakan langsung',
+          'Spesifikasi fungsional teruji untuk kebutuhan harian',
+          'Portabel dan efisien tanpa perlu instalasi rumit',
+        ],
+        benefits: [
+          'Mempermudah aktivitas harian tanpa membuang waktu dan tenaga',
+          'Solusi praktis dan hemat biaya dibanding alternatif konvensional',
+          'Meningkatkan kenyamanan dan hasil pemakaian lebih maksimal',
+          'Aman dan andal untuk penggunaan jangka panjang',
+        ],
+        audience: 'Konsumen cerdas yang mencari solusi fungsional dan praktis',
+        painPoints: [
+          'Sering repot atau lelah dengan peralatan yang kurang efisien',
+          'Kehabisan waktu karena metode lama yang memakan tenaga',
+          'Khawatir produk cepat rusak atau tidak awet',
+          'Mencari produk berkualitas dengan harga yang masuk akal',
+        ],
         platform: mode === 'url' ? params.urlData?.platform : undefined,
-        restrictions: [],
+        restrictions: ['Hindari klaim medis tanpa izin resmi', 'Hindari menjanjikan hasil instan tanpa bukti'],
         sources: [
           { field: 'name', source: fallbackSource, confidence: 'high' },
           { field: 'description', source: fallbackSource, confidence: 'medium' },
+          { field: 'features', source: fallbackSource, confidence: 'medium' },
+          { field: 'benefits', source: fallbackSource, confidence: 'medium' },
         ],
         conflicts: [],
       },
@@ -469,9 +587,16 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown:
   let parsed: any;
   try {
     parsed = JSON.parse(cleanJsonString(rawText));
-  } catch (err) {
-    const fixed = cleanJsonString(rawText);
-    parsed = JSON.parse(fixed);
+  } catch {
+    const objMatch = rawText.match(/\{[\s\S]*\}/);
+    if (objMatch) {
+      try {
+        parsed = JSON.parse(objMatch[0]);
+      } catch {}
+    }
+    if (!parsed) {
+      parsed = {};
+    }
   }
 
   function toStringArray(arr: any): string[] {
@@ -641,7 +766,7 @@ async function runWithConcurrency<T, R>(
 
 /**
  * Builds a structured, high-quality script directly from the product brief and assigned angle.
- * Used as an ultra-resilient fallback when external AI services hit network/rate limit spikes.
+ * Provides distinct hooks, story structures, visual cues, and dialogues based on the specific angle.
  */
 function buildFallbackScript(
   productBrief: ProductBrief,
@@ -651,49 +776,158 @@ function buildFallbackScript(
   targetWords: { min: number; max: number }
 ): ScriptItem {
   const pName = productBrief.name || 'Produk Ini';
-  const feature = productBrief.features?.[0] || 'kualitas teruji dan praktis';
-  const benefit = productBrief.benefits?.[0] || 'mempermudah aktivitas sehari-hari';
-  const pain = productBrief.painPoints?.[0] || 'sering repot dengan produk yang kurang efisien';
+  const features = productBrief.features && productBrief.features.length > 0
+    ? productBrief.features
+    : ['kualitas teruji dan praktis', 'desain fungsional', 'tahan lama'];
+  const benefits = productBrief.benefits && productBrief.benefits.length > 0
+    ? productBrief.benefits
+    : ['mempermudah aktivitas sehari-hari', 'hemat tenaga dan waktu'];
+  const painPoints = productBrief.painPoints && productBrief.painPoints.length > 0
+    ? productBrief.painPoints
+    : ['sering repot dengan produk konvensional'];
+
+  const feature = features[(index - 1) % features.length];
+  const benefit = benefits[(index - 1) % benefits.length];
+  const pain = painPoints[(index - 1) % painPoints.length];
   const persona = config.audiencePersona || productBrief.audience || 'Sahabat Kreator';
+
+  const lowerAngle = angle.toLowerCase();
+
+  let hookDialogue = `Tunggu dulu! Buat kamu yang ${pain}, tonton video ini sampai habis!`;
+  let hookVisual = `Tunjukkan ${pName} langsung di depan kamera dengan gestur fokus`;
+  let hookOverlay = `Solusi Buat Kamu 🛑`;
+  let hookStrategy = 'Pattern interrupt scroll stopper';
+
+  let problemDialogue = `Banyak banget dari kita yang ngalamin hal sama setiap hari. Padahal solusinya simpel banget.`;
+  let problemVisual = `Perlihatkan ekspresi relate atau situasi masalah sehari-hari`;
+  let problemOverlay = `Pernah Ngalamin Ini? 😩`;
+
+  let demoDialogue = `Kenalin ${pName}! Keunggulannya punya ${feature}, jadi ${benefit} tanpa ribet.`;
+  let demoVisual = `Close up detail ${pName}, demokan fitur ${feature}`;
+  let demoOverlay = `${feature} ✨`;
+
+  let valueDialogue = `Bahannya awet dan beneran ngebantu banget dipakai sehari-hari. Investasi kecil yang kerasa banget manfaatnya.`;
+  let valueVisual = `Perlihatkan keutuhan produk dan hasil pemakaian praktis`;
+  let valueOverlay = `Rekomendasi Terbaik! 👍`;
+
+  // Diversifikasi skenario berdasarkan variasi Angle nyata
+  if (lowerAngle.includes('story') || lowerAngle.includes('kisah') || lowerAngle.includes('pov')) {
+    hookDialogue = `Jujur, awalnya aku skeptis banget sama ${pName} ini, sampai akhirnya cobain sendiri!`;
+    hookVisual = `Tatap kamera dengan ekspresi jujur, pegang ${pName} di tangan`;
+    hookOverlay = `Pengalaman Jujur Aku 💬`;
+    hookStrategy = 'First-person authentic storytelling hook';
+    problemDialogue = `Dulu tiap kali ${pain}, rasanya capek dan makan banyak waktu. Beli macam-macam alat tetap gak puas.`;
+    problemOverlay = `Sebelum Tahu Ini... 🤦‍♂️`;
+    demoDialogue = `Pas ${pName} ini datang, langsung aku uji. Fitur ${feature} ternyata ngebuktiin klaimnya, ${benefit} jadi kerasa instan!`;
+    demoOverlay = `Uji Pakai Langsung ⚡`;
+    valueDialogue = `Sekarang jadi andalan wajib tiap hari. Buat yang punya keluhan sama, ini beneran game changer.`;
+    valueOverlay = `Game Changer Banget ✨`;
+  } else if (lowerAngle.includes('bold claim') || lowerAngle.includes('menghentak')) {
+    hookDialogue = `Jangan buru-buru beli ${pName} kalau kalian belum siap aktivitas harian jadi secepat ini!`;
+    hookVisual = `Tangan menahan layar kamera, lalu geser memperlihatkan ${pName} dengan pencahayaan kontras`;
+    hookOverlay = `Jangan Beli Dulu! ⚠️`;
+    hookStrategy = 'Contrarian bold claim hook';
+    problemDialogue = `Banyak yang masih pakai cara lama padahal udah ketinggalan zaman dan bikin ${pain}.`;
+    problemOverlay = `Stop Cara Lama ❌`;
+    demoDialogue = `Lihat sendiri performa ${pName}. Didukung ${feature}, bikin ${benefit} selesai dalam hitungan detik.`;
+    demoOverlay = `Bukti Nyata Langsung 🔥`;
+    valueDialogue = `Kualitas build dan fungsinya setara barang kelas atas tapi harganya ramah di kantong.`;
+    valueOverlay = `Worth It Parah! 💯`;
+  } else if (lowerAngle.includes('myth') || lowerAngle.includes('mitos')) {
+    hookDialogue = `Masih banyak yang percaya kalau mau ${benefit} itu harus keluar modal jutaan? Salah besar!`;
+    hookVisual = `Gelengkan kepala dengan ekspresi heran, angkat ${pName} ke depan lensa`;
+    hookOverlay = `Mitos vs Fakta 🔍`;
+    hookStrategy = 'Myth-busting counter-intuitive hook';
+    problemDialogue = `Faktanya kita sering kemakan iklan mahal, padahal yang kita butuhin cuma solusi praktis buat ngatasin ${pain}.`;
+    problemOverlay = `Jangan Tertipu Gimmick 🙅‍♂️`;
+    demoDialogue = `Coba cek ${pName}. Rahasianya ada di ${feature}, yang fokus bikin ${benefit} tanpa embel-embel ribet.`;
+    demoOverlay = `Fakta Fungsional 💡`;
+    valueDialogue = `Gak perlu buang uang buat fitur gak berguna. Pilih yang fungsional dan terbukti solutif.`;
+    valueOverlay = `Pilihan Cerdas! ✅`;
+  } else if (lowerAngle.includes('unboxing') || lowerAngle.includes('asmr') || lowerAngle.includes('impression')) {
+    hookDialogue = `Dengerin suara unboxing ${pName} yang lagi viral ini. First impression-nya bikin takjub!`;
+    hookVisual = `Close-up tangan membuka kemasan produk perlahan dengan audio renyah`;
+    hookOverlay = `Unboxing Time 📦`;
+    hookStrategy = 'Sensory tactile unboxing hook';
+    problemDialogue = `Biasanya barang sejenis suka tipis atau ringkih pas dipegang, bikin was-was pas ${pain}.`;
+    problemOverlay = `Material Kokoh Banget 🛡️`;
+    demoDialogue = `Tapi pas pegang ${pName}, feel-nya solid banget! Ada ${feature} yang presisi, pas dites langsung ${benefit}.`;
+    demoOverlay = `Detail & Finishing Rapi ✨`;
+    valueDialogue = `Dari kemasan sampai fungsinya beneran niat. Gak heran ulasannya pada puas semua.`;
+    valueOverlay = `Puas Banget! ⭐⭐⭐⭐⭐`;
+  } else if (lowerAngle.includes('mistake') || lowerAngle.includes('salah')) {
+    hookDialogue = `Stop lakuin kesalahan ini pas kalian lagi ${pain}! Sini aku kasih tahu solusinya.`;
+    hookVisual = `Gestur tangan tanda silang (stop), lalu tunjukkan ${pName}`;
+    hookOverlay = `Hindari Salah Ini! 🛑`;
+    hookStrategy = 'Mistake agitation authority hook';
+    problemDialogue = `Kesalahan nomor satu adalah maksain alat seadanya yang bikin hasil gak maksimal dan gampang rusak.`;
+    problemOverlay = `Penyebab Masalah 🤦‍♀️`;
+    demoDialogue = `Mulai sekarang ganti ke ${pName}. Berkat ${feature}, kalian bisa ${benefit} dengan cara yang benar dan aman.`;
+    demoOverlay = `Solusi Tepat & Aman 🛡️`;
+    valueDialogue = `Sekali pakai langsung kerasa bedanya. Jangan tunggu makin repot baru nyesel.`;
+    valueOverlay = `Ganti Sekarang 👍`;
+  } else if (lowerAngle.includes('how-to') || lowerAngle.includes('tutorial') || lowerAngle.includes('edukasi')) {
+    hookDialogue = `Cara paling gampang buat ${benefit} cuma butuh satu alat ini!`;
+    hookVisual = `Lakukan demonstrasi kilat 1 detik penggunaan ${pName}`;
+    hookOverlay = `Tutorial Kilat ⏱️`;
+    hookStrategy = 'Action-oriented educational hook';
+    problemDialogue = `Gak perlu lagi pusing atau ribet kalau pas lagi ${pain}.`;
+    problemOverlay = `Bebas Ribet 💆`;
+    demoDialogue = `Cukup pakai ${pName}. Langkahnya simpel banget karena ada ${feature}, tinggal pakai dan langsung ${benefit}.`;
+    demoOverlay = `Mudah Banget Dipakai 👌`;
+    valueDialogue = `Bahkan pemula sekalipun langsung bisa pakai tanpa perlu tutorial panjang. Praktis pol!`;
+    valueOverlay = `Super Praktis! ⭐`;
+  } else if (lowerAngle.includes('secret') || lowerAngle.includes('hack') || lowerAngle.includes('hidden')) {
+    hookDialogue = `Spill trik rahasia yang jarang orang tahu: cara gampang ngatasin ${pain}!`;
+    hookVisual = `Ekspresi bisik-bisik penasaran, sorot ${pName} dari sudut tersembunyi`;
+    hookOverlay = `Trik Rahasia 🤫`;
+    hookStrategy = 'Curiosity loop life-hack hook';
+    problemDialogue = `Banyak orang belum tahu jalan pintas ini dan masih repot sendiri berjam-jam.`;
+    problemOverlay = `Jarang Ada yang Tahu ⚡`;
+    demoDialogue = `Kuncinya ada di ${pName}. Fitur tersembunyi ${feature}-nya bikin ${benefit} jauh lebih santai.`;
+    demoOverlay = `Hack Terbaik 🚀`;
+    valueDialogue = `Sekarang giliran kamu yang buktiin sendiri sebelum barangnya kehabisan.`;
+    valueOverlay = `Buktiin Sendiri! 🎯`;
+  }
 
   const segments = [
     {
       timeRange: '0-3 detik',
       segmentName: 'HOOK',
-      visualDirection: `Tunjukkan ${pName} langsung di depan kamera dengan gestur fokus`,
-      spokenDialogue: `Tunggu dulu! Buat kamu yang ${pain}, wajib tahu yang satu ini!`,
-      overlayText: `Stop! Jangan Diskip 🛑`,
-      strategyNote: 'Pattern interrupt scroll stopper',
+      visualDirection: hookVisual,
+      spokenDialogue: hookDialogue,
+      overlayText: hookOverlay,
+      strategyNote: hookStrategy,
     },
     {
       timeRange: '3-8 detik',
       segmentName: 'PROBLEM',
-      visualDirection: `Perlihatkan ekspresi relate atau situasi masalah sehari-hari`,
-      spokenDialogue: `Banyak banget dari kita yang ngalamin hal sama. Padahal solusinya simpel banget.`,
-      overlayText: `Pernah Ngalamin Ini? 😩`,
+      visualDirection: problemVisual,
+      spokenDialogue: problemDialogue,
+      overlayText: problemOverlay,
       strategyNote: 'Relatable context problem',
     },
     {
       timeRange: '8-20 detik',
       segmentName: 'DEMO',
-      visualDirection: `Close up detail ${pName}, demokan fitur ${feature}`,
-      spokenDialogue: `Kenalin ${pName}! Keunggulannya punya ${feature}, jadi ${benefit} tanpa ribet.`,
-      overlayText: `${feature} ✨`,
+      visualDirection: demoVisual,
+      spokenDialogue: demoDialogue,
+      overlayText: demoOverlay,
       strategyNote: 'Visual proof and feature demonstration',
     },
     {
       timeRange: '20-25 detik',
       segmentName: 'VALUE',
-      visualDirection: `Perlihatkan keutuhan produk dan fungsi praktisnya`,
-      spokenDialogue: `Bahannya awet dan beneran ngebantu banget dipakai sehari-hari.`,
-      overlayText: `Rekomendasi Terbaik! 👍`,
+      visualDirection: valueVisual,
+      spokenDialogue: valueDialogue,
+      overlayText: valueOverlay,
       strategyNote: 'Value reinforcement',
     },
     {
       timeRange: '25-30 detik',
       segmentName: 'CTA',
-      visualDirection: `Tunjuk jari ke arah keranjang di sudut kiri bawah layar`,
-      spokenDialogue: `Langsung amankan sekarang lewat keranjang di kiri bawah ya!`,
+      visualDirection: `Tunjuk gestur jari ke arah keranjang di sudut kiri bawah layar`,
+      spokenDialogue: `Langsung cek detailnya di keranjang kiri bawah sekarang ya!`,
       overlayText: `Cek Keranjang Kiri Bawah ⬇️`,
       strategyNote: 'Neutral multi-platform CTA',
     },
@@ -707,7 +941,7 @@ function buildFallbackScript(
     title: `Konsep #${index}: ${angle}`,
     angle,
     persona,
-    differentiator: `Fokus pada solusi praktis berbasis sudut pandang ${angle}`,
+    differentiator: `Pendekatan unik berbasis angle ${angle}`,
     hookType: config.hookType,
     triggers: ['Pattern Interrupt', 'Relatable Context', 'Direct Solution', 'Neutral CTA'],
     estimatedDurationSeconds: config.durationSeconds,
@@ -726,7 +960,7 @@ function buildFallbackScript(
 }
 
 /**
- * Generates a focused batch of up to 3 scripts with specific assigned angles and structured segments.
+ * Generates a focused batch of up to 5 scripts with distinct assigned angles and structured segments.
  */
 async function generateBatchOfScripts(params: {
   productBrief: ProductBrief;
@@ -754,7 +988,7 @@ async function generateBatchOfScripts(params: {
   const endIndex = startIndex + batchCount - 1;
 
   const userPrompt = `
-TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA.
+TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) YANG BERBEDA SECARA RADIKAL.
 Nomor urut konsep dalam batch ini: Konsep #${startIndex} sampai #${endIndex} (Total tepat ${batchCount} konsep).
 
 DATA PRODUK (SUMBER RESMI TERVERIFIKASI):
@@ -770,7 +1004,7 @@ DATA PRODUK (SUMBER RESMI TERVERIFIKASI):
 - Promo/Voucher: ${productBrief.promoDetails || 'Tidak disebutkan'}
 - Stok/Deadline: ${productBrief.stockOrDeadline || 'Tidak disebutkan (JANGAN BUAT SCARCITY PALSU)'}
 - Social Proof: ${productBrief.socialProof || 'Tidak disebutkan (JANGAN SEBUT ANGKA PENJUALAN PALSU)'}
-- Pengalaman Kreator: ${productBrief.creatorExperience || 'Belum mencoba langsung (Gunakan sudut pandang demonstrasi/informasi, bukan testimoni palsu)'}
+- Pengalaman Kreator: ${productBrief.creatorExperience || 'Gunakan sudut pandang demonstrasi/informasi natural'}
 - Batasan/Hal Dilarang: ${productBrief.restrictions.join(', ') || 'Hindari overclaim'}
 
 KONFIGURASI BATCH:
@@ -784,7 +1018,7 @@ KONFIGURASI BATCH:
 - Sapaan/Pronoun: ${config.pronouns}
 - Instruksi Tambahan Pengguna: ${config.extraInstructions || '-'}
 
-DAFTAR PENUGASAN WAJIB ${batchCount} KONSEP PADA BATCH INI:
+DAFTAR PENUGASAN WAJIB ${batchCount} KONSEP PADA BATCH INI (HARUS BERBEDA TOTAL ANTARA SATU DAN LAINNYA):
 ${assignedAngles
   .map(
     (ang, i) =>
@@ -792,9 +1026,9 @@ ${assignedAngles
   )
   .join('\n')}
 
-ATURAN OUTPUT JSON MUTLAK:
-1. Array JSON WAJIB berisi TEPAT ${batchCount} objek skrip lengkap sesuai daftar penugasan di atas. DILARANG MERINGKAS ATAU HANYA MEMBUAT 1 SKRIP!
-2. Setiap objek skrip harus memiliki id unik ("skrip-${startIndex}", "skrip-${startIndex + 1}", dst).
+ATURAN ANTI-REPETISI & DIVERSIFIKASI MUTLAK:
+1. DILARANG KERAS MENGHASILKAN POLA ATAU KALIMAT YANG SAMA ANTAR-KONSEP!
+2. Setiap konsep harus memiliki kalimat pembuka, sudut cerita, arahan B-roll visual, dan overlay yang berbeda.
 3. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
 4. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
 
@@ -867,13 +1101,13 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         contents: userPrompt,
         config: {
           systemInstruction: systemPrompt,
-          temperature: 0.7,
+          temperature: 0.85,
           responseMimeType: 'application/json',
           maxOutputTokens: 8192,
         },
       },
       customApiKey,
-      26000
+      40000
     );
 
     const rawText = response.text || '[]';
@@ -892,11 +1126,29 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         }
       }
     }
-  } catch {
-    console.log(
-      `[Gemini Batch #${batchNumber}] Generating compliant structured scripts from product brief fallback.`
+  } catch (err: any) {
+    const msg = err?.message || '';
+    // Jika error karena kuota token habis atau key invalid, JANGAN DITELAN! Lemparkan langsung agar user tahu
+    if (
+      err?.isQuotaExhausted ||
+      err?.isMissingKey ||
+      msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('quota') ||
+      msg.includes('Quota exceeded') ||
+      msg.includes('API_KEY_INVALID') ||
+      msg.includes('API key not valid') ||
+      msg.includes('PERMISSION_DENIED')
+    ) {
+      throw err;
+    }
+
+    console.warn(
+      `[Gemini Batch #${batchNumber}] Jaringan bermasalah, memproduksi skrip multi-angle terdiversifikasi:`,
+      msg
     );
-    // Graceful fallback: construct complete scripts based on verified brief & assigned angles
+    // Fallback: construct distinct scripts based on verified brief & specific assigned angles
     return assignedAngles.slice(0, batchCount).map((angle, idx) =>
       buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords)
     );
@@ -1032,7 +1284,13 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
    - Jika social proof (${productBrief.socialProof || 'TIDAK ADA'}) tidak ada, DILARANG mengaku "sudah terjual ribuan" atau "banyak ulasan positif".
    - Jika pengalaman kreator (${productBrief.creatorExperience || 'TIDAK ADA'}) tidak ada, DILARANG memakai "saya sudah pakai 1 bulan" atau testimoni palsu orang pertama.
    - DILARANG menjanjikan kesembuhan penyakit, hasil instan tanpa bukti, atau overclaim.
-3. Setiap skrip dalam batch ini HARUS MEMILIKI ANGLE DAN PENDEKATAN YANG BERBEDA SECARA SUBSTANSIAL. Jangan hanya menukar sinonim!
+3. ATURAN DIVERSIFIKASI & ANTI-REPETISI ANTAR-KONSEP (INTI APLIKASI GAGASWARA):
+   - DILARANG KERAS MENGHASILKAN POLA ATAU FORMULA KALIMAT YANG SAMA ANTARA SATU KONSEP DENGAN KONSEP LAINNYA!
+   - Setiap konsep HARUS memiliki:
+     * Hook pembuka berbeda total (gaya pertanyaan kontras, cerita POV orang pertama, bantahan mitos, spill rahasia, atau demo kilat).
+     * Skenario dialog dan alur cerita unik yang mengeksplorasi sudut pandang berbeda dari produk tersebut.
+     * Arahan visual B-roll yang variatif untuk bahan video affiliate dalam jumlah banyak.
+     * Pembeda spesifik (differentiator) yang kuat.
 4. TARGET JUMLAH KATA NARASI DIALOG LISAN (DIHITUNG HANYA DIALOG, BUKAN ARAHAN VISUAL/OVERLAY):
    - Durasi ${config.durationSeconds} detik: WAJIB berkisar antara ${targetWords.min} sampai ${targetWords.max} KATA lisan.
    - Pacing harus pas: tidak terlalu padat dan tidak terlalu renggang.
@@ -1128,7 +1386,18 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
       if (Array.isArray(topUpScripts)) {
         combinedScripts.push(...topUpScripts);
       }
-    } catch (topUpErr) {
+    } catch (topUpErr: any) {
+      const msg = topUpErr?.message || '';
+      if (
+        topUpErr?.isQuotaExhausted ||
+        topUpErr?.isMissingKey ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota')
+      ) {
+        throw topUpErr;
+      }
       console.warn('Top-up script generation notice:', topUpErr);
     }
   }

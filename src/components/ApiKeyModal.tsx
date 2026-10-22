@@ -34,6 +34,7 @@ interface ApiKeyModalProps {
   onDelete: () => Promise<void>;
   selectedModel?: string;
   onSelectModel?: (modelId: string) => void;
+  isQuotaExhaustedAlert?: boolean;
 }
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
@@ -44,6 +45,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onDelete,
   selectedModel = GEMINI_MODEL,
   onSelectModel,
+  isQuotaExhaustedAlert = false,
 }) => {
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
   const [modelChoice, setModelChoice] = useState<string>(selectedModel);
@@ -90,7 +92,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
         setJustPasted(true);
         setTimeout(() => setJustPasted(false), 2000);
         setStatusMessage({
-          text: '✓ Kunci berhasil ditempel dari clipboard.',
+          text: '✓ Kunci berhasil ditambahkan dari clipboard.',
           type: 'success',
         });
       } else {
@@ -107,6 +109,17 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     }
   };
 
+  const handleAddBackupKeySlot = () => {
+    setApiKeyInput((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed}\n` : '';
+    });
+    setStatusMessage({
+      text: 'Silakan tempel atau ketik API Key cadangan di baris baru.',
+      type: null,
+    });
+  };
+
   const handleTestAndSave = async () => {
     const trimmed = apiKeyInput.trim();
     if (!trimmed || detectedKeys.length === 0) {
@@ -116,7 +129,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
     setIsTesting(true);
     setStatusMessage({
-      text: 'Menguji koneksi API Key...',
+      text: `Menguji koneksi ${detectedKeys.length} API Key ke Google AI Studio...`,
       type: null,
     });
 
@@ -149,7 +162,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       const saved = await onSave(trimmed, modelChoice);
       if (saved) {
         setStatusMessage({
-          text: '✓ API Key & Model berhasil disimpan dan aktif!',
+          text: `✓ ${detectedKeys.length} API Key & Model berhasil disimpan dan aktif!`,
           type: 'success',
         });
         setTimeout(() => {
@@ -181,16 +194,16 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header Ringkas */}
-        <div className="px-5 py-3.5 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/80">
+        <div className="px-5 py-3.5 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
               <Key className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-zinc-900 leading-tight">Pengaturan API Key & Model</h3>
-              <p className="text-[11px] text-zinc-400">Google AI Studio</p>
+              <p className="text-[11px] text-zinc-400">Google AI Studio (Dukungan Multi-Kunci)</p>
             </div>
           </div>
           <button
@@ -203,7 +216,20 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
         </div>
 
         {/* Body 1 Halaman Tanpa Teks Berlebihan */}
-        <div className="p-5 space-y-4 text-xs">
+        <div className="p-5 space-y-3.5 text-xs overflow-y-auto">
+          {/* Peringatan Khusus Jika Kuota/Token Habis */}
+          {isQuotaExhaustedAlert && (
+            <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-rose-950 flex items-start gap-2.5 shadow-2xs animate-pulse">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-bold text-rose-900 text-xs">Perhatian: Kuota/Token API Key Habis</div>
+                <p className="text-[11px] text-rose-700 leading-relaxed">
+                  Token atau kuota dari API Key Google Anda saat ini telah habis. Silakan masukkan atau ganti dengan API Key Google baru di bawah ini agar proses pembuatan brief & skrip dapat berlanjut.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Dropdown Pilihan Model AI Google */}
           <div className="space-y-1.5">
             <label className="font-semibold text-zinc-700 flex items-center justify-between">
@@ -231,12 +257,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             </div>
           </div>
 
-          {/* Input API Key */}
+          {/* Input API Key (Mendukung Multi-Key) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="font-semibold text-zinc-700 flex items-center gap-1.5">
                 <Key className="w-3.5 h-3.5 text-amber-500" />
-                <span>API Key</span>
+                <span>API Key Google AI Studio</span>
               </label>
               {detectedKeys.length > 0 && (
                 <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
@@ -247,10 +273,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
             <div className="relative">
               <textarea
-                rows={2}
+                rows={3}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="Tempel kunci AIzaSy... atau AQ... di sini"
+                placeholder="Tempel kunci AIzaSy... atau AQ... di sini (pisahkan baris baru untuk kunci cadangan)"
                 disabled={isTesting || isDeleting}
                 autoComplete="off"
                 spellCheck={false}
@@ -284,42 +310,90 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               </div>
             </div>
 
-            {/* Quick Actions (Paste & Link) */}
-            <div className="flex items-center justify-between gap-2 pt-0.5">
-              <button
-                type="button"
-                onClick={handlePasteFromClipboard}
-                disabled={isTesting || isDeleting}
-                className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                  justPasted
-                    ? 'bg-emerald-500 text-white border-emerald-500'
-                    : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
-                }`}
-              >
-                {justPasted ? (
-                  <>
-                    <ClipboardCheck className="w-3 h-3 text-white" />
-                    <span>Tersalin!</span>
-                  </>
-                ) : (
-                  <>
-                    <Clipboard className="w-3 h-3 text-zinc-500" />
-                    <span>Tempel Clipboard</span>
-                  </>
-                )}
-              </button>
+            {/* Quick Actions (Paste & Tambah Cadangan & Link) */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  disabled={isTesting || isDeleting}
+                  className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                    justPasted
+                      ? 'bg-emerald-500 text-white border-emerald-500'
+                      : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
+                  }`}
+                >
+                  {justPasted ? (
+                    <>
+                      <ClipboardCheck className="w-3 h-3 text-white" />
+                      <span>Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clipboard className="w-3 h-3 text-zinc-500" />
+                      <span>Tempel Clipboard</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddBackupKeySlot}
+                  disabled={isTesting || isDeleting}
+                  className="py-1.5 px-2.5 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
+                  title="Tambah baris baru untuk kunci cadangan"
+                >
+                  + Tambah Cadangan
+                </button>
+              </div>
 
               <a
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-amber-600 transition-colors font-medium"
+                className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-amber-600 transition-colors font-medium ml-auto"
               >
                 <span>Dapatkan API Key</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </div>
+
+          {/* Daftar Kunci Aktif & Kunci Cadangan */}
+          {detectedKeys.length > 0 && (
+            <div className="bg-zinc-50 rounded-xl p-2.5 border border-zinc-200/80 space-y-1.5">
+              <div className="text-[11px] font-bold text-zinc-700 flex items-center justify-between">
+                <span>Daftar Kunci yang Disiapkan:</span>
+                <span className="text-[10px] text-zinc-400 font-normal">Rotasi Otomatis Aktif</span>
+              </div>
+              <div className="space-y-1">
+                {detectedKeys.map((k, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between gap-2 text-[11px] bg-white px-2 py-1.5 rounded-lg border border-zinc-200"
+                  >
+                    <span className="font-mono text-zinc-600 truncate max-w-[200px]">
+                      {showPassword
+                        ? k
+                        : `${k.slice(0, 8)}...${k.slice(-4)}`}
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                        idx === 0
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                    >
+                      {idx === 0 ? 'Kunci Utama (Aktif)' : `Cadangan #${idx}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-zinc-500 leading-normal pt-0.5">
+                💡 <strong>Rotasi Otomatis:</strong> Jika token pada Kunci Utama habis, sistem otomatis beralih menggunakan Kunci Cadangan tanpa menghentikan proses pembuatan skrip Anda.
+              </p>
+            </div>
+          )}
 
           {/* Status Message */}
           {statusMessage.text && (

@@ -71,7 +71,13 @@ export async function safeParseJsonResponse<T = any>(
     if (isJson) {
       try {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Gagal ${actionLabel} (Kode status: ${response.status})`);
+        const err: any = new Error(errorData.error || `Gagal ${actionLabel} (Kode status: ${response.status})`);
+        err.status = response.status;
+        err.isQuotaExhausted =
+          response.status === 429 ||
+          Boolean(errorData.isQuotaExhausted) ||
+          Boolean(errorData.error && (errorData.error.includes('TOKEN_QUOTA_EXHAUSTED') || errorData.error.includes('429')));
+        throw err;
       } catch (e: any) {
         if (e.message && !e.message.includes('JSON')) throw e;
       }
@@ -82,7 +88,10 @@ export async function safeParseJsonResponse<T = any>(
         `Server backend mengembalikan halaman HTML (${response.status}) alih-alih data JSON. Pastikan endpoint server backend aktif.`
       );
     }
-    throw new Error(text || `Gagal ${actionLabel} (${response.status})`);
+    const err: any = new Error(text || `Gagal ${actionLabel} (${response.status})`);
+    err.status = response.status;
+    err.isQuotaExhausted = response.status === 429;
+    throw err;
   }
 
   // Jika response.ok bernilai true tetapi tipe konten adalah HTML (terjadi pada fallback SPA routing)

@@ -315,6 +315,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(false);
+  const [isQuotaExhausted, setIsQuotaExhausted] = useState<boolean>(false);
   const [authWarningModalOpen, setAuthWarningModalOpen] = useState<boolean>(false);
   const [unauthorizedDomainModalOpen, setUnauthorizedDomainModalOpen] = useState<boolean>(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState<boolean>(false);
@@ -438,6 +439,7 @@ export default function App() {
 
   const handleSaveApiKey = async (newKey: string, model?: string): Promise<boolean> => {
     setApiKey(newKey);
+    setIsQuotaExhausted(false);
     localStorage.setItem('affiliate_script_lab_api_key', newKey);
     if (model) {
       setSelectedModel(model);
@@ -710,41 +712,15 @@ export default function App() {
   }) => {
     setActiveInputMode(data.inputMode);
     setIsAnalyzing(true);
-    setProcessingProgress(15);
-    setProcessingStepIndex(0);
     setGlobalError(null);
     setExtractWarning(undefined);
     setConflictsFound([]);
 
-    // Linear progress simulation tracking real API stages
-    const pTimer = setInterval(() => {
-      setProcessingProgress((prev) => {
-        if (prev < 38) return prev + 2;
-        if (prev < 68) return prev + 1.5;
-        if (prev < 88) return prev + 1;
-        return prev;
-      });
-      setProcessingStepIndex((prev) => {
-        setProcessingProgress((curr) => {
-          if (curr > 75) return 2;
-          if (curr > 35) return 1;
-          return 0;
-        });
-        return prev;
-      });
-    }, 180);
-
     try {
-      setProcessingProgress(35);
-      setProcessingStepIndex(1);
-
       const resData = await executeExtractProduct({
         ...data,
         apiKey,
       });
-
-      setProcessingProgress(85);
-      setProcessingStepIndex(2);
 
       const isSingle = data.inputMode !== 'mixed';
       const rawConflicts = resData.conflictsFound || [];
@@ -769,9 +745,6 @@ export default function App() {
             : undefined,
       };
 
-      setProcessingProgress(98);
-      setProcessingStepIndex(3);
-
       setProductBrief(cleanBrief);
       setConflictsFound(finalConflicts);
       setExtractWarning(resData.warning);
@@ -782,14 +755,27 @@ export default function App() {
 
       showToast(`Brief "${cleanBrief.name}" berhasil disiapkan!`, 'success');
     } catch (err: any) {
-      if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
+      const msg = err?.message || '';
+      const isQuota =
+        Boolean(err?.isQuotaExhausted) ||
+        err?.status === 429 ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota') ||
+        msg.includes('Quota exceeded');
+
+      if (isQuota) {
+        setIsQuotaExhausted(true);
+        setApiKeyModalOpen(true);
+        showToast('Token API Key Google habis. Silakan masukkan atau ganti dengan kunci baru.', 'error');
+      } else if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
         setApiKeyModalOpen(true);
         showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
       } else {
         setGlobalError(getFriendlyErrorMessage(err, 'Gagal memproses informasi produk.'));
       }
     } finally {
-      clearInterval(pTimer);
       setIsAnalyzing(false);
     }
   };
@@ -824,48 +810,19 @@ export default function App() {
     }
 
     setIsGenerating(true);
-    setProcessingProgress(15);
-    setProcessingStepIndex(0);
     setGlobalError(null);
 
-    // Linear progress tracking real AI generation milestones
-    const pTimer = setInterval(() => {
-      setProcessingProgress((prev) => {
-        if (prev < 42) return prev + 2;
-        if (prev < 72) return prev + 1.5;
-        if (prev < 90) return prev + 0.8;
-        return prev;
-      });
-      setProcessingStepIndex((prev) => {
-        setProcessingProgress((curr) => {
-          if (curr > 75) return 2;
-          if (curr > 38) return 1;
-          return 0;
-        });
-        return prev;
-      });
-    }, 200);
-
     try {
-      setProcessingProgress(38);
-      setProcessingStepIndex(1);
-
       const resData = await executeGenerateScripts({
         productBrief,
         config,
         apiKey,
       });
 
-      setProcessingProgress(88);
-      setProcessingStepIndex(2);
-
       const generatedScripts = resData.scripts || [];
       setScripts(generatedScripts);
       setVisualModes({});
       setCurrentStep(4); // Advance to Step 4: Skrip
-
-      setProcessingProgress(98);
-      setProcessingStepIndex(3);
 
       // Automatically archive this generation session to History
       const newSession: HistorySession = {
@@ -883,14 +840,27 @@ export default function App() {
 
       showToast(`${generatedScripts.length} skrip berhasil dibuat & disimpan ke riwayat!`, 'success');
     } catch (err: any) {
-      if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
+      const msg = err?.message || '';
+      const isQuota =
+        Boolean(err?.isQuotaExhausted) ||
+        err?.status === 429 ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota') ||
+        msg.includes('Quota exceeded');
+
+      if (isQuota) {
+        setIsQuotaExhausted(true);
+        setApiKeyModalOpen(true);
+        showToast('Token API Key Google habis. Silakan masukkan atau ganti dengan kunci baru.', 'error');
+      } else if (err?.message?.includes('MISSING_MOBILE_API_KEY')) {
         setApiKeyModalOpen(true);
         showToast('Harap masukkan API Key Google AI Studio Anda terlebih dahulu di APK.', 'info');
       } else {
         setGlobalError(getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproduksi skrip.'));
       }
     } finally {
-      clearInterval(pTimer);
       setIsGenerating(false);
     }
   };
@@ -1391,14 +1361,15 @@ export default function App() {
         activeInputMode={activeInputMode}
         config={config}
         productName={productBrief.name}
-        realProgressPercent={processingProgress}
-        realStepIndex={processingStepIndex}
       />
 
       {/* API Key Modal */}
       <ApiKeyModal
         isOpen={apiKeyModalOpen}
-        onClose={() => setApiKeyModalOpen(false)}
+        onClose={() => {
+          setApiKeyModalOpen(false);
+          setIsQuotaExhausted(false);
+        }}
         currentApiKey={apiKey}
         onSave={handleSaveApiKey}
         onDelete={handleDeleteApiKey}
@@ -1407,6 +1378,7 @@ export default function App() {
           setSelectedModel(m);
           localStorage.setItem('affiliate_script_lab_model', m);
         }}
+        isQuotaExhaustedAlert={isQuotaExhausted}
       />
 
       {/* Script Generator Protection Warning Modal */}

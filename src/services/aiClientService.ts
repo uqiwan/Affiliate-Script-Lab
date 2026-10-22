@@ -82,6 +82,16 @@ export async function executeExtractProduct(
         conflictsFound: finalConflicts,
       };
     } catch (clientErr: any) {
+      const msg = clientErr?.message || '';
+      if (
+        clientErr?.isQuotaExhausted ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota')
+      ) {
+        throw clientErr;
+      }
       console.warn('Direct mobile SDK extraction failed, falling back to server backend:', clientErr);
     }
   }
@@ -134,6 +144,16 @@ export async function executeGenerateScripts(params: {
         scripts,
       };
     } catch (clientErr: any) {
+      const msg = clientErr?.message || '';
+      if (
+        clientErr?.isQuotaExhausted ||
+        msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('quota')
+      ) {
+        throw clientErr;
+      }
       console.warn('Direct mobile SDK script generation failed, falling back to server backend:', clientErr);
     }
   }
