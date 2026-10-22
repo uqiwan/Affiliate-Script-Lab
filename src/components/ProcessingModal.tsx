@@ -112,7 +112,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
       return;
     }
 
-    // Interval to advance step checkpoints
+    // Interval to advance step checkpoints dynamically
     const stepTimer = setInterval(() => {
       setCurrentStepIndex((prev) => {
         if (prev < steps.length - 1) {
@@ -120,27 +120,30 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
         }
         return prev;
       });
-    }, 2800);
+    }, 2000);
 
     return () => clearInterval(stepTimer);
   }, [isVisible, steps.length]);
 
-  // Smooth continuous progress bar interpolation
+  // Smooth continuous progress bar interpolation without any freeze at 94%
   useEffect(() => {
     if (!isVisible) return;
 
     const progressTimer = setInterval(() => {
       setProgressPercent((prev) => {
-        const targetPercent = Math.min(
-          94,
-          Math.max(20, Math.round(((currentStepIndex + 0.8) / steps.length) * 100))
-        );
-        if (prev < targetPercent) {
+        // Target percent scales smoothly from 20% to 98% based on step progress
+        const baseTarget = Math.round(((currentStepIndex + 1) / steps.length) * 92);
+        const dynamicMax = currentStepIndex === steps.length - 1 ? 98 : baseTarget;
+
+        if (prev < dynamicMax) {
+          return prev + 1;
+        } else if (prev < 98 && currentStepIndex === steps.length - 1) {
+          // Slow organic breathing micro-ticks so it never appears dead or stuck
           return prev + 1;
         }
         return prev;
       });
-    }, 120);
+    }, 110);
 
     return () => clearInterval(progressTimer);
   }, [isVisible, currentStepIndex, steps.length]);

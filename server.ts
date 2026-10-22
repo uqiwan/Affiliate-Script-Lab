@@ -89,7 +89,11 @@ app.post('/api/test-key', async (req: Request, res: Response) => {
     }
     const result = await testGeminiApiKey(apiKey.trim());
     if (result.valid) {
-      return res.json({ success: true, message: 'Koneksi ke Google AI Studio berhasil!' });
+      return res.json({
+        success: true,
+        count: result.count || 1,
+        message: `Koneksi ke Google AI Studio berhasil! (${result.count || 1} kunci aktif)`,
+      });
     } else {
       return res.status(400).json({
         success: false,

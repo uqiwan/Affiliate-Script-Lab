@@ -91,7 +91,7 @@ export async function executeExtractProduct(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
     },
     body: JSON.stringify({
       inputMode: params.inputMode,
@@ -143,7 +143,7 @@ export async function executeGenerateScripts(params: {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
     },
     body: JSON.stringify({
       productBrief: params.productBrief,
@@ -198,7 +198,7 @@ export async function executeRefineScript(params: {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey } : {}),
+      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
     },
     body: JSON.stringify({
       script: params.script,

@@ -28,6 +28,7 @@ import {
   loadAndroidPrompterConfig,
   saveAndroidPrompterConfig,
   launchAndroidFloatingPrompter,
+  openAndroidAppDetails,
 } from '../utils/androidPrompterSettings';
 
 interface AndroidOverlayModalProps {
@@ -69,7 +70,7 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
     });
   };
 
-  const buildCommand = `npm run build\nnpx cap sync android\ncd android && ./gradlew assembleDebug`;
+  const buildCommand = `bash build-apk.sh`;
 
   const handleCopyCommand = () => {
     navigator.clipboard.writeText(buildCommand);
@@ -408,22 +409,42 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
                   Status Izin di Perangkat Anda:
                 </h4>
                 {isAndroidBridgeAvailable ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2 text-xs">
                       <span className={`w-2.5 h-2.5 rounded-full ${hasOverlayPermission ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                       <span>
                         Status: <b>{hasOverlayPermission ? 'Izin Sudah Aktif ✓' : 'Belum Diberikan'}</b>
                       </span>
                     </div>
-                    {!hasOverlayPermission && (
+                    {!hasOverlayPermission ? (
                       <button
                         type="button"
                         onClick={handleRequestAndroidPermission}
                         className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-all cursor-pointer"
                       >
-                        Buka Pengaturan Izin Android Sekarang
+                        Buka Pengaturan Izin Tampil di Atas Aplikasi Lain
                       </button>
+                    ) : (
+                      <p className="text-[11px] text-emerald-400">
+                        ✓ Izin overlay sistem aktif. Saat Anda menekan "Mulai Teleprompter Melayang", aplikasi otomatis diminimalkan dan jendela prompter akan tetap aktif di atas kamera atau TikTok.
+                      </p>
                     )}
+
+                    <div className="pt-2 border-t border-zinc-700/60 space-y-2 text-[11px] text-zinc-400">
+                      <p className="font-semibold text-zinc-300">
+                        📱 Khusus Pengguna Xiaomi (MIUI/HyperOS), Vivo, Oppo, atau Realme:
+                      </p>
+                      <p>
+                        Jika prompter hilang saat diminimalkan, aktifkan izin: <b>"Tampilkan jendela pop-up saat berjalan di latar belakang"</b> pada Pengaturan Aplikasi.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={openAndroidAppDetails}
+                        className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white font-medium text-[11px] cursor-pointer"
+                      >
+                        Buka Info Aplikasi (Setelan Izin Latar Belakang)
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-xs text-zinc-400 leading-relaxed">
@@ -440,12 +461,12 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
               <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700 space-y-2">
                 <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                   <FileCode2 className="w-4 h-4" />
-                  Berkas Wrapper Android Lengkap:
+                  Sistem Integrasi Native Otomatis:
                 </span>
-                <ul className="text-xs text-zinc-300 space-y-1 list-disc list-inside">
-                  <li><code>FloatingPrompterService.java</code>: Layanan melayang native Android di atas semua aplikasi</li>
-                  <li><code>MainActivity.java</code>: Bridge izin sistem, clipboard otomatis, dan peluncur widget</li>
-                  <li><code>AndroidManifest.xml</code>: Konfigurasi izin <code>SYSTEM_ALERT_WINDOW</code></li>
+                <ul className="text-xs text-zinc-300 space-y-1.5 list-disc list-inside">
+                  <li><code>build-apk.sh</code>: Skrip otomatis dengan path absolut yang mendukung macOS dan Linux tanpa error path <code>./gradlew</code>.</li>
+                  <li><code>scripts/patch-android.js</code>: Menjaga <code>FloatingPrompterService.java</code>, bridge <code>MainActivity.java</code>, dan izin AndroidManifest agar tidak pernah terhapus saat menjalankan <code>npx cap sync</code> atau <code>cap add</code>.</li>
+                  <li><code>Foreground Service (Special Use)</code>: Layanan latar belakang permanen dengan tipe resmi Android 14+ agar prompter tidak tertutup saat aplikasi diminimalkan.</li>
                 </ul>
               </div>
 

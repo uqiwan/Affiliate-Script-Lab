@@ -129,3 +129,29 @@ export function launchAndroidFloatingPrompter(
 
   return false;
 }
+
+/**
+ * Minimalkan MainActivity ke background pada perangkat Android native.
+ */
+export function minimizeAndroidApp(): void {
+  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
+    try {
+      (window as any).AndroidFloatingBridge.minimizeApp?.();
+    } catch (e) {
+      console.warn('Failed to minimize app:', e);
+    }
+  }
+}
+
+/**
+ * Membuka pengaturan detail aplikasi di sistem Android (untuk izin khusus MIUI/HyperOS/ColorOS).
+ */
+export function openAndroidAppDetails(): void {
+  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
+    try {
+      (window as any).AndroidFloatingBridge.openAppDetailsSettings?.();
+    } catch (e) {
+      console.warn('Failed to open app details:', e);
+    }
+  }
+}

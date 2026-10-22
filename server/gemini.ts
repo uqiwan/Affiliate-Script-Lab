@@ -8,17 +8,68 @@ import type { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } fro
 import type { ScrapedPageResult } from './ssrf.ts';
 import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
 
-function getAiClient(customApiKey?: string): GoogleGenAI {
-  const key =
-    customApiKey ||
-    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : undefined);
-  if (!key) {
-    throw new Error(
-      'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'
-    );
+/**
+ * Daftar Model Keluarga Google yang didukung (Gemini, Google AI Studio, Gemma)
+ * dengan rekomendasi utama model v3.8 Flash (sangat optimal untuk API Key awalan AQ..).
+ */
+export const SUPPORTED_GOOGLE_MODELS = [
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'Rekomendasi Utama',
+    desc: 'Model Google generasi terbaru tercepat & paling cerdas untuk skrip affiliate (Optimal untuk AQ..).',
+  },
+  {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
+    tag: 'Ultra Hemat Kuota',
+    desc: 'Konsumsi token paling efisien dan latensi sangat cepat.',
+  },
+  {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    tag: 'Generasi Mendatang',
+    desc: 'Penalaran narasi tingkat lanjut dan pemahaman produk mendalam.',
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'Versi Stabil',
+    desc: 'Kompatibilitas stabil untuk generasi skrip sebelumnya.',
+  },
+  {
+    id: 'gemma-2-27b-it',
+    name: 'Google Gemma 2 27B',
+    tag: 'Gemma Family',
+    desc: 'Keluarga model terbuka efisien dari Google.',
+  },
+];
+
+export const GEMINI_MODEL = 'gemini-3.8-flash';
+
+/**
+ * Parsing multi API Key dari string teks (pemisah baris baru, koma, titik koma, atau spasi).
+ * Mendukung kunci awalan AQ.. maupun AIzaSy..
+ */
+export function parseApiKeys(input?: string): string[] {
+  if (!input) return [];
+  const rawParts = input.split(/[\r\n,;|]+/);
+  const keys: string[] = [];
+  const seen = new Set<string>();
+
+  for (const part of rawParts) {
+    const trimmed = part.trim();
+    if (trimmed.length >= 10 && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      keys.push(trimmed);
+    }
   }
+  return keys;
+}
+
+function getAiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
-    apiKey: key,
+    apiKey: apiKey.trim(),
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build',
@@ -27,44 +78,52 @@ function getAiClient(customApiKey?: string): GoogleGenAI {
   });
 }
 
-const GEMINI_MODEL = 'gemini-3.1-flash-lite';
-
 /**
- * Verifies a Google AI Studio API Key by attempting a quick lightweight ping.
+ * Verifikasi cepat API Key Google AI Studio (mendukung banyak kunci sekaligus).
+ * Menguji kunci menggunakan model rekomendasi v3.8 Flash.
  */
-export async function testGeminiApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-  const testModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+export async function testGeminiApiKey(
+  apiKey: string
+): Promise<{ valid: boolean; count?: number; error?: string }> {
+  const keys = parseApiKeys(apiKey);
+  if (keys.length === 0) {
+    return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid dari Google AI Studio.' };
+  }
+
+  const testModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  let validCount = 0;
   let lastError: any;
 
-  for (const model of testModels) {
-    try {
-      const testAi = new GoogleGenAI({
-        apiKey: apiKey.trim(),
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-      await testAi.models.generateContent({
-        model,
-        contents: 'Ping',
-      });
-      return { valid: true };
-    } catch (err: any) {
-      lastError = err;
-      const rawMsg = err?.message || '';
-      if (
-        rawMsg.includes('API_KEY_INVALID') ||
-        rawMsg.includes('API key not valid') ||
-        rawMsg.includes('INVALID_ARGUMENT') ||
-        rawMsg.includes('PERMISSION_DENIED')
-      ) {
-        return { valid: false, error: 'API Key tidak valid. Pastikan Anda menyalin API Key yang benar dari Google AI Studio.' };
+  // Uji cepat 2 kunci pertama secara efisien agar proses verifikasi instan
+  const sampleKeys = keys.slice(0, 2);
+  for (const singleKey of sampleKeys) {
+    for (const model of testModels) {
+      try {
+        const testAi = getAiClient(singleKey);
+        await testAi.models.generateContent({
+          model,
+          contents: 'Ping',
+        });
+        validCount++;
+        break; // Kunci ini valid, lanjut ke kunci berikutnya
+      } catch (err: any) {
+        lastError = err;
+        const rawMsg = err?.message || '';
+        if (
+          rawMsg.includes('API_KEY_INVALID') ||
+          rawMsg.includes('API key not valid') ||
+          rawMsg.includes('PERMISSION_DENIED')
+        ) {
+          // Kunci ini tidak valid, abaikan model alternatif
+          break;
+        }
+        continue;
       }
-      // If transient 503 / high demand spike, continue to next candidate model
-      continue;
     }
+  }
+
+  if (validCount > 0) {
+    return { valid: true, count: keys.length };
   }
 
   let errorText = lastError?.message || 'Gagal memverifikasi API Key.';
@@ -123,54 +182,105 @@ export function sanitizeCrossPlatformText(text: string): string {
     .trim();
 }
 
-const CANDIDATE_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+export const CANDIDATE_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-4-argon',
+  'gemini-2.5-flash',
+];
 
 /**
- * Executes a Gemini generateContent call with per-attempt timeout and seamless failover to faster model.
+ * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model.
+ * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED), sistem secara otomatis
+ * dan mulus beralih ke kunci berikutnya tanpa membatalkan proses pengguna.
  */
-async function callGeminiWithRetry(
+export async function callGeminiWithRetry(
   options: any,
-  customApiKey?: string,
+  customApiKey?: string | string[],
   timeoutPerCallMs = 55000
 ): Promise<any> {
+  let rawKeys: string[] = [];
+
+  if (Array.isArray(customApiKey)) {
+    rawKeys = customApiKey.flatMap((k) => parseApiKeys(k));
+  } else if (typeof customApiKey === 'string') {
+    rawKeys = parseApiKeys(customApiKey);
+  }
+
+  // Fallback ke process.env jika tidak ada custom key
+  if (rawKeys.length === 0 && typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) {
+    rawKeys = parseApiKeys(process.env.GEMINI_API_KEY);
+  }
+
+  if (rawKeys.length === 0) {
+    throw new Error(
+      'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'
+    );
+  }
+
+  const requestedModel = options.model || GEMINI_MODEL;
+  const candidateModels = [
+    requestedModel,
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-4-argon',
+    'gemini-2.5-flash',
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+
   let lastError: any;
-  const client = getAiClient(customApiKey);
 
-  for (const modelName of CANDIDATE_MODELS) {
-    let timeoutTimer: NodeJS.Timeout | undefined;
-    try {
-      const payload = { ...options, model: modelName };
-      
-      // Enforce timeout per candidate call to prevent hanging the server
-      const generatePromise = client.models.generateContent(payload);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutTimer = setTimeout(() => {
-          const timeoutErr: any = new Error(`Model ${modelName} melebihi batas waktu respon.`);
-          timeoutErr.status = 504;
-          reject(timeoutErr);
-        }, timeoutPerCallMs);
-      });
+  // LOOP UTAMA: Rotasi antar-kunci API pengguna
+  for (let keyIdx = 0; keyIdx < rawKeys.length; keyIdx++) {
+    const currentKey = rawKeys[keyIdx];
+    const client = getAiClient(currentKey);
 
-      const result = await Promise.race([generatePromise, timeoutPromise]);
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      return result;
-    } catch (err: any) {
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      lastError = err;
-      const msg = err?.message || '';
+    // LOOP SUB: Percobaan model candidate
+    for (const modelName of candidateModels) {
+      let timeoutTimer: NodeJS.Timeout | undefined;
+      try {
+        const payload = { ...options, model: modelName };
 
-      // If API key is explicitly invalid, throw immediately
-      if (
-        msg.includes('API_KEY_INVALID') ||
-        msg.includes('API key not valid') ||
-        msg.includes('PERMISSION_DENIED')
-      ) {
-        throw err;
+        const generatePromise = client.models.generateContent(payload);
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutTimer = setTimeout(() => {
+            const timeoutErr: any = new Error(`Model ${modelName} melebihi batas waktu respon.`);
+            timeoutErr.status = 504;
+            reject(timeoutErr);
+          }, timeoutPerCallMs);
+        });
+
+        const result = await Promise.race([generatePromise, timeoutPromise]);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        return result;
+      } catch (err: any) {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        lastError = err;
+        const msg = err?.message || '';
+
+        const isQuota =
+          msg.includes('429') ||
+          msg.includes('RESOURCE_EXHAUSTED') ||
+          msg.includes('quota') ||
+          msg.includes('Quota exceeded') ||
+          msg.includes('rate limit');
+
+        const isInvalid =
+          msg.includes('API_KEY_INVALID') ||
+          msg.includes('API key not valid') ||
+          msg.includes('PERMISSION_DENIED');
+
+        // Jika kuota habis atau kunci tidak aktif dan masih ada kunci cadangan berikutnya:
+        if ((isQuota || isInvalid) && keyIdx < rawKeys.length - 1) {
+          console.log(
+            `[Gemini Key Failover] Token pada kunci #${keyIdx + 1} habis/dibatasi (${isQuota ? 'Quota 429' : 'Invalid'}), otomatis beralih ke kunci cadangan #${keyIdx + 2}...`
+          );
+          // Pindah langsung ke kunci berikutnya
+          break;
+        }
+
+        console.log(`[Gemini Failover] Model ${modelName} unavailable, attempting alternative candidate...`);
+        continue;
       }
-
-      console.log(`[Gemini Failover] Model ${modelName} unavailable, attempting alternative candidate...`);
-      // If transient 503, 429, or timeout, immediately failover to next candidate model
-      continue;
     }
   }
 

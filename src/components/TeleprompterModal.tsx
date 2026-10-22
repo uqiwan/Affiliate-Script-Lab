@@ -14,6 +14,7 @@ import {
   Maximize2,
   Minimize2,
   FlipHorizontal,
+  Move,
   Eye,
   PictureInPicture2,
   Type,
@@ -27,6 +28,7 @@ import { ScriptItem, ProductBrief } from '../types';
 import {
   buildPrompterConcept,
   extractProductKeywords,
+  formatConceptDisplayTitle,
   PrompterConcept,
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
@@ -70,6 +72,8 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
   const [showFocusZone, setShowFocusZone] = useState<boolean>(true);
   const [focusZonePosition, setFocusZonePosition] = useState<number>(14); // % dari atas
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [horizontalAlignment, setHorizontalAlignment] = useState<'center' | 'left' | 'right'>('center');
   const [selectedConceptIndex, setSelectedConceptIndex] = useState<number>(initialConceptIndex);
 
   // Menu pengaturan kanan terbuka & sub-tab aktif
@@ -356,13 +360,53 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Mode Minimized: Baris teks "teleprompter Gagaswara" (klik kembali untuk membuka ukuran semula)
+  if (isMinimized) {
+    return (
+      <div
+        onClick={() => setIsMinimized(false)}
+        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-zinc-900/95 text-white border-2 border-amber-400 shadow-2xl backdrop-blur-md cursor-pointer select-none active:scale-95 transition-all group"
+        title="Klik untuk membuka kembali ukuran semula"
+      >
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+        <span className="text-xs sm:text-sm font-bold text-amber-300 tracking-wide group-hover:text-amber-200">
+          teleprompter Gagaswara
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleTogglePlay();
+          }}
+          className="p-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black transition-all cursor-pointer ml-1"
+          title={isPlaying ? 'Jeda' : 'Mulai'}
+        >
+          {isPlaying ? <Pause className="w-3 h-3 fill-black" /> : <Play className="w-3 h-3 fill-black ml-0.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="p-1 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
+          title="Tutup"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={modalContainerRef}
       style={{
         backgroundColor: `rgba(0, 0, 0, ${opacity / 100})`, // Opasitas untuk seluruh tampilan layar
+        transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+        transformOrigin: 'center center',
       }}
-      className="fixed inset-0 w-full h-[100dvh] max-h-[100dvh] z-50 flex flex-col text-white font-sans select-none overflow-hidden transition-colors"
+      className="fixed inset-0 w-full h-[100dvh] max-h-[100dvh] z-50 flex flex-col text-white font-sans select-none overflow-hidden transition-all duration-200"
     >
       {/* 
         BAGIAN ATAS: STRIP TIPIS 2px TANPA JEDA/GAP (Teks langsung menempel di kamera depan)
@@ -429,29 +473,39 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
       >
         <div
           style={{
-            transform: `${rotation !== 0 ? `rotate(${rotation}deg)` : ''} ${isMirrored ? 'scaleX(-1)' : ''}`.trim() || undefined,
+            transform: isMirrored ? 'scaleX(-1)' : undefined,
             transformOrigin: 'center center',
           }}
-          className="max-w-4xl mx-auto space-y-10 transition-transform duration-200"
+          className={`space-y-10 transition-all duration-200 ${
+            horizontalAlignment === 'left'
+              ? 'max-w-3xl ml-4 sm:ml-12'
+              : horizontalAlignment === 'right'
+              ? 'max-w-3xl mr-4 sm:mr-12 ml-auto'
+              : 'max-w-4xl mx-auto'
+          }`}
         >
           {activeConcepts.map((concept) => (
             <section
               key={concept.id}
-              className="space-y-4 border-b border-zinc-900 pb-10 last:border-b-0"
+              className="space-y-6 border-b border-zinc-800 pb-12 last:border-b-0"
             >
-              {/* Header Penanda Konsep Ringkas */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-300 font-semibold shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-white font-bold">KONSEP #{concept.conceptNumber}:</span>
-                <span className="text-amber-400">{concept.title}</span>
-                <span className="text-zinc-600">·</span>
-                <span className="text-zinc-400">{concept.angle}</span>
-                <span className="text-zinc-600">·</span>
-                <span>±{concept.estimatedDuration}s</span>
+              {/* Pemisah Antar-Konsep Kontras Tinggi (Kotak Putih, Border Tegas, Teks Besar Tanpa Duplikasi) */}
+              <div className="w-full my-4 p-4 sm:p-5 rounded-2xl bg-white text-zinc-950 border-2 border-zinc-300 shadow-xl flex flex-wrap items-center justify-between gap-3 select-none">
+                <div className="flex items-center gap-3">
+                  <span className="w-3.5 h-3.5 rounded-full bg-amber-500 ring-4 ring-amber-200 shrink-0" />
+                  <h2 className="text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-950 uppercase">
+                    {formatConceptDisplayTitle(concept.conceptNumber, concept.title, concept.angle)}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-zinc-700 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-300 shrink-0">
+                  <span>±{concept.estimatedDuration}s</span>
+                  <span className="text-zinc-400">·</span>
+                  <span>{concept.wordCount || 0} kata</span>
+                </div>
               </div>
 
-              {/* Teks Dialog dengan Gaya Subtitle Aktif */}
-              <div className="space-y-4 sm:space-y-5">
+              {/* Teks Dialog dengan Spasi Antar-Bagian Lebih Lebar & Subtitle Jelas */}
+              <div className="space-y-6 sm:space-y-8">
                 {concept.lines.map((line) => (
                   <div
                     key={line.id}
@@ -484,16 +538,22 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                       }
                       if (token.type === 'pause-short') {
                         return (
-                          <span key={tIdx} className="opacity-60 mx-1">
-                            /
+                          <span
+                            key={tIdx}
+                            className="text-amber-400 font-bold mx-1.5 opacity-80 select-none"
+                            title="Jeda Intonasi"
+                          >
+                            /{' '}
                           </span>
                         );
                       }
                       if (token.type === 'pause-long') {
                         return (
-                          <span key={tIdx} className="opacity-75 mx-1 font-bold">
-                            //
-                          </span>
+                          <div
+                            key={tIdx}
+                            className="h-6 sm:h-8 w-full select-none"
+                            aria-hidden="true"
+                          />
                         );
                       }
                       return <span key={tIdx}>{token.text} </span>;
@@ -522,11 +582,13 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
       {/* 
         PANEL PENGATURAN TERPADU TELEPROMPTER (TEKS & SUBTITLE, HITUNG MUNDUR, LAYAR)
+        - Diatur 3/4 layar dan diletakkan di sebelah kanan layar saja agar sebelah kiri dapat melihat perubahan teks secara langsung
+        - Background abu-abu bergaya iOS dengan tombol sub-tab yang tampak aktif secara visual (tactile)
       */}
       {isSettingsOpen && !isPlaying && (
-        <div className="no-tap-toggle absolute bottom-20 left-4 right-4 sm:left-12 sm:right-12 max-w-2xl sm:mx-auto z-40 bg-zinc-950/95 border border-zinc-700/80 rounded-2xl p-4 shadow-2xl space-y-3.5 text-xs text-zinc-300 animate-in slide-in-from-bottom-2 duration-150 backdrop-blur-md max-h-[calc(100dvh-6rem)] overflow-y-auto">
+        <div className="no-tap-toggle fixed right-3 sm:right-6 bottom-20 z-50 w-[75vw] max-w-[360px] sm:max-w-[400px] bg-zinc-800/95 border border-zinc-600/70 rounded-2xl p-4 shadow-2xl space-y-3.5 text-xs text-zinc-200 animate-in slide-in-from-right-2 duration-150 backdrop-blur-xl max-h-[calc(100dvh-6.5rem)] overflow-y-auto">
           {/* Header Panel */}
-          <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-700/80">
             <span className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
               <SlidersHorizontal className="w-4 h-4" />
               <span>Pengaturan Teleprompter</span>
@@ -534,51 +596,51 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             <button
               type="button"
               onClick={() => setIsSettingsOpen(false)}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer transition-colors"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700/70 cursor-pointer transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Sub-tabs Minimalis: Teks, Hitung Mundur, Layar */}
-          <div className="flex items-center gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+          {/* Sub-tabs Bergaya iOS: Teks, Countdown, Layar (Tampak Bisa Dipencet Walau Tidak Aktif) */}
+          <div className="flex items-center gap-1.5 p-1 bg-zinc-900/90 rounded-xl border border-zinc-700/80">
             <button
               type="button"
               onClick={() => setSettingsTab('teks')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'teks'
-                  ? 'bg-amber-500 text-black font-bold shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
+                  : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
               }`}
             >
               <Type className="w-3.5 h-3.5" />
-              <span>Teks & Subtitle</span>
+              <span>Teks</span>
             </button>
 
             <button
               type="button"
               onClick={() => setSettingsTab('countdown')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'countdown'
-                  ? 'bg-amber-500 text-black font-bold shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
+                  : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
               }`}
             >
               <Timer className="w-3.5 h-3.5" />
-              <span>Hitung Mundur</span>
+              <span>Countdown</span>
             </button>
 
             <button
               type="button"
               onClick={() => setSettingsTab('layar')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'layar'
-                  ? 'bg-amber-500 text-black font-bold shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
+                  : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>Layar & Fokus</span>
+              <span>Layar</span>
             </button>
           </div>
 
@@ -772,21 +834,35 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             : 'opacity-100 translate-y-0 pointer-events-auto'
         }`}
       >
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          {/* SISI KIRI: Rotasi Manual, Reset & Pemilih Konsep */}
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+          {/* SISI KIRI: TOMBOL GESER (PALING KIRI), ROTASI (SEBELAH KANANNYA), RESET & PEMILIH KONSEP */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Tombol Rotasi Manual di sebelah kiri tombol Reset */}
+            {/* 1. Tombol Pengatur Posisi (Geser) - PALING KIRI */}
+            <button
+              type="button"
+              onClick={() => {
+                setHorizontalAlignment((prev) =>
+                  prev === 'center' ? 'left' : prev === 'left' ? 'right' : 'center'
+                );
+              }}
+              className="p-2 sm:p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shrink-0 shadow-xs"
+              title={`Pengatur Posisi Geser Teleprompter (${horizontalAlignment === 'center' ? 'Tengah' : horizontalAlignment === 'left' ? 'Kiri' : 'Kanan'})`}
+            >
+              <Move className="w-4 h-4 text-amber-400" />
+            </button>
+
+            {/* 2. Tombol Rotasi Orientasi Teleprompter - SEBELAH KANAN TOMBOL GESER */}
             <button
               type="button"
               onClick={() => {
                 setRotation((prev) => ((prev + 90) % 360) as 0 | 90 | 180 | 270);
               }}
-              className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition-colors cursor-pointer relative"
-              title={`Rotasi Manual Teks (${rotation}°)`}
+              className="p-2 sm:p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer relative shadow-xs shrink-0"
+              title={`Ubah Orientasi Rotasi Teleprompter (${rotation}°)`}
             >
               <RotateCw className="w-4 h-4 text-amber-400" />
               {rotation !== 0 && (
-                <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1 rounded-full leading-tight">
+                <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1.5 rounded-full leading-tight">
                   {rotation}°
                 </span>
               )}
@@ -796,14 +872,14 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             <button
               type="button"
               onClick={handleReset}
-              className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition-colors cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer shrink-0"
               title="Kembalikan Teks ke Posisi Awal (Reset / R)"
             >
               <RotateCcw className="w-4 h-4 text-zinc-400" />
             </button>
 
             {/* Konsep Selector Pill Buttons */}
-            <div className="hidden sm:flex items-center gap-1 bg-zinc-900 p-0.5 rounded-xl border border-zinc-800">
+            <div className="hidden sm:flex items-center gap-1 bg-zinc-900 p-0.5 rounded-xl border border-zinc-700">
               <button
                 type="button"
                 onClick={() => {
@@ -841,7 +917,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
           {/* TENGAH: TOMBOL SPEED (+ -) SEJAJAR DENGAN MULAI & MELAYANG */}
           <div className="flex items-center gap-2 sm:gap-2.5 justify-center flex-1">
             {/* Speed Stepper (+ -) */}
-            <div className="flex items-center bg-zinc-900 rounded-xl border border-zinc-800 p-0.5 shadow-xs">
+            <div className="flex items-center bg-zinc-900 rounded-xl border border-zinc-700 p-0.5 shadow-xs">
               <button
                 type="button"
                 onClick={() => setSpeed((prev) => Math.max(1, prev - 1))}
@@ -890,7 +966,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             </button>
           </div>
 
-          {/* SISI KANAN: MENU PENGATURAN (IKON MINIMALIS), FULLSCREEN & TUTUP */}
+          {/* SISI KANAN: MENU PENGATURAN, FULLSCREEN & TOMBOL MINIMIZE (-) SEJAJAR DENGAN TUTUP */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Ikon Menu Setting Gabungan (Teks, Hitung Mundur, Layar) */}
             <button
@@ -899,7 +975,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
               className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 isSettingsOpen
                   ? 'bg-amber-500 text-black border-amber-500 shadow-xs'
-                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700'
               }`}
               title="Menu Pengaturan (Teks, Hitung Mundur, Layar)"
             >
@@ -910,17 +986,27 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             <button
               type="button"
               onClick={handleToggleFullscreen}
-              className="hidden sm:inline-flex p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition-colors cursor-pointer"
+              className="hidden sm:inline-flex p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer"
               title="Layar Penuh"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            {/* Tombol Minimize (-) sejajar dengan tombol Tutup */}
+            <button
+              type="button"
+              onClick={() => setIsMinimized(true)}
+              className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer"
+              title="Minimize Teleprompter (-)"
+            >
+              <Minus className="w-4 h-4" />
             </button>
 
             {/* Tutup */}
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-rose-500/20 border border-zinc-800 transition-all cursor-pointer"
+              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-rose-500/20 border border-zinc-700 transition-all cursor-pointer"
               title="Tutup Teleprompter (Esc)"
             >
               <X className="w-4 h-4" />

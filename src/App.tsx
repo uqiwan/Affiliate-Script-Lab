@@ -300,6 +300,14 @@ export default function App() {
     }
   });
 
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    try {
+      return localStorage.getItem('affiliate_script_lab_model') || 'gemini-3.8-flash';
+    } catch {
+      return 'gemini-3.8-flash';
+    }
+  });
+
   // Active user representation: either Firebase User, custom API key user, or guest user
   const activeUser = user || (apiKey ? ({
     uid: 'local-session',
@@ -401,9 +409,13 @@ export default function App() {
     }
   };
 
-  const handleSaveApiKey = async (newKey: string): Promise<boolean> => {
+  const handleSaveApiKey = async (newKey: string, model?: string): Promise<boolean> => {
     setApiKey(newKey);
     localStorage.setItem('affiliate_script_lab_api_key', newKey);
+    if (model) {
+      setSelectedModel(model);
+      localStorage.setItem('affiliate_script_lab_model', model);
+    }
     if (user) {
       try {
         await saveUserApiKey(user.uid, newKey);
@@ -411,7 +423,7 @@ export default function App() {
         console.error('Failed to sync api key to Firestore:', err);
       }
     }
-    showToast('API Key berhasil disimpan!', 'success');
+    showToast('API Key & Model Google berhasil disimpan!', 'success');
     return true;
   };
 
@@ -1249,6 +1261,11 @@ export default function App() {
         currentApiKey={apiKey}
         onSave={handleSaveApiKey}
         onDelete={handleDeleteApiKey}
+        selectedModel={selectedModel}
+        onSelectModel={(m) => {
+          setSelectedModel(m);
+          localStorage.setItem('affiliate_script_lab_model', m);
+        }}
       />
 
       {/* Script Generator Protection Warning Modal */}

@@ -62,6 +62,16 @@ const CTA_PHRASES = [
 export function cleanNonScriptDirectives(text: string): string {
   let cleaned = text;
 
+  // Lindungi arahan jeda [JEDA...] atau (JEDA...) sebelum menghapus bracket lain
+  cleaned = cleaned.replace(/\[\s*(jeda|pause)[^\]]*\]/gi, (match) => {
+    const content = match.replace(/[\[\]]/g, '').trim();
+    return ` __PAUSE_DIRECTIVE_${content}__ `;
+  });
+  cleaned = cleaned.replace(/\(\s*(jeda|pause)[^)]*\)/gi, (match) => {
+    const content = match.replace(/[()]/g, '').trim();
+    return ` __PAUSE_DIRECTIVE_${content}__ `;
+  });
+
   // Hapus arahan [Visual: ...] atau (Visual: ...) atau [Audio: ...] dsb
   cleaned = cleaned.replace(/\[\s*(visual|audio|musik|sfx|b-roll|scene|arahan|kamera|tampilan)[^\]]*\]/gi, ' ');
   cleaned = cleaned.replace(/\(\s*(visual|audio|musik|sfx|b-roll|scene|arahan|kamera|tampilan)[^)]*\)/gi, ' ');
@@ -167,6 +177,11 @@ export function formatSentenceTokens(sentence: string, productKeywords: string[]
     const rawWord = rawWords[i];
     if (!rawWord) continue;
 
+    if (rawWord.startsWith('__PAUSE_DIRECTIVE_') && rawWord.endsWith('__')) {
+      tokens.push({ text: '', type: 'pause-long' });
+      continue;
+    }
+
     if (rawWord === '/') {
       tokens.push({ text: '/', type: 'pause-short' });
       continue;
@@ -189,17 +204,56 @@ export function formatSentenceTokens(sentence: string, productKeywords: string[]
     tokens.push(classifyWordToken(rawWord, productKeywords));
   }
 
-  // Tambahkan jeda panjang // di akhir kalimat
-  let endPunctuation = '//';
-  if (endsWithExclamation) endPunctuation = '! //';
-  else if (endsWithQuestion) endPunctuation = '? //';
-
-  tokens.push({
-    text: endPunctuation,
-    type: 'pause-long',
-  });
+  // Tambahkan tanda baca asli di akhir kalimat jika ada
+  if (tokens.length > 0) {
+    const lastToken = tokens[tokens.length - 1];
+    if (endsWithExclamation) {
+      lastToken.text = `${lastToken.text}!`;
+    } else if (endsWithQuestion) {
+      lastToken.text = `${lastToken.text}?`;
+    } else if (!/[.,!?]$/.test(lastToken.text)) {
+      lastToken.text = `${lastToken.text}.`;
+    }
+  }
 
   return tokens;
+}
+
+/**
+ * Membersihkan dan memformat judul konsep agar jelas dan tidak terulang dua kali.
+ * Contoh input: conceptNumber: 2, title: "Konsep #2: Personal Story (Kisah Nyata)", angle: "Personal Story"
+ * Output: "Konsep #2: Personal Story (Kisah Nyata)"
+ */
+export function formatConceptDisplayTitle(
+  conceptNumber: number,
+  title?: string,
+  angle?: string
+): string {
+  let cleanTitle = (title || '').trim();
+  const cleanAngle = (angle || '').trim();
+
+  // Bersihkan duplikasi prefix seperti "Konsep #2:", "Konsep 2 -", "Konsep 2:"
+  cleanTitle = cleanTitle.replace(new RegExp(`^konsep\\s*(?:#?\\s*${conceptNumber})?\\s*[:\\-–—]?\\s*`, 'i'), '').trim();
+  cleanTitle = cleanTitle.replace(/^konsep\s*#?\d+\s*[:\\-–—]?\s*/i, '').trim();
+
+  // Jika title kosong, gunakan angle atau default
+  if (!cleanTitle && cleanAngle) {
+    cleanTitle = cleanAngle;
+  }
+  if (!cleanTitle) {
+    cleanTitle = `Skrip Affiliate`;
+  }
+
+  // Jika angle ada dan tidak redundan dengan judul, gabungkan dalam tanda kurung
+  if (
+    cleanAngle &&
+    cleanAngle.toLowerCase() !== cleanTitle.toLowerCase() &&
+    !cleanTitle.toLowerCase().includes(cleanAngle.toLowerCase())
+  ) {
+    return `Konsep #${conceptNumber}: ${cleanTitle} (${cleanAngle})`;
+  }
+
+  return `Konsep #${conceptNumber}: ${cleanTitle}`;
 }
 
 function classifyWordToken(word: string, productKeywords: string[]): PrompterToken {
