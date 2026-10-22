@@ -14,38 +14,26 @@ import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
  */
 export const SUPPORTED_GOOGLE_MODELS = [
   {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    tag: 'Rekomendasi Utama (Paling Stabil)',
-    desc: 'Throughput tinggi, latensi super rendah, dan performa handal tanpa kendala lonjakan antrean/503.',
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    tag: 'Tinggi Kehandalan',
-    desc: 'Sangat handal, respon cepat, dan memiliki kuota terpisah di Google AI Studio.',
-  },
-  {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    tag: 'Fitur Terbaru',
-    desc: 'Model Google generasi terbaru tercepat & paling cerdas untuk skrip affiliate.',
+    tag: 'Bawaan Utama (Teknologi Terbaru)',
+    desc: 'Model Google generasi terbaru tercepat, paling cerdas, dan optimal untuk pembuatan skrip video affiliate.',
   },
   {
-    id: 'gemini-3.1-flash-lite',
-    name: 'Gemini 3.1 Flash Lite',
-    tag: 'Hemat Token',
-    desc: 'Super cepat, latensi ultra rendah, dan hemat token.',
+    id: 'gemini-3.7-flash',
+    name: 'Gemini 3.7 Flash',
+    tag: 'Alternatif Ke-2 (Handal)',
+    desc: 'Model penalaran cepat dengan akurasi tinggi dan kuota terpisah di Google AI Studio.',
   },
   {
-    id: 'gemini-flash-latest',
-    name: 'Gemini Flash Latest',
-    tag: 'Standar Stabil',
-    desc: 'Model Flash resmi Google untuk pembuatan konten video.',
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    tag: 'Alternatif Ke-3 (Super Stabil)',
+    desc: 'Throughput tinggi, latensi super rendah, dan performa stabil tanpa kendala antrean.',
   },
 ];
 
-export const GEMINI_MODEL = 'gemini-3.6-flash';
+export const GEMINI_MODEL = 'gemini-3.8-flash';
 
 /**
  * Parsing multi API Key dari string teks (pemisah baris baru, koma, titik koma, atau spasi).
@@ -90,12 +78,12 @@ export async function testGeminiApiKey(
     return { valid: false, error: 'Harap masukkan minimal satu API Key yang valid dari Google AI Studio.' };
   }
 
-  const testModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const testModels = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
   let validCount = 0;
   let lastError: any;
 
   // Uji cepat kunci secara efisien
-  const sampleKeys = keys.slice(0, 3);
+  const sampleKeys = keys.slice(0, Math.min(5, keys.length));
   for (const singleKey of sampleKeys) {
     for (const model of testModels) {
       try {
@@ -183,24 +171,28 @@ export function sanitizeCrossPlatformText(text: string): string {
 }
 
 export const CANDIDATE_MODELS = [
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-latest',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
 ];
 
+// Index rotasi global untuk membagi beban (load balance) secara merata ke seluruh API Key aktif
+let globalKeyRotationIndex = 0;
+
+// Tracker untuk melacak kunci yang sedang mengalami kehabisan kuota dengan cooldown 5 menit
+const quotaExhaustedTracker = new Map<string, number>();
+const QUOTA_COOLDOWN_MS = 5 * 60 * 1000;
+
 /**
- * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key dan failover model super tangguh.
- * Urutan kandidat failover cerdas:
- * 1. Model yang diminta (default: gemini-3.8-flash)
- * 2. gemini-3.1-flash-lite (Ultra hemat kuota & kecepatan instan, memiliki alokasi terpisah di Google AI Studio)
- * 3. gemini-3.6-flash (Sangat stabil & throughput tinggi)
- * 4. gemini-flash-latest (Alias resmi Flash)
+ * Menjalankan panggilan Gemini generateContent dengan rotasi multi-API Key aktif (Round-Robin)
+ * dan failover model terdepan:
+ * 1. gemini-3.8-flash (Bawaan utama, paling cerdas & cepat)
+ * 2. gemini-3.7-flash (Alternatif ke-2, penalaran handal dengan kuota terpisah)
+ * 3. gemini-3.6-flash (Alternatif ke-3, super stabil & throughput tinggi)
  *
- * Jika kuota/token pada API Key pertama habis (429/RESOURCE_EXHAUSTED/Rate Limit), sistem secara otomatis
- * beralih menggunakan token dari API Key berikutnya yang sudah tersedia.
- * Jika seluruh kunci habis kuotanya, melemparkan error terstruktur TOKEN_QUOTA_EXHAUSTED.
+ * Seluruh API Key yang dimasukkan pengguna aktif bersamaan dan bergantian secara merata (Load Balancing),
+ * bukan sekadar "cadangan pasif". Jika ada satu kunci yang kehabisan token (429/quota), sistem langsung
+ * beralih seketika ke kunci aktif lainnya tanpa membuang waktu.
  */
 export async function callGeminiWithRetry(
   options: any,
@@ -229,26 +221,42 @@ export async function callGeminiWithRetry(
     throw noKeyErr;
   }
 
+  const totalKeys = rawKeys.length;
+  // Urutkan kunci dengan round-robin aktif agar semua kunci berpartisipasi merata
+  const startIdx = (globalKeyRotationIndex++) % totalKeys;
+  const orderedKeys: { key: string; originalIndex: number }[] = [];
+  for (let i = 0; i < totalKeys; i++) {
+    const idx = (startIdx + i) % totalKeys;
+    orderedKeys.push({ key: rawKeys[idx], originalIndex: idx });
+  }
+
   const requestedModel = options.model || GEMINI_MODEL;
   const allCandidates = [
     requestedModel,
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
     'gemini-3.8-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-latest',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
   ];
   const candidateModels = Array.from(new Set(allCandidates));
 
   let lastError: any;
-  let hadQuotaFailure = false;
+  let allKeysExhaustedQuota = true;
+  let keysTriedCount = 0;
+  const now = Date.now();
 
-  // LOOP UTAMA: Rotasi antar-kunci API pengguna
-  for (let keyIdx = 0; keyIdx < rawKeys.length; keyIdx++) {
-    const currentKey = rawKeys[keyIdx];
+  // LOOP UTAMA: Rotasi antar-kunci API pengguna (Aktif Berputar)
+  for (const { key: currentKey, originalIndex } of orderedKeys) {
+    // Cek apakah kunci ini sedang dalam cooldown kuota habis
+    const exhaustedUntil = quotaExhaustedTracker.get(currentKey);
+    if (exhaustedUntil && now < exhaustedUntil && totalKeys > 1) {
+      continue;
+    }
+
+    keysTriedCount++;
     const client = getAiClient(currentKey);
+    let keyQuotaExhausted = false;
 
-    // LOOP SUB: Percobaan model candidate
+    // LOOP SUB: Percobaan model candidate (3.8 Flash -> 3.7 Flash -> 3.6 Flash)
     for (const modelName of candidateModels) {
       let timeoutTimer: NodeJS.Timeout | undefined;
       try {
@@ -286,11 +294,15 @@ export async function callGeminiWithRetry(
         const result: any = await Promise.race([generatePromise, timeoutPromise]);
         if (timeoutTimer) clearTimeout(timeoutTimer);
 
-        // Log informasi keberhasilan failover jika bukan model default
-        if (keyIdx > 0) {
-          console.info(`[Gemini Failover Berhasil] Sukses mengeksekusi dengan API Key cadangan #${keyIdx + 1} menggunakan ${modelName}`);
+        // Jika berhasil, bersihkan tracker kuota kunci ini jika sebelumnya pernah tercatat
+        quotaExhaustedTracker.delete(currentKey);
+
+        if (totalKeys > 1) {
+          console.info(
+            `[Gemini Multi-Key Sukses] Kunci aktif #${originalIndex + 1}/${totalKeys} berhasil memproses dengan ${modelName}`
+          );
         } else if (modelName !== requestedModel) {
-          console.info(`[Gemini Failover Berhasil] Sukses mengeksekusi dengan model alternatif ${modelName}`);
+          console.info(`[Gemini Failover Berhasil] Sukses dengan model alternatif ${modelName}`);
         }
         return result;
       } catch (err: any) {
@@ -299,6 +311,7 @@ export async function callGeminiWithRetry(
         const msg = err?.message || '';
 
         const isQuota =
+          err?.status === 429 ||
           msg.includes('429') ||
           msg.includes('RESOURCE_EXHAUSTED') ||
           msg.includes('quota') ||
@@ -311,45 +324,45 @@ export async function callGeminiWithRetry(
           msg.includes('PERMISSION_DENIED');
 
         if (isQuota) {
-          hadQuotaFailure = true;
-        }
-
-        // Jika kunci invalid, langsung lompat ke kunci berikutnya
-        if (isInvalid) {
-          if (keyIdx < rawKeys.length - 1) {
-            console.warn(
-              `[Gemini Key Failover] API Key #${keyIdx + 1} tidak valid/ditolak. Otomatis beralih ke kunci cadangan #${keyIdx + 2}...`
-            );
-          }
+          keyQuotaExhausted = true;
+          quotaExhaustedTracker.set(currentKey, Date.now() + QUOTA_COOLDOWN_MS);
+          console.warn(
+            `[Gemini Key Quota] API Key #${originalIndex + 1}/${totalKeys} mencapai batas kuota pada ${modelName}. Langsung mengalihkan ke kunci aktif berikutnya...`
+          );
+          // Langsung lompat ke kunci berikutnya seketika tanpa buang waktu coba model lain di kunci yang sama
           break;
         }
 
-        // Log alihan bersih tanpa mendump raw JSON error ke console
+        if (isInvalid) {
+          allKeysExhaustedQuota = false;
+          console.warn(
+            `[Gemini Key Invalid] API Key #${originalIndex + 1}/${totalKeys} tidak valid/ditolak. Beralih ke kunci berikutnya...`
+          );
+          break;
+        }
+
+        // Jika kendala adalah 503 (high demand) atau timeout, failover ke model berikutnya pada kunci yang sama
+        allKeysExhaustedQuota = false;
         const statusDesc =
           err?.status === 503
             ? 'Beban antrean tinggi (503)'
-            : err?.status === 429
-            ? 'Kuota tercapai (429)'
             : String(err?.status || 'Kendala respon');
         console.info(
-          `[Model Failover] Mengalihkan dari model ${modelName} (${statusDesc}) ke model alternatif...`
+          `[Model Failover] Kunci #${originalIndex + 1}: ${modelName} (${statusDesc}), beralih ke model alternatif...`
         );
         continue;
       }
     }
 
-    // Jika seluruh model pada kunci ini gagal dan masih ada kunci berikutnya:
-    if (keyIdx < rawKeys.length - 1) {
-      console.warn(
-        `[Gemini Key Failover] Seluruh model pada kunci #${keyIdx + 1} mengalami kendala/kuota penuh, beralih ke kunci cadangan #${keyIdx + 2}...`
-      );
+    if (!keyQuotaExhausted) {
+      allKeysExhaustedQuota = false;
     }
   }
 
-  // Jika semua kunci dan model gagal dan salah satunya atau semuanya karena kuota habis:
-  if (hadQuotaFailure) {
+  // Jika SEMUA kunci telah dicoba dan seluruhnya memang kehabisan kuota:
+  if (allKeysExhaustedQuota && keysTriedCount > 0) {
     const quotaExhaustedErr: any = new Error(
-      `TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh ${rawKeys.length} API Key Google Anda telah habis. Harap masukkan atau ganti dengan API Key Google AI Studio baru yang masih memiliki kuota untuk melanjutkan.`
+      `TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh ${totalKeys} API Key Google Anda telah mencapai batas. Harap masukkan atau ganti dengan API Key Google AI Studio baru yang masih memiliki kuota untuk melanjutkan.`
     );
     quotaExhaustedErr.isQuotaExhausted = true;
     quotaExhaustedErr.status = 429;

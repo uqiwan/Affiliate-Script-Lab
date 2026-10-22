@@ -340,10 +340,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   type="button"
                   onClick={handleAddBackupKeySlot}
                   disabled={isTesting || isDeleting}
-                  className="py-1.5 px-2.5 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
-                  title="Tambah baris baru untuk kunci cadangan"
+                  className="py-1.5 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
+                  title="Tambah baris baru untuk kunci aktif berikutnya"
                 >
-                  + Tambah Cadangan
+                  + Tambah Kunci Baru
                 </button>
               </div>
 
@@ -359,12 +359,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             </div>
           </div>
 
-          {/* Daftar Kunci Aktif & Kunci Cadangan */}
+          {/* Daftar Seluruh Kunci Aktif (Round-Robin Pool) */}
           {detectedKeys.length > 0 && (
             <div className="bg-zinc-50 rounded-xl p-2.5 border border-zinc-200/80 space-y-1.5">
               <div className="text-[11px] font-bold text-zinc-700 flex items-center justify-between">
-                <span>Daftar Kunci yang Disiapkan:</span>
-                <span className="text-[10px] text-zinc-400 font-normal">Rotasi Otomatis Aktif</span>
+                <span>Daftar Seluruh Kunci Aktif:</span>
+                <span className="text-[10px] text-emerald-600 font-bold">Semua Aktif Bersamaan</span>
               </div>
               <div className="space-y-1">
                 {detectedKeys.map((k, idx) => (
@@ -377,20 +377,14 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                         ? k
                         : `${k.slice(0, 8)}...${k.slice(-4)}`}
                     </span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
-                        idx === 0
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
-                    >
-                      {idx === 0 ? 'Kunci Utama (Aktif)' : `Cadangan #${idx}`}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Kunci Aktif #{idx + 1}
                     </span>
                   </div>
                 ))}
               </div>
               <p className="text-[10px] text-zinc-500 leading-normal pt-0.5">
-                💡 <strong>Rotasi Otomatis:</strong> Jika token pada Kunci Utama habis, sistem otomatis beralih menggunakan Kunci Cadangan tanpa menghentikan proses pembuatan skrip Anda.
+                💡 <strong>Multi-Key Aktif (Round-Robin):</strong> Seluruh {detectedKeys.length} kunci Anda aktif bersamaan dan bergantian otomatis untuk membagi beban kuota secara merata. Jika satu kunci mencapai batas, sistem langsung beralih ke kunci berikutnya tanpa terhenti.
               </p>
             </div>
           )}
