@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { apiUrl, safeParseJsonResponse } from '../utils/api';
+import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
 import type {
   ProductBrief,
   GenerationConfig,
@@ -13,6 +13,11 @@ import type {
   RefineScriptResponse,
   InputMode,
 } from '../types';
+import {
+  directExtractProduct,
+  directGenerateScripts,
+  directRefineScript,
+} from './directGeminiService';
 
 export interface AnalyzeInputParams {
   inputMode: InputMode;
@@ -24,37 +29,64 @@ export interface AnalyzeInputParams {
 
 /**
  * Universal Extraction:
- * Calls server proxy endpoint /api/extract-product.
+ * In standalone Android APK (isMobileApp), connects directly to Google AI Studio REST API.
+ * In Web, calls server proxy with automatic client-side fallback if backend returns HTML (404/500).
  */
 export async function executeExtractProduct(
   params: AnalyzeInputParams
 ): Promise<ExtractProductResponse> {
   const apiKey = params.apiKey?.trim();
 
-  const response = await fetch(apiUrl('/api/extract-product'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
-    },
-    body: JSON.stringify({
-      inputMode: params.inputMode,
-      textDescription: params.textDescription,
-      productUrl: params.productUrl,
-      images: params.images,
-      apiKey,
-    }),
-  });
+  // In native Android APK, execute directly with Google AI Studio to avoid dead cloud proxies
+  if (isMobileApp()) {
+    return await directExtractProduct(params);
+  }
 
-  return await safeParseJsonResponse<ExtractProductResponse>(
-    response,
-    'mengekstrak informasi produk'
-  );
+  // In Web environment, try proxy first with direct Gemini fallback
+  try {
+    const response = await fetch(apiUrl('/api/extract-product'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+      },
+      body: JSON.stringify({
+        inputMode: params.inputMode,
+        textDescription: params.textDescription,
+        productUrl: params.productUrl,
+        images: params.images,
+        apiKey,
+      }),
+    });
+
+    return await safeParseJsonResponse<ExtractProductResponse>(
+      response,
+      'mengekstrak informasi produk'
+    );
+  } catch (proxyErr: any) {
+    const msg = proxyErr?.message || '';
+    const isHtmlOr404 =
+      msg.includes('halaman HTML') ||
+      msg.includes('404') ||
+      msg.includes('Failed to fetch') ||
+      proxyErr?.status === 404 ||
+      proxyErr?.status === 502 ||
+      proxyErr?.status === 503;
+
+    // If proxy failed due to 404 HTML or network and user has API key, run directly
+    if (isHtmlOr404) {
+      console.info('[aiClientService] Proxy endpoint returned HTML/404, falling back to direct Google AI Studio API.');
+      return await directExtractProduct(params);
+    }
+
+    throw proxyErr;
+  }
 }
 
 /**
  * Universal Script Generation:
- * Calls server proxy endpoint /api/generate-scripts.
+ * In standalone Android APK (isMobileApp), connects directly to Google AI Studio REST API.
+ * In Web, calls server proxy with automatic client-side fallback.
  */
 export async function executeGenerateScripts(params: {
   productBrief: ProductBrief;
@@ -63,28 +95,53 @@ export async function executeGenerateScripts(params: {
 }): Promise<GenerateScriptsResponse> {
   const apiKey = params.apiKey?.trim();
 
-  const response = await fetch(apiUrl('/api/generate-scripts'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
-    },
-    body: JSON.stringify({
-      productBrief: params.productBrief,
-      config: params.config,
-      apiKey,
-    }),
-  });
+  // In native Android APK, execute directly with Google AI Studio
+  if (isMobileApp()) {
+    return await directGenerateScripts(params);
+  }
 
-  return await safeParseJsonResponse<GenerateScriptsResponse>(
-    response,
-    'membuat skrip video'
-  );
+  // In Web environment, try proxy first with direct Gemini fallback
+  try {
+    const response = await fetch(apiUrl('/api/generate-scripts'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+      },
+      body: JSON.stringify({
+        productBrief: params.productBrief,
+        config: params.config,
+        apiKey,
+      }),
+    });
+
+    return await safeParseJsonResponse<GenerateScriptsResponse>(
+      response,
+      'membuat skrip video'
+    );
+  } catch (proxyErr: any) {
+    const msg = proxyErr?.message || '';
+    const isHtmlOr404 =
+      msg.includes('halaman HTML') ||
+      msg.includes('404') ||
+      msg.includes('Failed to fetch') ||
+      proxyErr?.status === 404 ||
+      proxyErr?.status === 502 ||
+      proxyErr?.status === 503;
+
+    if (isHtmlOr404) {
+      console.info('[aiClientService] Proxy endpoint returned HTML/404, falling back to direct Google AI Studio API.');
+      return await directGenerateScripts(params);
+    }
+
+    throw proxyErr;
+  }
 }
 
 /**
  * Universal Script Refinement:
- * Calls server proxy endpoint /api/refine-script.
+ * In standalone Android APK (isMobileApp), connects directly to Google AI Studio REST API.
+ * In Web, calls server proxy with automatic client-side fallback.
  */
 export async function executeRefineScript(params: {
   script: ScriptItem;
@@ -96,24 +153,48 @@ export async function executeRefineScript(params: {
 }): Promise<RefineScriptResponse> {
   const apiKey = params.apiKey?.trim();
 
-  const response = await fetch(apiUrl('/api/refine-script'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
-    },
-    body: JSON.stringify({
-      script: params.script,
-      productBrief: params.productBrief,
-      config: params.config,
-      refinementType: params.refinementType,
-      customInstruction: params.customInstruction,
-      apiKey,
-    }),
-  });
+  // In native Android APK, execute directly with Google AI Studio
+  if (isMobileApp()) {
+    return await directRefineScript(params);
+  }
 
-  return await safeParseJsonResponse<RefineScriptResponse>(
-    response,
-    'memperbaiki skrip'
-  );
+  // In Web environment, try proxy first with direct Gemini fallback
+  try {
+    const response = await fetch(apiUrl('/api/refine-script'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { 'x-gemini-api-key': apiKey.replace(/[\r\n]+/g, ',') } : {}),
+      },
+      body: JSON.stringify({
+        script: params.script,
+        productBrief: params.productBrief,
+        config: params.config,
+        refinementType: params.refinementType,
+        customInstruction: params.customInstruction,
+        apiKey,
+      }),
+    });
+
+    return await safeParseJsonResponse<RefineScriptResponse>(
+      response,
+      'memperbaiki skrip'
+    );
+  } catch (proxyErr: any) {
+    const msg = proxyErr?.message || '';
+    const isHtmlOr404 =
+      msg.includes('halaman HTML') ||
+      msg.includes('404') ||
+      msg.includes('Failed to fetch') ||
+      proxyErr?.status === 404 ||
+      proxyErr?.status === 502 ||
+      proxyErr?.status === 503;
+
+    if (isHtmlOr404) {
+      console.info('[aiClientService] Proxy endpoint returned HTML/404, falling back to direct Google AI Studio API.');
+      return await directRefineScript(params);
+    }
+
+    throw proxyErr;
+  }
 }
