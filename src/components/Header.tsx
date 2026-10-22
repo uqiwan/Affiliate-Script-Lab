@@ -58,6 +58,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSettingsSheet,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState<boolean>(false);
+  const [sheetThemeDropdownOpen, setSheetThemeDropdownOpen] = useState<boolean>(false);
   const [internalSettingsSheetOpen, setInternalSettingsSheetOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -198,75 +200,109 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 {/* ======================================================== */}
-                {/* 3 PRESET TEMA KHUSUS TELEPROMPTER                        */}
+                {/* PRESET TEMA KHUSUS TELEPROMPTER (DROPDOWN RINGKAS)      */}
                 {/* ======================================================== */}
-                <div className="mb-2 p-2.5 rounded-[16px] bg-[#F2F2F7]/70 dark:bg-[#2C2C2E]/70 border border-[#E5E5EA] dark:border-[#38383A]">
-                  <div className="flex items-center justify-between mb-2 px-1">
-                    <div className="flex items-center gap-2 text-xs font-bold text-[#1C1C1E] dark:text-white">
-                      <Palette className="w-3.5 h-3.5 text-[#007AFF]" />
-                      <span>Tema Teleprompter</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider">
-                      3 Preset
-                    </span>
-                  </div>
+                {(() => {
+                  const activeTheme = TELEPROMPTER_THEMES[currentThemeId] || TELEPROMPTER_THEMES.dark_pro;
+                  return (
+                    <div className="mb-2 p-2 rounded-[16px] bg-[#F2F2F7]/70 dark:bg-[#2C2C2E]/70 border border-[#E5E5EA] dark:border-[#38383A]">
+                      <div className="flex items-center justify-between mb-1.5 px-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-[#1C1C1E] dark:text-white">
+                          <Palette className="w-3.5 h-3.5 text-[#007AFF]" />
+                          <span>Tema Teleprompter</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider">
+                          Pilihan
+                        </span>
+                      </div>
 
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {prompterThemesList.map((t) => {
-                      const isActive = currentThemeId === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => onSelectTheme(t.id)}
-                          className={`w-full flex items-center justify-between p-2 rounded-[12px] text-left transition-all cursor-pointer border ${
-                            isActive
-                              ? 'bg-white dark:bg-[#1C1C1E] border-[#007AFF] shadow-xs'
-                              : 'bg-white/40 dark:bg-black/20 border-transparent hover:bg-white dark:hover:bg-[#1C1C1E]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {/* Swatch Preview circle */}
-                            <div
-                              style={{ backgroundColor: t.previewSwatch.bg }}
-                              className="w-7 h-7 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+                      {/* Dropdown Selector Button */}
+                      <button
+                        type="button"
+                        onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                        className="w-full flex items-center justify-between p-2 rounded-[12px] bg-white dark:bg-[#1C1C1E] border border-[#007AFF]/35 hover:border-[#007AFF] transition-all cursor-pointer shadow-xs active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            style={{ backgroundColor: activeTheme.previewSwatch.bg }}
+                            className="w-6 h-6 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+                          >
+                            <span
+                              style={{ color: activeTheme.previewSwatch.text }}
+                              className="text-[10px] font-black"
                             >
-                              <span
-                                style={{ color: t.previewSwatch.text }}
-                                className="text-[11px] font-black"
-                              >
-                                T
-                              </span>
-                              <span
-                                style={{ backgroundColor: t.previewSwatch.highlight }}
-                                className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ring-1 ring-white"
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-[#1C1C1E] dark:text-white">
-                                  {t.name}
-                                </span>
-                                {isActive && (
-                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-[#007AFF]/15 text-[#007AFF]">
-                                    Aktif
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">
-                                {t.tagline}
-                              </p>
-                            </div>
+                              T
+                            </span>
+                            <span
+                              style={{ backgroundColor: activeTheme.previewSwatch.highlight }}
+                              className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                            />
                           </div>
+                          <div className="min-w-0 text-left">
+                            <div className="text-xs font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
+                              <span>{activeTheme.name}</span>
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-[#007AFF]/15 text-[#007AFF]">
+                                Aktif
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">
+                              {activeTheme.tagline}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 text-[#8E8E93] transition-transform duration-200 shrink-0 ml-1.5 ${
+                            themeDropdownOpen ? 'rotate-180 text-[#007AFF]' : ''
+                          }`}
+                        />
+                      </button>
 
-                          {isActive && (
-                            <Check className="w-4 h-4 text-[#007AFF] shrink-0 stroke-[2.5]" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                      {/* Dropdown Options List */}
+                      {themeDropdownOpen && (
+                        <div className="mt-1.5 pt-1.5 border-t border-[#E5E5EA] dark:border-[#38383A] space-y-1 animate-in fade-in duration-150">
+                          {prompterThemesList.map((t) => {
+                            const isSelected = (currentThemeId || 'dark_pro') === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  onSelectTheme(t.id);
+                                  setThemeDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between p-2 rounded-[10px] text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#007AFF]/10 text-[#007AFF] font-bold border border-[#007AFF]/25'
+                                    : 'hover:bg-black/5 dark:hover:bg-white/5 text-[#1C1C1E] dark:text-zinc-200 border border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div
+                                    style={{ backgroundColor: t.previewSwatch.bg }}
+                                    className="w-5 h-5 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+                                  >
+                                    <span style={{ color: t.previewSwatch.text }} className="text-[9px] font-bold">
+                                      T
+                                    </span>
+                                    <span
+                                      style={{ backgroundColor: t.previewSwatch.highlight }}
+                                      className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-semibold block">{t.name}</span>
+                                    <span className="text-[9px] text-[#8E8E93] block truncate">{t.tagline}</span>
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-[#007AFF] shrink-0 stroke-[2.5]" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-1">
                   <button
@@ -371,62 +407,104 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Inset Grouped Settings List */}
             <div className="p-4 space-y-3">
-              {/* Group 0: Tema Teleprompter */}
-              <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px] p-3 space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#1C1C1E] dark:text-white">
-                    <Palette className="w-4 h-4 text-[#007AFF]" />
-                    <span>Tema Teks Teleprompter</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-[#8E8E93]">3 Preset</span>
-                </div>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {prompterThemesList.map((t) => {
-                    const isActive = currentThemeId === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => onSelectTheme(t.id)}
-                        className={`w-full flex items-center justify-between p-2.5 rounded-[12px] text-left transition-all cursor-pointer border ${
-                          isActive
-                            ? 'bg-white dark:bg-[#1C1C1E] border-[#007AFF] shadow-xs'
-                            : 'bg-white/40 dark:bg-black/20 border-transparent hover:bg-white dark:hover:bg-[#1C1C1E]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            style={{ backgroundColor: t.previewSwatch.bg }}
-                            className="w-7 h-7 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+              {/* Group 0: Tema Teleprompter (Dropdown Ringkas) */}
+              {(() => {
+                const activeTheme = TELEPROMPTER_THEMES[currentThemeId] || TELEPROMPTER_THEMES.dark_pro;
+                return (
+                  <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px] p-3 space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[#1C1C1E] dark:text-white">
+                        <Palette className="w-4 h-4 text-[#007AFF]" />
+                        <span>Tema Teks Teleprompter</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-[#8E8E93]">Pilihan</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSheetThemeDropdownOpen(!sheetThemeDropdownOpen)}
+                      className="w-full flex items-center justify-between p-2 rounded-[12px] bg-white dark:bg-[#1C1C1E] border border-[#007AFF]/35 hover:border-[#007AFF] transition-all cursor-pointer shadow-xs active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          style={{ backgroundColor: activeTheme.previewSwatch.bg }}
+                          className="w-6 h-6 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+                        >
+                          <span
+                            style={{ color: activeTheme.previewSwatch.text }}
+                            className="text-[10px] font-black"
                           >
-                            <span style={{ color: t.previewSwatch.text }} className="text-[11px] font-black">
-                              T
-                            </span>
-                            <span
-                              style={{ backgroundColor: t.previewSwatch.highlight }}
-                              className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ring-1 ring-white"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-[#1C1C1E] dark:text-white">{t.name}</span>
-                              {isActive && (
-                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-[#007AFF]/15 text-[#007AFF]">
-                                  Aktif
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">
-                              {t.tagline}
-                            </p>
-                          </div>
+                            T
+                          </span>
+                          <span
+                            style={{ backgroundColor: activeTheme.previewSwatch.highlight }}
+                            className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                          />
                         </div>
-                        {isActive && <Check className="w-4 h-4 text-[#007AFF] shrink-0 stroke-[2.5]" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-[#1C1C1E] dark:text-white">{activeTheme.name}</span>
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-[#007AFF]/15 text-[#007AFF]">
+                              Aktif
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">
+                            {activeTheme.tagline}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-[#8E8E93] transition-transform duration-200 shrink-0 ml-1.5 ${
+                          sheetThemeDropdownOpen ? 'rotate-180 text-[#007AFF]' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {sheetThemeDropdownOpen && (
+                      <div className="pt-1.5 border-t border-[#E5E5EA] dark:border-[#38383A] space-y-1 animate-in fade-in duration-150">
+                        {prompterThemesList.map((t) => {
+                          const isSelected = (currentThemeId || 'dark_pro') === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                onSelectTheme(t.id);
+                                setSheetThemeDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between p-2 rounded-[10px] text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#007AFF]/10 text-[#007AFF] font-bold border border-[#007AFF]/25'
+                                  : 'hover:bg-black/5 dark:hover:bg-white/5 text-[#1C1C1E] dark:text-zinc-200 border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div
+                                  style={{ backgroundColor: t.previewSwatch.bg }}
+                                  className="w-5 h-5 rounded-full flex items-center justify-center border border-zinc-400/30 shadow-xs shrink-0 relative overflow-hidden"
+                                >
+                                  <span style={{ color: t.previewSwatch.text }} className="text-[9px] font-bold">
+                                    T
+                                  </span>
+                                  <span
+                                    style={{ backgroundColor: t.previewSwatch.highlight }}
+                                    className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full ring-1 ring-white"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-semibold block">{t.name}</span>
+                                  <span className="text-[9px] text-[#8E8E93] block truncate">{t.tagline}</span>
+                                </div>
+                              </div>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#007AFF] shrink-0 stroke-[2.5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Group 1: Akun & Koneksi */}
               <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px] overflow-hidden divide-y divide-[#E5E5EA] dark:divide-[#38383A]">
