@@ -20,11 +20,10 @@ import {
 } from 'lucide-react';
 import { apiUrl, safeParseJsonResponse, isMobileApp } from '../utils/api';
 import {
-  testGeminiApiKey,
   parseApiKeys,
   SUPPORTED_GOOGLE_MODELS,
   GEMINI_MODEL,
-} from '../../server/gemini';
+} from '../utils/apiKeys';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -134,25 +133,18 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     });
 
     try {
-      if (isMobileApp()) {
-        const testRes = await testGeminiApiKey(trimmed);
-        if (!testRes.valid) {
-          throw new Error(testRes.error || 'API Key tidak valid atau tidak memiliki akses.');
-        }
-      } else {
-        const res = await fetch(apiUrl('/api/test-key'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey: trimmed, model: modelChoice }),
-        });
+      const res = await fetch(apiUrl('/api/test-key'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: trimmed, model: modelChoice }),
+      });
 
-        const data = await safeParseJsonResponse<{ success: boolean; count?: number; error?: string }>(
-          res,
-          'menguji koneksi API Key'
-        );
-        if (!data.success) {
-          throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
-        }
+      const data = await safeParseJsonResponse<{ success: boolean; count?: number; error?: string }>(
+        res,
+        'menguji koneksi API Key'
+      );
+      if (!data.success) {
+        throw new Error(data.error || 'API Key tidak valid atau tidak memiliki akses.');
       }
 
       if (onSelectModel) {
@@ -276,7 +268,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 rows={3}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="Tempel kunci AIzaSy... atau AQ... di sini (pisahkan baris baru untuk kunci cadangan)"
+                placeholder="Tempel seluruh kunci AIzaSy... atau AQ... di sini (pisahkan baris baru). Seluruh kunci akan aktif bersamaan secara bergantian (Round-Robin)."
                 disabled={isTesting || isDeleting}
                 autoComplete="off"
                 spellCheck={false}

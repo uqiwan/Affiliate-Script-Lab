@@ -86,6 +86,30 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const [position, setPosition] = useState<{ x: number; y: number }>({ x: 16, y: 32 });
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 340, height: 440 });
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const savedScrollTopRef = useRef<number>(0);
+
+  const handleMinimize = useCallback(() => {
+    if (scrollContainerRef.current) {
+      savedScrollTopRef.current = scrollContainerRef.current.scrollTop;
+    }
+    setIsMinimized(true);
+  }, []);
+
+  const handleRestoreFromMinimize = useCallback(() => {
+    setIsMinimized(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isMinimized && isOpen && savedScrollTopRef.current > 0) {
+      const raf = requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = savedScrollTopRef.current;
+        }
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [isMinimized, isOpen]);
+
   const [opacity, setOpacity] = useState<number>(85); // 10% - 100% (Berlaku untuk seluruh tampilan)
 
   // Menu setelan terbuka & sub-tab aktif
@@ -476,98 +500,98 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
 
   if (!isOpen) return null;
 
-  // Mode Minimized: Bentuk kotak tipis dengan lengkungan pojok gaya iOS & tombol geser di paling kiri
-  if (isMinimized) {
-    return (
+  return (
+    <>
+      {/* Mode Minimized: Bentuk kotak tipis dengan lengkungan pojok gaya iOS & tombol geser di paling kiri */}
+      {isMinimized && (
+        <div
+          style={{
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            touchAction: 'none',
+            transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+            transformOrigin: 'center center',
+          }}
+          className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-[16px] bg-[#1C1C1E]/95 dark:bg-[#1C1C1E]/95 text-white border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl select-none"
+        >
+          {/* 1. Tombol Geser di paling kiri sebelum teks "teleprompter Gagaswara" */}
+          <button
+            type="button"
+            onPointerDown={handlePointerDownMoveButton}
+            onPointerMove={handlePointerMoveDrag}
+            onPointerUp={handlePointerUpDrag}
+            className="p-1.5 rounded-[10px] bg-white/10 hover:bg-white/20 active:bg-white/30 text-white cursor-grab active:cursor-grabbing touch-none select-none transition-all flex items-center justify-center shrink-0"
+            title="Tahan dan geser untuk memindahkan posisi teleprompter"
+            aria-label="Geser posisi teleprompter"
+          >
+            <Move className="w-3.5 h-3.5 text-white/90" />
+          </button>
+
+          {/* 2. Indikator Hijau & Teks (Klik untuk membuka kembali) */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={handleRestoreFromMinimize}
+            className="flex items-center gap-2 cursor-pointer group pr-1 select-none"
+            title="Klik untuk membuka kembali ukuran semula"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="text-xs font-bold text-amber-300 tracking-wide group-hover:text-amber-200 transition-colors whitespace-nowrap">
+              teleprompter Gagaswara
+            </span>
+          </div>
+
+          {/* 3. Tombol Buka / Maksimalkan (Kembali ke setingan akhir sebelum di-minimize) */}
+          <button
+            type="button"
+            onClick={handleRestoreFromMinimize}
+            className="p-1.5 rounded-[10px] bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all cursor-pointer shrink-0"
+            title="Buka kembali ukuran semula (pengaturan tersimpan penuh)"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* 4. Tombol Putar / Jeda */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPlaying) {
+                setIsPlaying(false);
+              } else {
+                triggerPlay();
+              }
+            }}
+            className="p-1.5 rounded-[10px] bg-amber-500 hover:bg-amber-400 active:scale-95 text-black transition-all cursor-pointer shrink-0"
+            title={isPlaying ? 'Jeda' : 'Mulai'}
+          >
+            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-black" /> : <Play className="w-3.5 h-3.5 fill-black ml-0.5" />}
+          </button>
+
+          {/* 5. Tombol Tutup */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-1.5 rounded-[10px] bg-red-500/20 hover:bg-red-500 active:scale-95 text-red-300 hover:text-white transition-all cursor-pointer shrink-0"
+            title="Tutup Teleprompter"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Main Widget Container (Tetap terjaga dalam DOM agar posisi scroll dan setingan 100% utuh) */}
       <div
         ref={widgetRef}
         style={{
+          display: isMinimized ? 'none' : 'flex',
           left: `${position.x}px`,
           top: `${position.y}px`,
-          touchAction: 'none',
-          transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-          transformOrigin: 'center center',
-        }}
-        className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-[16px] bg-[#1C1C1E]/95 dark:bg-[#1C1C1E]/95 text-white border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl select-none"
-      >
-        {/* 1. Tombol Geser di paling kiri sebelum teks "teleprompter Gagaswara" */}
-        <button
-          type="button"
-          onPointerDown={handlePointerDownMoveButton}
-          onPointerMove={handlePointerMoveDrag}
-          onPointerUp={handlePointerUpDrag}
-          className="p-1.5 rounded-[10px] bg-white/10 hover:bg-white/20 active:bg-white/30 text-white cursor-grab active:cursor-grabbing touch-none select-none transition-all flex items-center justify-center shrink-0"
-          title="Tahan dan geser untuk memindahkan posisi teleprompter"
-          aria-label="Geser posisi teleprompter"
-        >
-          <Move className="w-3.5 h-3.5 text-white/90" />
-        </button>
-
-        {/* 2. Indikator Hijau & Teks (Klik untuk membuka kembali) */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setIsMinimized(false)}
-          className="flex items-center gap-2 cursor-pointer group pr-1 select-none"
-          title="Klik untuk membuka kembali ukuran semula"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <span className="text-xs font-bold text-amber-300 tracking-wide group-hover:text-amber-200 transition-colors whitespace-nowrap">
-            teleprompter Gagaswara
-          </span>
-        </div>
-
-        {/* 3. Tombol Buka / Maksimalkan (Kembali ke setingan akhir sebelum di-minimize) */}
-        <button
-          type="button"
-          onClick={() => setIsMinimized(false)}
-          className="p-1.5 rounded-[10px] bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all cursor-pointer shrink-0"
-          title="Buka kembali ukuran semula (pengaturan tersimpan penuh)"
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-        </button>
-
-        {/* 4. Tombol Putar / Jeda */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isPlaying) {
-              setIsPlaying(false);
-            } else {
-              triggerPlay();
-            }
-          }}
-          className="p-1.5 rounded-[10px] bg-amber-500 hover:bg-amber-400 active:scale-95 text-black transition-all cursor-pointer shrink-0"
-          title={isPlaying ? 'Jeda' : 'Mulai'}
-        >
-          {isPlaying ? <Pause className="w-3.5 h-3.5 fill-black" /> : <Play className="w-3.5 h-3.5 fill-black ml-0.5" />}
-        </button>
-
-        {/* 5. Tombol Tutup */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="p-1.5 rounded-[10px] bg-red-500/20 hover:bg-red-500 active:scale-95 text-red-300 hover:text-white transition-all cursor-pointer shrink-0"
-          title="Tutup Teleprompter"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={widgetRef}
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
+          width: `${size.width}px`,
+          height: `${size.height}px`,
         backgroundColor:
           activeTheme.id === 'light_clean'
             ? `rgba(255, 255, 255, ${opacity / 100})`
@@ -1224,7 +1248,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             {/* Tombol Minimize (-) sejajar dengan tombol tutup */}
             <button
               type="button"
-              onClick={() => setIsMinimized(true)}
+              onClick={handleMinimize}
               style={{ width: `${dynamicBtnSize}px`, height: `${dynamicBtnSize}px` }}
               className="flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-all cursor-pointer shadow-2xs"
               title="Minimize Teleprompter (-)"
@@ -1264,5 +1288,6 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         </svg>
       </div>
     </div>
+    </>
   );
 };

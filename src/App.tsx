@@ -18,7 +18,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { QuotaExhaustedModal } from './components/QuotaExhaustedModal';
 import { AuthWarningModal } from './components/AuthWarningModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
-import { parseApiKeys } from '../server/gemini';
+import { parseApiKeys } from './utils/apiKeys';
 import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
@@ -333,9 +333,13 @@ export default function App() {
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     try {
-      return localStorage.getItem('affiliate_script_lab_model') || 'gemini-3.6-flash';
+      const stored = localStorage.getItem('affiliate_script_lab_model');
+      if (stored && ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'].includes(stored)) {
+        return stored;
+      }
+      return 'gemini-3.8-flash';
     } catch {
-      return 'gemini-3.6-flash';
+      return 'gemini-3.8-flash';
     }
   });
 

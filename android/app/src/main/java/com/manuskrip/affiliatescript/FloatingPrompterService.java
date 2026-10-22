@@ -710,8 +710,8 @@ public class FloatingPrompterService extends Service {
                     if (minimized) {
                         lastExpandedWidth = params.width;
                         lastExpandedHeight = params.height;
-                        int pillW = Math.min((int)(dm.density * 260), dm.widthPixels - 32);
-                        int pillH = (int)(dm.density * 54);
+                        int pillW = Math.min((int)(dm.density * 290), dm.widthPixels - 24);
+                        int pillH = (int)(dm.density * 48);
                         params.width = pillW;
                         params.height = pillH;
                         if (dragStrip != null) dragStrip.setVisibility(View.GONE);
@@ -744,11 +744,8 @@ public class FloatingPrompterService extends Service {
                     int screenW = dm.widthPixels;
                     int screenH = dm.heightPixels;
 
-                    int scaledDx = (int) (dx * dm.density);
-                    int scaledDy = (int) (dy * dm.density);
-
-                    params.x = Math.max(0, Math.min(screenW - 50, params.x + scaledDx));
-                    params.y = Math.max(0, Math.min(screenH - 50, params.y + scaledDy));
+                    params.x = Math.max(0, Math.min(screenW - 50, params.x + dx));
+                    params.y = Math.max(0, Math.min(screenH - 50, params.y + dy));
                     windowManager.updateViewLayout(floatingView, params);
                 } catch (Exception ignored) {}
             });
@@ -1150,28 +1147,37 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "    #minimized-pill {\n" +
             "      display: none; width: 100%; height: 100%;\n" +
-            "      background: rgba(24, 24, 27, 0.96); border: 2px solid #F59E0B; border-radius: 9999px;\n" +
-            "      align-items: center; justify-content: space-between; padding: 0 10px;\n" +
-            "      box-shadow: 0 10px 25px rgba(0,0,0,0.85); cursor: pointer;\n" +
+            "      background: rgba(28, 28, 30, 0.95); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 16px;\n" +
+            "      align-items: center; justify-content: space-between; padding: 0 8px; gap: 4px;\n" +
+            "      box-shadow: 0 8px 32px rgba(0,0,0,0.6); box-sizing: border-box; backdrop-filter: blur(20px);\n" +
             "    }\n" +
             "  </style>\n" +
             "</head>\n" +
             "<body>\n" +
-            "  <!-- Pill Mode Minimized -->\n" +
-            "  <div id=\"minimized-pill\" onclick=\"toggleMinimize()\">\n" +
-            "    <div style=\"display:flex; align-items:center; gap:8px;\">\n" +
-            "      <span style=\"width:8px; height:8px; border-radius:50%; background:#34D399; box-shadow:0 0 6px #34D399; flex-shrink:0;\"></span>\n" +
-            "      <span style=\"font-size:11px; font-weight:bold; color:#FDE047; letter-spacing:0.02em;\">teleprompter Gagaswara</span>\n" +
+            "  <!-- Pill Mode Minimized (Bentuk kotak tipis dengan lengkungan gaya iOS & tombol geser di paling kiri) -->\n" +
+            "  <div id=\"minimized-pill\">\n" +
+            "    <!-- 1. Tombol Geser di paling kiri sebelum teks teleprompter Gagaswara -->\n" +
+            "    <button id=\"minimized-move-btn\" ontouchstart=\"handlePillTouchStart(event)\" ontouchmove=\"handlePillTouchMove(event)\" ontouchend=\"handlePillTouchEnd()\" style=\"width:28px; height:28px; border-radius:10px; background:rgba(255,255,255,0.12); border:none; color:white; display:flex; align-items:center; justify-content:center; cursor:grab; flex-shrink:0;\" title=\"Tahan dan geser untuk memindahkan posisi\">\n" +
+            "      <svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"5 9 2 12 5 15\"/><polyline points=\"9 5 12 2 15 5\"/><polyline points=\"15 19 12 22 9 19\"/><polyline points=\"19 9 22 12 19 15\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"22\"/></svg>\n" +
+            "    </button>\n" +
+            "    <!-- 2. Dot + Teks (Klik untuk membuka kembali) -->\n" +
+            "    <div onclick=\"toggleMinimize()\" style=\"display:flex; align-items:center; gap:6px; cursor:pointer; flex:1; min-width:0; padding:0 2px;\">\n" +
+            "      <span style=\"width:7px; height:7px; border-radius:50%; background:#34D399; box-shadow:0 0 6px #34D399; flex-shrink:0;\"></span>\n" +
+            "      <span style=\"font-size:11px; font-weight:bold; color:#FDE047; letter-spacing:0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;\">teleprompter Gagaswara</span>\n" +
             "    </div>\n" +
-            "    <div style=\"display:flex; align-items:center; gap:6px;\" onclick=\"event.stopPropagation()\">\n" +
-            "      <button onclick=\"togglePlay()\" style=\"width:22px; height:22px; border-radius:50%; background:#F59E0B; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer;\">\n" +
-            "        <svg id=\"pill-icon-play\" viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"black\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>\n" +
-            "        <svg id=\"pill-icon-pause\" style=\"display:none;\" viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"black\"><rect x=\"6\" y=\"4\" width=\"3\" height=\"16\"/><rect x=\"15\" y=\"4\" width=\"3\" height=\"16\"/></svg>\n" +
-            "      </button>\n" +
-            "      <button onclick=\"closePrompter()\" style=\"width:22px; height:22px; border-radius:50%; background:rgba(239,68,68,0.25); border:1px solid rgba(239,68,68,0.5); color:#F87171; display:flex; align-items:center; justify-content:center; cursor:pointer;\">\n" +
-            "        <svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>\n" +
-            "      </button>\n" +
-            "    </div>\n" +
+            "    <!-- 3. Tombol Buka / Maksimalkan (Kembali ke setingan akhir sebelum di-minimize) -->\n" +
+            "    <button onclick=\"toggleMinimize()\" style=\"width:26px; height:26px; border-radius:10px; background:rgba(255,255,255,0.12); border:none; color:white; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;\" title=\"Buka kembali ukuran semula (pengaturan tersimpan)\">\n" +
+            "      <svg viewBox=\"0 0 24 24\" width=\"13\" height=\"13\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"15 3 21 3 21 9\"/><polyline points=\"9 21 3 21 3 15\"/><line x1=\"21\" y1=\"3\" x2=\"14\" y2=\"10\"/><line x1=\"3\" y1=\"21\" x2=\"10\" y2=\"14\"/></svg>\n" +
+            "    </button>\n" +
+            "    <!-- 4. Play / Pause -->\n" +
+            "    <button onclick=\"togglePlay()\" style=\"width:26px; height:26px; border-radius:10px; background:#F59E0B; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;\" title=\"Mulai / Jeda\">\n" +
+            "      <svg id=\"pill-icon-play\" viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"black\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>\n" +
+            "      <svg id=\"pill-icon-pause\" style=\"display:none;\" viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"black\"><rect x=\"6\" y=\"4\" width=\"3.5\" height=\"16\"/><rect x=\"14.5\" y=\"4\" width=\"3.5\" height=\"16\"/></svg>\n" +
+            "    </button>\n" +
+            "    <!-- 5. Tutup -->\n" +
+            "    <button onclick=\"closePrompter()\" style=\"width:26px; height:26px; border-radius:10px; background:rgba(239,68,68,0.25); border:1px solid rgba(239,68,68,0.5); color:#F87171; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;\" title=\"Tutup Teleprompter\">\n" +
+            "      <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>\n" +
+            "    </button>\n" +
             "  </div>\n" +
             "\n" +
             "  <!-- Normal Window Container -->\n" +
@@ -1940,9 +1946,48 @@ public class FloatingPrompterService extends Service {
             "      }\n" +
             "    }\n" +
             "\n" +
+            "    let isPillDragging = false;\n" +
+            "    let pillStartX = 0;\n" +
+            "    let pillStartY = 0;\n" +
+            "    let savedScrollTop = 0;\n" +
+            "\n" +
+            "    function handlePillTouchStart(e) {\n" +
+            "      if (e.touches && e.touches.length > 0) {\n" +
+            "        isPillDragging = true;\n" +
+            "        pillStartX = e.touches[0].screenX;\n" +
+            "        pillStartY = e.touches[0].screenY;\n" +
+            "      }\n" +
+            "    }\n" +
+            "\n" +
+            "    function handlePillTouchMove(e) {\n" +
+            "      if (!isPillDragging || !e.touches || e.touches.length === 0) return;\n" +
+            "      e.preventDefault();\n" +
+            "      const currentX = e.touches[0].screenX;\n" +
+            "      const currentY = e.touches[0].screenY;\n" +
+            "      const dx = currentX - pillStartX;\n" +
+            "      const dy = currentY - pillStartY;\n" +
+            "      pillStartX = currentX;\n" +
+            "      pillStartY = currentY;\n" +
+            "      if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.moveDelta) {\n" +
+            "        window.AndroidPrompterBridge.moveDelta(dx, dy);\n" +
+            "      }\n" +
+            "    }\n" +
+            "\n" +
+            "    function handlePillTouchEnd() {\n" +
+            "      if (isPillDragging) {\n" +
+            "        isPillDragging = false;\n" +
+            "        if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.saveCurrentPosition) {\n" +
+            "          window.AndroidPrompterBridge.saveCurrentPosition();\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "\n" +
             "    function toggleMinimize() {\n" +
             "      isMinimized = !isMinimized;\n" +
             "      if (isMinimized) {\n" +
+            "        if (scrollContainer) {\n" +
+            "          savedScrollTop = scrollContainer.scrollTop;\n" +
+            "        }\n" +
             "        appContainer.style.display = 'none';\n" +
             "        minimizedPill.style.display = 'flex';\n" +
             "        if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.setMinimized) {\n" +
@@ -1953,6 +1998,11 @@ public class FloatingPrompterService extends Service {
             "        appContainer.style.display = 'flex';\n" +
             "        if (window.AndroidPrompterBridge && window.AndroidPrompterBridge.setMinimized) {\n" +
             "          window.AndroidPrompterBridge.setMinimized(false);\n" +
+            "        }\n" +
+            "        if (scrollContainer && savedScrollTop > 0) {\n" +
+            "          requestAnimationFrame(() => {\n" +
+            "            scrollContainer.scrollTop = savedScrollTop;\n" +
+            "          });\n" +
             "        }\n" +
             "      }\n" +
             "    }\n" +

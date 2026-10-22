@@ -196,7 +196,7 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
     }
 
     const customApiKey =
-      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
+      (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
 
     // Call Gemini for multimodal & text extraction with explicit inputMode
     const { brief, notes, conflicts } = await withTimeout(
@@ -252,7 +252,7 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
   try {
     const { productBrief, config } = req.body as GenerateScriptsRequest;
     const customApiKey =
-      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
+      (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
 
     if (!productBrief || !productBrief.name) {
       return res.status(400).json({
@@ -293,7 +293,7 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
     const { script, productBrief, config, refinementType, customInstruction } =
       req.body as RefineScriptRequest;
     const customApiKey =
-      (req.headers['x-gemini-api-key'] as string) || (req.body as any)?.apiKey || undefined;
+      (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
 
     if (!script || !productBrief || !config || !refinementType) {
       return res.status(400).json({
