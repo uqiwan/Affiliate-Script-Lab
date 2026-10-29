@@ -930,7 +930,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                             className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-1 ring-black"
                           />
                         </div>
-                        <span className={`text-[11px] font-bold truncate max-w-full ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                        <span className={`text-[11px] font-bold whitespace-nowrap ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
                           {t.name}
                         </span>
                       </button>

@@ -112,19 +112,19 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl text-white overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/60 animate-in fade-in duration-150">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-zinc-800 shadow-2xl text-slate-900 dark:text-white overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-zinc-800 bg-zinc-950/70">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-[#1C1C1E]">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 text-amber-600 dark:text-amber-400">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                 Setelan Teleprompter Melayang Android
               </h2>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                 Konfigurasi tampilan prompter di atas aplikasi kamera & TikTok
               </p>
             </div>
@@ -132,21 +132,21 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab navigation */}
-        <div className="flex border-b border-zinc-800 bg-zinc-900/50 px-4 sm:px-6 overflow-x-auto">
+        <div className="flex border-b border-slate-100 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/50 px-4 sm:px-6 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('settings')}
             className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'settings'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
             }`}
           >
             <Sliders className="w-4 h-4" />
@@ -158,8 +158,8 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
             onClick={() => setActiveTab('permission')}
             className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'permission'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
@@ -171,8 +171,8 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
             onClick={() => setActiveTab('apkGuide')}
             className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'apkGuide'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
             }`}
           >
             <FileCode2 className="w-4 h-4" />
@@ -539,12 +539,12 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
           {/* TAB 3: PANDUAN BUILD APK */}
           {activeTab === 'apkGuide' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700 space-y-2">
-                <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-850 border border-slate-200/80 dark:border-zinc-700 space-y-2">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                   <FileCode2 className="w-4 h-4" />
                   Sistem Integrasi Native Otomatis:
                 </span>
-                <ul className="text-xs text-zinc-300 space-y-1.5 list-disc list-inside">
+                <ul className="text-xs text-slate-600 dark:text-zinc-300 space-y-1.5 list-disc list-inside">
                   <li><code>build-apk.sh</code>: Skrip otomatis dengan path absolut yang mendukung macOS dan Linux tanpa error path <code>./gradlew</code>.</li>
                   <li><code>scripts/patch-android.js</code>: Menjaga <code>FloatingPrompterService.java</code>, bridge <code>MainActivity.java</code>, dan izin AndroidManifest agar tidak pernah terhapus saat menjalankan <code>npx cap sync</code> atau <code>cap add</code>.</li>
                   <li><code>Foreground Service (Special Use)</code>: Layanan latar belakang permanen dengan tipe resmi Android 14+ agar prompter tidak tertutup saat aplikasi diminimalkan.</li>
@@ -553,24 +553,24 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-zinc-300">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                     Perintah Kompilasi APK (Terminal):
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyCommand}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-xs text-slate-700 dark:text-zinc-300 cursor-pointer"
                   >
-                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{isCopied ? 'Tersalin' : 'Salin Perintah'}</span>
                   </button>
                 </div>
-                <pre className="p-3 rounded-xl bg-black border border-zinc-800 font-mono text-xs text-amber-400 overflow-x-auto leading-relaxed">
+                <pre className="p-3 rounded-xl bg-slate-900 dark:bg-black border border-slate-800 dark:border-zinc-800 font-mono text-xs text-amber-400 overflow-x-auto leading-relaxed">
                   {buildCommand}
                 </pre>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                   File APK Debug akan tersimpan di:<br />
-                  <code className="text-zinc-300">android/app/build/outputs/apk/debug/app-debug.apk</code>
+                  <code className="text-slate-700 dark:text-zinc-300">android/app/build/outputs/apk/debug/app-debug.apk</code>
                 </p>
               </div>
             </div>
@@ -578,11 +578,11 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-t border-zinc-800 bg-zinc-950/80">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-t border-slate-100 dark:border-zinc-800 bg-white dark:bg-[#1C1C1E]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
           >
             Tutup
           </button>
@@ -590,9 +590,9 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
           <button
             type="button"
             onClick={handleStartFloating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer active:scale-95"
           >
-            <Play className="w-4 h-4 fill-black" />
+            <Play className="w-4 h-4 fill-slate-950" />
             <span>Mulai Teleprompter Melayang</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>

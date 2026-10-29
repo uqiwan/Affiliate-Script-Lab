@@ -932,7 +932,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                             className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-black"
                           />
                         </div>
-                        <span className={`text-[10px] font-bold truncate max-w-full ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                        <span className={`text-[10px] font-bold whitespace-nowrap ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
                           {t.name}
                         </span>
                       </button>

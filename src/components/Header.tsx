@@ -272,12 +272,18 @@ const HeaderComponent: React.FC<HeaderProps> = ({
 
       {/* Settings & Options Modal Sheet */}
       {isSettingsSheetVisible && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 animate-in fade-in duration-150">
-          <div className="w-full sm:max-w-md bg-white dark:bg-[#1C1C1E] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden animate-in slide-in-from-bottom duration-200">
-            {/* Grab Handle on Mobile */}
-            <div className="sm:hidden pt-2.5 pb-1 flex justify-center">
-              <div className="w-10 h-1 bg-slate-300 dark:bg-zinc-700 rounded-full" />
-            </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pengaturan & Fitur"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3.5 sm:p-6 pb-4 sm:pb-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSettingsSheetVisible(false);
+            }
+          }}
+        >
+          <div className="w-full sm:max-w-md bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-2xl border border-slate-200/80 dark:border-zinc-800 overflow-hidden animate-in zoom-in-95 duration-200">
 
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-2.5">

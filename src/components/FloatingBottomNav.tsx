@@ -255,7 +255,7 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
           ) : (
             <Wand2 className="w-4 h-4 mb-0.5" />
           )}
-          <span className="text-[11px] font-bold tracking-tight truncate max-w-full">
+          <span className="text-[11px] font-bold tracking-tight whitespace-nowrap">
             {isGenerating && currentStep === 3 ? 'Membuat...' : 'Buat Skrip'}
           </span>
         </button>

@@ -361,27 +361,27 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
         : 'border-slate-200 dark:border-zinc-800 shadow-xs'
     }`}>
       {/* Header Bar - Simpel & Bersih: Judul Lengkap di Kiri + Toggle Opsi di Kanan */}
-      <div className="p-3 sm:p-3.5 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-800/50 flex items-center justify-between gap-2.5">
-        {/* Rata Kiri: Judul Lengkap 'Konsep #1: Problem-Solution (Solusi Masalah)' */}
+      <div className="p-3.5 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#1C1C1E] flex items-center justify-between gap-2.5">
+        {/* Rata Kiri: Judul Lengkap 'Konsep #1: Problem-Solution' */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="h-8 px-3 rounded-lg text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center shrink-0 shadow-2xs tracking-tight">
             {getConceptDisplayTitle(index, script)}
           </span>
         </div>
 
-        {/* Rata Kanan: Tombol Opsi Skrip (Terbuka Saat Diklik Saja) */}
+        {/* Rata Kanan: Tombol Opsi Skrip */}
         <button
           type="button"
           onClick={() => setShowCardActions(!showCardActions)}
-          className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 ${
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 ${
             showCardActions
               ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-              : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-zinc-700 active:scale-95'
+              : 'bg-white dark:bg-[#1C1C1E] text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95'
           }`}
           title={showCardActions ? 'Tutup menu opsi konsep ini' : 'Buka menu opsi konsep ini'}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{showCardActions ? 'Tutup Opsi' : 'Opsi Skrip'}</span>
+          <span>{showCardActions ? 'Tutup Menu' : 'Menu Skrip'}</span>
           {showCardActions ? (
             <ChevronUp className="w-3 h-3" />
           ) : (
@@ -390,45 +390,45 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
         </button>
       </div>
 
-      {/* Menu Tersembunyi: Terbuka Saat User Klik 'Opsi Skrip' */}
+      {/* Menu Tersembunyi: Panel Putih Solid Bersih */}
       {showCardActions && (
-        <div className="p-3 bg-slate-50/90 dark:bg-zinc-850 border-b border-slate-200/80 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="p-3.5 bg-white dark:bg-[#1C1C1E] border-b border-slate-200 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150">
+          <div className="flex flex-wrap items-center gap-2">
             {/* 1. Tombol Info */}
             <button
               type="button"
               onClick={() => setShowConceptInfo(!showConceptInfo)}
-              className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                 showConceptInfo
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : 'bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 border-slate-200 dark:border-zinc-700 hover:bg-slate-50'
+                  : 'bg-white dark:bg-[#1C1C1E] text-slate-800 dark:text-zinc-200 border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95'
               }`}
             >
-              <Info className="w-3.5 h-3.5 text-blue-600" />
-              <span>Info</span>
-              {showConceptInfo ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              <Info className={`w-3.5 h-3.5 ${showConceptInfo ? 'text-white' : 'text-blue-600'}`} />
+              <span>Info Konsep</span>
+              {showConceptInfo ? <ChevronUp className="w-3 h-3 text-white" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
             </button>
 
             {/* 2. Tombol Salin Narasi */}
             <button
               type="button"
               onClick={handleCopyVoiceover}
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-white dark:bg-[#2C2C2E] hover:bg-[#F2F2F7] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95"
-              title="Salin teks dialog narasi saja"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-[#1C1C1E] hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 transition-all cursor-pointer border border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95"
+              title="Salin teks dialog narasi suara"
             >
-              <Copy className="w-3.5 h-3.5 text-[#007AFF]" />
-              <span>Narasi</span>
+              <Copy className="w-3.5 h-3.5 text-blue-600" />
+              <span>Salin Narasi</span>
             </button>
 
             {/* 3. Tombol Salin Skrip Lengkap */}
             <button
               type="button"
               onClick={handleCopyFull}
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-white dark:bg-[#2C2C2E] hover:bg-[#F2F2F7] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white transition-all cursor-pointer border border-black/5 dark:border-white/10 active:scale-95"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-[#1C1C1E] hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 transition-all cursor-pointer border border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95"
               title="Salin skrip visual + narasi lengkap"
             >
-              <Copy className="w-3.5 h-3.5 text-[#5856D6]" />
-              <span>Skrip</span>
+              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Salin Skrip</span>
             </button>
 
             {/* 4. Tombol Teleprompter */}
@@ -436,11 +436,11 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenPrompter(script, index)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-[#FF9500] hover:bg-[#F28B00] text-white shadow-xs transition-all cursor-pointer active:scale-95"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-all cursor-pointer active:scale-95"
                 title={`Buka Layar Teleprompter khusus ${getConceptDisplayTitle(index, script)}`}
               >
-                <MonitorPlay className="w-3.5 h-3.5" />
-                <span>Prompter</span>
+                <MonitorPlay className="w-3.5 h-3.5 text-white" />
+                <span>Teleprompter</span>
               </button>
             )}
 
@@ -449,71 +449,71 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenFloatingPrompter(script, index)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold bg-[#FF9500]/15 hover:bg-[#FF9500]/25 text-[#FF9500] transition-all cursor-pointer active:scale-95"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 transition-all cursor-pointer active:scale-95"
                 title={`Buka Mode Melayang khusus ${getConceptDisplayTitle(index, script)}`}
               >
-                <PictureInPicture2 className="w-3.5 h-3.5 text-[#FF9500]" />
-                <span className="hidden sm:inline">Melayang</span>
+                <PictureInPicture2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Prompter Melayang</span>
               </button>
             )}
 
-            {/* 6. Tombol Lihat Arahan Visual (Digabungkan ke atas) */}
+            {/* 6. Tombol Lihat Arahan Visual */}
             <button
               type="button"
               onClick={handleToggleVisual}
-              className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer border ${
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                 currentShowVisual
-                  ? 'bg-[#34C759] text-white border-[#34C759] shadow-xs'
-                  : 'bg-white dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white border-black/5 dark:border-white/10 hover:bg-[#F2F2F7]'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white dark:bg-[#1C1C1E] text-slate-800 dark:text-zinc-200 border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95'
               }`}
             >
-              <Eye className="w-3.5 h-3.5 text-[#34C759]" />
+              <Eye className={`w-3.5 h-3.5 ${currentShowVisual ? 'text-white' : 'text-emerald-600'}`} />
               <span>{currentShowVisual ? 'Tutup Visual' : 'Arahan Visual'}</span>
-              {currentShowVisual ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {currentShowVisual ? <ChevronUp className="w-3 h-3 text-white" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
             </button>
 
-            {/* 7. Tombol Sempurnakan AI (Digabungkan ke atas) */}
+            {/* 7. Tombol Sempurnakan AI */}
             <button
               type="button"
               onClick={() => setShowRefineMenu(!showRefineMenu)}
-              className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer border ${
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                 showRefineMenu
                   ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                  : 'bg-white dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white border-black/5 dark:border-white/10 hover:bg-[#F2F2F7]'
+                  : 'bg-white dark:bg-[#1C1C1E] text-slate-800 dark:text-zinc-200 border-slate-200 dark:border-zinc-700 hover:border-slate-300 active:scale-95'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+              <Sparkles className={`w-3.5 h-3.5 ${showRefineMenu ? 'text-white' : 'text-purple-600'}`} />
               <span>Sempurnakan AI</span>
-              {showRefineMenu ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {showRefineMenu ? <ChevronUp className="w-3 h-3 text-white" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
             </button>
           </div>
 
-          {/* Metadata Detail Konsep */}
+          {/* Metadata Detail Konsep - Solid White Panel */}
           {showConceptInfo && (
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 space-y-2.5 animate-in fade-in duration-150 text-xs text-slate-700 dark:text-zinc-300">
-              <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-200/80 dark:border-zinc-700/80">
+            <div className="p-4 rounded-xl bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-zinc-800 space-y-2.5 animate-in fade-in duration-150 text-xs text-slate-700 dark:text-zinc-300 shadow-xs">
+              <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-100 dark:border-zinc-800">
                 <span className="font-bold text-slate-900 dark:text-white text-sm">{script.title}</span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                   <Target className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                   {script.angle}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                   {script.spokenWordCount} kata ({script.durationStatus === 'ok' ? 'Optimal' : script.durationStatus})
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-zinc-400">
-                <div><strong className="text-slate-800 dark:text-zinc-200">Target Persona:</strong> {script.persona}</div>
-                <div><strong className="text-slate-800 dark:text-zinc-200">Tipe Hook:</strong> {script.hookType}</div>
-                <div><strong className="text-slate-800 dark:text-zinc-200">Durasi:</strong> {script.estimatedDurationSeconds} detik</div>
-                <div><strong className="text-slate-800 dark:text-zinc-200">Pembeda:</strong> {script.differentiator}</div>
+                <div><strong className="text-slate-900 dark:text-zinc-200">Target Persona:</strong> {script.persona}</div>
+                <div><strong className="text-slate-900 dark:text-zinc-200">Tipe Hook:</strong> {script.hookType}</div>
+                <div><strong className="text-slate-900 dark:text-zinc-200">Durasi:</strong> {script.estimatedDurationSeconds} detik</div>
+                <div><strong className="text-slate-900 dark:text-zinc-200">Pembeda:</strong> {script.differentiator}</div>
               </div>
             </div>
           )}
 
-          {/* Panel Sempurnakan AI */}
+          {/* Panel Sempurnakan AI - Solid White Panel */}
           {showRefineMenu && (
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 space-y-3 animate-in fade-in duration-150">
+            <div className="p-4 rounded-xl bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150 shadow-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   Penyesuaian AI Cepat:

@@ -23,6 +23,7 @@ import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
 import { AndroidOverlayModal } from './components/AndroidOverlayModal';
+import { OverlayPermissionModal } from './components/OverlayPermissionModal';
 import { FloatingBottomNav } from './components/FloatingBottomNav';
 import {
   auth,
@@ -549,6 +550,138 @@ export default function App() {
   });
 
   const [androidOverlayModalOpen, setAndroidOverlayModalOpen] = useState<boolean>(false);
+  const [overlayPermissionModalOpen, setOverlayPermissionModalOpen] = useState<boolean>(false);
+  const [pendingFloatingData, setPendingFloatingData] = useState<{
+    conceptIndex?: number;
+    script?: ScriptItem;
+  } | null>(null);
+
+  const isAndroidBridge = typeof window !== 'undefined' && Boolean((window as any).AndroidFloatingBridge);
+
+  const checkAndroidOverlayPermission = (): boolean => {
+    if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.checkOverlayPermission) {
+      try {
+        return Boolean((window as any).AndroidFloatingBridge.checkOverlayPermission());
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const [hasAndroidOverlayPerm, setHasAndroidOverlayPerm] = useState<boolean>(() => {
+    return checkAndroidOverlayPermission();
+  });
+
+  const handleRequestOverlayPermission = () => {
+    if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.requestOverlayPermission) {
+      try {
+        (window as any).AndroidFloatingBridge.requestOverlayPermission();
+      } catch (e) {
+        console.warn('Failed to call requestOverlayPermission:', e);
+      }
+    }
+  };
+
+  const doLaunchNativeFloatingPrompter = (conceptIndex?: number, scriptItem?: ScriptItem) => {
+    const productKeywords = extractProductKeywords(productBrief?.name);
+    if (conceptIndex !== undefined && conceptIndex >= 0) {
+      const targetScript = scripts[conceptIndex] || scriptItem;
+      if (!targetScript) return;
+      const targetConcept = buildPrompterConcept(targetScript, conceptIndex + 1, productKeywords);
+      launchAndroidFloatingPrompter(
+        `=== ${targetConcept.title} ===\n\n` +
+          targetConcept.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'),
+        {
+          themeId: prompterTheme.id,
+          backgroundColorHex: prompterTheme.backgroundColor,
+          highlightColorHex: prompterTheme.highlightColor,
+        },
+        [targetConcept]
+      );
+    } else {
+      const allConcepts = scripts.map((s, idx) => buildPrompterConcept(s, idx + 1, productKeywords));
+      if (allConcepts.length > 0) {
+        launchAndroidFloatingPrompter(
+          allConcepts
+            .map((c) => `=== ${c.title} ===\n\n` + c.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'))
+            .join('\n\n---\n\n'),
+          {
+            themeId: prompterTheme.id,
+            backgroundColorHex: prompterTheme.backgroundColor,
+            highlightColorHex: prompterTheme.highlightColor,
+          },
+          allConcepts
+        );
+      }
+    }
+  };
+
+  const doLaunchWebFloatingPrompter = (conceptIndex?: number) => {
+    setFloatingPrompterState((prev) => ({
+      isOpen: true,
+      conceptIndex: conceptIndex !== undefined ? conceptIndex : -1,
+      openToken: prev.openToken + 1,
+    }));
+  };
+
+  const handleTriggerFloatingPrompter = (conceptIndex?: number, scriptItem?: ScriptItem) => {
+    // Tutup mode teleprompter modal jika sedang terbuka
+    setTeleprompterState((prev) => ({ ...prev, isOpen: false, initialConceptIndex: -1 }));
+
+    if (isAndroidBridge) {
+      const hasPerm = checkAndroidOverlayPermission();
+      setHasAndroidOverlayPerm(hasPerm);
+      if (!hasPerm) {
+        // Alur otomatisasi: jika izin belum ada, munculkan dialog panduan dan tombol redirect ke pengaturan Android
+        setPendingFloatingData({ conceptIndex, script: scriptItem });
+        setOverlayPermissionModalOpen(true);
+        return;
+      }
+      // Izin sudah aktif: langsung jalankan floating prompter native
+      doLaunchNativeFloatingPrompter(conceptIndex, scriptItem);
+      return;
+    }
+
+    // Alur Web:
+    const isGuided = localStorage.getItem('gagaswara_overlay_web_guided') === 'true';
+    if (!isGuided) {
+      setPendingFloatingData({ conceptIndex, script: scriptItem });
+      setOverlayPermissionModalOpen(true);
+      return;
+    }
+
+    doLaunchWebFloatingPrompter(conceptIndex);
+  };
+
+  // Deteksi otomatis saat pengguna kembali ke aplikasi setelah mengaktifkan izin di Pengaturan Android
+  useEffect(() => {
+    const handleCheckPermOnResume = () => {
+      if (isAndroidBridge) {
+        const perm = checkAndroidOverlayPermission();
+        setHasAndroidOverlayPerm(perm);
+        if (perm && overlayPermissionModalOpen) {
+          setOverlayPermissionModalOpen(false);
+          doLaunchNativeFloatingPrompter(pendingFloatingData?.conceptIndex, pendingFloatingData?.script);
+          setPendingFloatingData(null);
+          showToast('Izin melayang aktif! Teleprompter siap.', 'success');
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleCheckPermOnResume);
+    const handleVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleCheckPermOnResume();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisChange);
+
+    return () => {
+      window.removeEventListener('focus', handleCheckPermOnResume);
+      document.removeEventListener('visibilitychange', handleVisChange);
+    };
+  }, [isAndroidBridge, overlayPermissionModalOpen, pendingFloatingData, scripts, productBrief, prompterTheme]);
 
   const [manualCopy, setManualCopy] = useState<{ isOpen: boolean; text: string; title: string }>({
     isOpen: false,
@@ -1176,9 +1309,9 @@ export default function App() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-600 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
                       </span>
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white truncate">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
                         <PenLine className="w-3.5 h-3.5 text-blue-600 animate-bounce shrink-0" style={{ animationDuration: '1.2s' }} />
-                        <span className="truncate text-xs">
+                        <span className="text-xs">
                           {scripts.length === 0
                             ? 'Sedang menulis konsep skrip pertama...'
                             : `Sedang menulis skrip ke-${scripts.length + 1}...`}
@@ -1245,7 +1378,7 @@ export default function App() {
                           content="Daftar konsep skrip video tersusun vertikal ke bawah dengan hook 3 detik, arahan visual B-roll, batas kata aman, dan ajakan bertindak (CTA) netral multi-platform."
                         />
                       </h3>
-                      <p className="text-[11px] text-[#8E8E93] font-medium truncate">
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-medium">
                         Fokus pada skrip atau buka menu untuk opsi ekspor
                       </p>
                     </div>
@@ -1353,31 +1486,7 @@ export default function App() {
                     isRefining={isRefining}
                     onOpenPrompter={handleOpenSingleTeleprompter}
                     onOpenFloatingPrompter={(_script, index) => {
-                      const targetScript = scripts[index] || _script;
-                      const productKeywords = extractProductKeywords(productBrief?.name);
-                      const targetConcept = buildPrompterConcept(targetScript, index + 1, productKeywords);
-
-                      // Tutup mode teleprompter modal jika sedang terbuka
-                      setTeleprompterState((prev) => ({ ...prev, isOpen: false, initialConceptIndex: -1 }));
-
-                      if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge) {
-                        launchAndroidFloatingPrompter(
-                          `=== ${targetConcept.title} ===\n\n` + targetConcept.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'),
-                          {
-                            themeId: prompterTheme.id,
-                            backgroundColorHex: prompterTheme.backgroundColor,
-                            highlightColorHex: prompterTheme.highlightColor,
-                          },
-                          [targetConcept]
-                        );
-                        return;
-                      }
-
-                      setFloatingPrompterState((prev) => ({
-                        isOpen: true,
-                        conceptIndex: index,
-                        openToken: prev.openToken + 1,
-                      }));
+                      handleTriggerFloatingPrompter(index, _script);
                     }}
                     onUpdateScript={handleUpdateScript}
                   />
@@ -1416,30 +1525,7 @@ export default function App() {
         onBackToBrief={() => setCurrentStep(2)}
         onOpenTeleprompter={handleOpenAllTeleprompter}
         onOpenFloatingPrompter={() => {
-          const productKeywords = extractProductKeywords(productBrief?.name);
-          const allConcepts = scripts.map((s, idx) => buildPrompterConcept(s, idx + 1, productKeywords));
-
-          // Tutup mode teleprompter modal jika sedang terbuka
-          setTeleprompterState((prev) => ({ ...prev, isOpen: false, initialConceptIndex: -1 }));
-
-          if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge && allConcepts.length > 0) {
-            launchAndroidFloatingPrompter(
-              allConcepts.map((c) => `=== ${c.title} ===\n\n` + c.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n')).join('\n\n---\n\n'),
-              {
-                themeId: prompterTheme.id,
-                backgroundColorHex: prompterTheme.backgroundColor,
-                highlightColorHex: prompterTheme.highlightColor,
-              },
-              allConcepts
-            );
-            return;
-          }
-
-          setFloatingPrompterState((prev) => ({
-            isOpen: true,
-            conceptIndex: -1,
-            openToken: prev.openToken + 1,
-          }));
+          handleTriggerFloatingPrompter();
         }}
         onCopyAllScripts={handleCopyAllScripts}
         onOpenSettings={() => setSettingsSheetOpen(true)}
@@ -1462,11 +1548,29 @@ export default function App() {
         theme={prompterTheme}
         onSelectTheme={handleSelectPrompterTheme}
         onOpenFloatingPrompter={(idx) => {
-          setFloatingPrompterState((prev) => ({
-            isOpen: true,
-            conceptIndex: idx ?? -1,
-            openToken: prev.openToken + 1,
-          }));
+          handleTriggerFloatingPrompter(idx);
+        }}
+      />
+
+      {/* Dialog Panduan & Otomatisasi Izin Overlay Melayang (Android & Web) */}
+      <OverlayPermissionModal
+        isOpen={overlayPermissionModalOpen}
+        onClose={() => {
+          setOverlayPermissionModalOpen(false);
+          setPendingFloatingData(null);
+        }}
+        isAndroid={isAndroidBridge}
+        hasPermission={hasAndroidOverlayPerm}
+        onRequestAndroidPermission={handleRequestOverlayPermission}
+        onLaunchPrompter={() => {
+          setOverlayPermissionModalOpen(false);
+          if (isAndroidBridge) {
+            doLaunchNativeFloatingPrompter(pendingFloatingData?.conceptIndex, pendingFloatingData?.script);
+          } else {
+            localStorage.setItem('gagaswara_overlay_web_guided', 'true');
+            doLaunchWebFloatingPrompter(pendingFloatingData?.conceptIndex);
+          }
+          setPendingFloatingData(null);
         }}
       />
 
