@@ -66,9 +66,10 @@ export async function testGeminiApiKey(
 
   // Model prioritization: Model yang dipilih pengguna diuji terlebih dahulu
   const rawModels = [
-    preferredModel || 'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
+    preferredModel || 'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
   ];
   const testModels = Array.from(new Set(rawModels.filter(Boolean)));
 
@@ -189,9 +190,10 @@ export function sanitizeCrossPlatformText(text: string): string {
 }
 
 export const CANDIDATE_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
+  'gemini-flash-latest',
 ];
 
 // Index rotasi global untuk membagi beban (load balance) secara merata ke seluruh API Key aktif
@@ -215,7 +217,7 @@ const QUOTA_COOLDOWN_MS = 5 * 60 * 1000;
 export async function callGeminiWithRetry(
   options: any,
   customApiKey?: string | string[],
-  timeoutPerCallMs = 38000
+  timeoutPerCallMs = 18000
 ): Promise<any> {
   let rawKeys: string[] = [];
 
@@ -248,11 +250,12 @@ export async function callGeminiWithRetry(
     orderedKeys.push({ key: rawKeys[idx], originalIndex: idx });
   }
 
-  // Model candidate sesuai arahan pengguna: 3.8 Flash (utama), 3.7 Flash (ke-2), 3.6 Flash (ke-3)
+  // Model candidate teruji: 3.1 Flash Lite (ultra cepat ~600ms), Flash Lite Latest, 3.8 Flash
   const candidateModels = [
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
+    'gemini-flash-latest',
   ];
 
   // Jika opsi request menentukan salah satu model di atas, dahulukan model tersebut
@@ -468,9 +471,10 @@ export async function callGeminiStreamWithRetry(
   }
 
   const candidateModels = [
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
+    'gemini-flash-latest',
   ];
 
   const requestedModel = options.model;
@@ -752,7 +756,7 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
           responseMimeType: 'application/json',
           maxOutputTokens: 1500,
           thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
+            thinkingBudget: 0,
           },
         },
       },
@@ -1496,6 +1500,26 @@ function buildBatchUserPrompt(
   assignedAngles: string[],
   targetWords: { min: number; max: number }
 ): string {
+  const safeFeatures = Array.isArray(productBrief.features) && productBrief.features.length > 0
+    ? productBrief.features.join(', ')
+    : (Array.isArray((productBrief as any).keyFeatures) && (productBrief as any).keyFeatures.length > 0
+        ? (productBrief as any).keyFeatures.join(', ')
+        : 'Sesuai deskripsi');
+
+  const safeBenefits = Array.isArray(productBrief.benefits) && productBrief.benefits.length > 0
+    ? productBrief.benefits.join(', ')
+    : 'Sesuai deskripsi';
+
+  const safePainPoints = Array.isArray(productBrief.painPoints) && productBrief.painPoints.length > 0
+    ? productBrief.painPoints.join(', ')
+    : (Array.isArray((productBrief as any).targetAudiencePainPoints) && (productBrief as any).targetAudiencePainPoints.length > 0
+        ? (productBrief as any).targetAudiencePainPoints.join(', ')
+        : 'Kebutuhan fungsional sehari-hari');
+
+  const safeRestrictions = Array.isArray(productBrief.restrictions) && productBrief.restrictions.length > 0
+    ? productBrief.restrictions.join(', ')
+    : 'Hindari overclaim medis tanpa izin';
+
   return `
 TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) DENGAN CERITA, HOOK, DAN VISUAL YANG BERBEDA SECARA RADIKAL.
 Nomor urut konsep dalam batch ini: Konsep #${startIndex} sampai #${endIndex} (Total tepat ${batchCount} konsep).
@@ -1504,17 +1528,17 @@ DATA PRODUK (SUMBER RESMI TERVERIFIKASI):
 - Nama Produk: ${productBrief.name}
 - Kategori: ${productBrief.category}
 - Ringkasan: ${productBrief.description}
-- Fitur Terverifikasi: ${productBrief.features.join(', ') || 'Sesuai deskripsi'}
-- Manfaat Wajar: ${productBrief.benefits.join(', ') || 'Sesuai deskripsi'}
-- Target Persona: ${productBrief.audience}
-- Pain Points: ${productBrief.painPoints.join(', ') || 'Kebutuhan fungsional'}
-- Harga Sekarang: ${productBrief.currentPrice || 'Tidak disebutkan (JANGAN MENGARANG ANGKA HARGA)'}
+- Fitur Terverifikasi: ${safeFeatures}
+- Manfaat Wajar: ${safeBenefits}
+- Target Persona: ${productBrief.audience || (productBrief as any).targetAudience || 'Pengguna umum'}
+- Pain Points: ${safePainPoints}
+- Harga Sekarang: ${productBrief.currentPrice || (productBrief as any).priceRange || 'Tidak disebutkan (JANGAN MENGARANG ANGKA HARGA)'}
 - Harga Pembanding: ${productBrief.referencePrice || 'Tidak disebutkan'}
-- Promo/Voucher: ${productBrief.promoDetails || 'Tidak disebutkan'}
+- Promo/Voucher: ${productBrief.promoDetails || (productBrief as any).callToActionOffer || 'Tidak disebutkan'}
 - Stok/Deadline: ${productBrief.stockOrDeadline || 'Tidak disebutkan (JANGAN BUAT SCARCITY PALSU)'}
 - Social Proof: ${productBrief.socialProof || 'Tidak disebutkan (JANGAN SEBUT ANGKA PENJUALAN PALSU)'}
 - Pengalaman Kreator: ${productBrief.creatorExperience || 'Gunakan sudut pandang demonstrasi/informasi natural'}
-- Batasan/Hal Dilarang: ${productBrief.restrictions.join(', ') || 'Hindari overclaim'}
+- Batasan/Hal Dilarang: ${safeRestrictions}
 
 KONFIGURASI BATCH:
 - Target Durasi: ${config.durationSeconds} detik (WAJIB ${targetWords.min}–${targetWords.max} kata dialog narasi lisan)
@@ -1941,7 +1965,7 @@ async function generateBatchOfScriptsStream(params: {
           responseMimeType: 'application/json',
           maxOutputTokens: 2500,
           thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
+            thinkingBudget: 0,
           },
         },
       },
@@ -2189,15 +2213,15 @@ export async function generateScriptsStream(params: {
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    if (remaining === 1) {
-      batchCounts.push(1);
+    if (remaining <= 3) {
+      batchCounts.push(remaining);
       break;
     }
-    if (remaining === 3) {
-      batchCounts.push(2, 1);
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
       break;
     }
-    const size = 2; // Batches of 2 provide immediate TTFT and fast 1st script delivery
+    const size = 3;
     batchCounts.push(size);
     remaining -= size;
   }
@@ -2222,22 +2246,48 @@ export async function generateScriptsStream(params: {
     currentStart += bCount;
   }
 
-  const allScripts: ScriptItem[] = [];
+  let allScripts: ScriptItem[] = [];
 
-  for (const task of batchTasks) {
-    const bScripts = await generateBatchOfScriptsStream({
+  if (batchTasks.length === 1) {
+    allScripts = await generateBatchOfScriptsStream({
       productBrief,
       config,
-      batchNumber: task.batchNumber,
-      startIndex: task.startIndex,
-      batchCount: task.batchCount,
-      assignedAngles: task.assignedAngles,
+      batchNumber: batchTasks[0].batchNumber,
+      startIndex: batchTasks[0].startIndex,
+      batchCount: batchTasks[0].batchCount,
+      assignedAngles: batchTasks[0].assignedAngles,
       targetWords,
       customApiKey,
       onChunk,
       onScriptReady,
     });
-    allScripts.push(...bScripts);
+  } else {
+    // Run concurrent streaming batches (max 2 parallel tasks to protect rate limits while speeding up generation by ~60%)
+    const batchResults = await runWithConcurrency(
+      batchTasks,
+      Math.min(2, batchTasks.length),
+      async (task, taskIdx) => {
+        return await generateBatchOfScriptsStream({
+          productBrief,
+          config,
+          batchNumber: task.batchNumber,
+          startIndex: task.startIndex,
+          batchCount: task.batchCount,
+          assignedAngles: task.assignedAngles,
+          targetWords,
+          customApiKey,
+          // Bind live chunk stream to task 0 for immediate token output
+          onChunk: taskIdx === 0 ? onChunk : undefined,
+          onScriptReady,
+        });
+      }
+    );
+
+    for (const b of batchResults) {
+      if (Array.isArray(b)) {
+        allScripts.push(...b);
+      }
+    }
   }
 
   const validatedScripts = allScripts.slice(0, totalCount).map((s, idx) => {

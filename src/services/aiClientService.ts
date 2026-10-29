@@ -48,8 +48,8 @@ export async function executeExtractProduct(
 ): Promise<ExtractProductResponse> {
   const apiKey = params.apiKey?.trim();
 
-  // In native Android APK, execute directly with Google AI Studio to avoid dead cloud proxies
-  if (isMobileApp()) {
+  // In native Android APK with user API key, execute directly with Google AI Studio
+  if (isMobileApp() && apiKey) {
     return await directExtractProduct(params);
   }
 
@@ -106,8 +106,8 @@ export async function executeGenerateScripts(params: {
 }): Promise<GenerateScriptsResponse> {
   const apiKey = params.apiKey?.trim();
 
-  // In native Android APK, execute directly with Google AI Studio
-  if (isMobileApp()) {
+  // In native Android APK with user API key, execute directly with Google AI Studio
+  if (isMobileApp() && apiKey) {
     return await directGenerateScripts(params);
   }
 
@@ -163,8 +163,8 @@ export async function executeGenerateScriptsStream(params: {
 }): Promise<GenerateScriptsResponse> {
   const apiKey = params.apiKey?.trim();
 
-  // In native Android APK, execute directly with Google AI Studio streaming
-  if (isMobileApp()) {
+  // In native Android APK with user API key, execute directly with Google AI Studio streaming
+  if (isMobileApp() && apiKey) {
     return await directGenerateScriptsStream({
       productBrief: params.productBrief,
       config: params.config,
@@ -291,8 +291,8 @@ export async function executeRefineScript(params: {
 }): Promise<RefineScriptResponse> {
   const apiKey = params.apiKey?.trim();
 
-  // In native Android APK, execute directly with Google AI Studio
-  if (isMobileApp()) {
+  // In native Android APK with user API key, execute directly with Google AI Studio
+  if (isMobileApp() && apiKey) {
     return await directRefineScript(params);
   }
 

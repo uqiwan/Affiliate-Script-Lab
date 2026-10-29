@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { InfoTooltip } from './InfoTooltip';
+import { optimizeImageForAi } from '../utils/imageOptimizer';
 
 export type InputMode = 'images' | 'url' | 'text' | 'mixed';
 
@@ -60,7 +61,9 @@ const InputPanelComponent: React.FC<InputPanelProps> = ({
     e.target.value = '';
   };
 
-  const processFiles = (files: File[]) => {
+  const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
+
+  const processFiles = async (files: File[]) => {
     setErrorMessage(null);
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
@@ -69,41 +72,32 @@ const InputPanelComponent: React.FC<InputPanelProps> = ({
       return;
     }
 
-    let currentTotalSize = images.reduce((acc, curr) => acc + curr.size, 0);
-
+    const validFiles: File[] = [];
     for (const file of files) {
       if (!allowedTypes.includes(file.type.toLowerCase())) {
         setErrorMessage(`Format "${file.name}" tidak didukung. Gunakan JPG, PNG, atau WEBP.`);
         return;
       }
+      validFiles.push(file);
+    }
 
-      if (file.size > 10 * 1024 * 1024) {
-        setErrorMessage(`File "${file.name}" melebihi batas 10 MB.`);
-        return;
-      }
+    if (validFiles.length === 0) return;
 
-      currentTotalSize += file.size;
-      if (currentTotalSize > 20 * 1024 * 1024) {
-        setErrorMessage('Total ukuran gambar melebihi batas 20 MB.');
-        return;
-      }
+    setIsProcessingImages(true);
+    try {
+      // Compress and optimize all images concurrently
+      const optimizedResults = await Promise.all(
+        validFiles.map((file) => optimizeImageForAi(file, 1280, 0.82))
+      );
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          const base64Data = result.split(',')[1] || '';
-          const newImg: UploadedImageFile = {
-            name: file.name,
-            mimeType: file.type,
-            base64Data,
-            size: file.size,
-            previewUrl: result,
-          };
-          setImages((prev) => [...prev, newImg]);
-        }
-      };
-      reader.readAsDataURL(file);
+      setImages((prev) => {
+        const next = [...prev, ...optimizedResults];
+        return next.slice(0, 5);
+      });
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Gagal memproses gambar produk.');
+    } finally {
+      setIsProcessingImages(false);
     }
   };
 
@@ -328,10 +322,10 @@ const InputPanelComponent: React.FC<InputPanelProps> = ({
                 <Upload className="w-6 h-6" />
               </div>
               <p className="text-xs font-semibold text-[#1C1C1E] dark:text-white">
-                Sentuh untuk memilih foto produk
+                {isProcessingImages ? 'Mengoptimalkan foto produk...' : 'Sentuh untuk memilih foto produk'}
               </p>
               <p className="text-[11px] text-[#8E8E93] mt-0.5">
-                Maksimal 5 foto (JPG, PNG, WEBP hingga 10MB per foto)
+                {isProcessingImages ? 'Kompresi otomatis resolusi HD tanpa hilang detail' : 'Maksimal 5 foto (JPG, PNG, WEBP hingga 10MB per foto)'}
               </p>
               <input
                 ref={fileInputRef}

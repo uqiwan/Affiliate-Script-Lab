@@ -19,9 +19,10 @@ import { STATIC_AFFILIATE_SYSTEM_PROMPT } from '../utils/constants';
 
 // Candidate models prioritized for speed, reasoning, and throughput
 export const CANDIDATE_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
+  'gemini-flash-latest',
 ];
 
 const DEFAULT_20_ANGLES = [
@@ -50,6 +51,32 @@ const DEFAULT_20_ANGLES = [
 let directRotationIndex = 0;
 const directQuotaTracker = new Map<string, number>();
 const DIRECT_COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * Controlled parallel concurrency runner for mobile streaming batches
+ */
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < items.length) {
+      const idx = currentIndex++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
+}
 
 /**
  * Sanitizes markdown JSON delimiters
@@ -195,7 +222,7 @@ export async function callGeminiDirect(params: {
 
         if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
           reqBody.generationConfig.thinkingConfig = {
-            thinkingLevel: 'LOW',
+            thinkingBudget: 0,
           };
         }
 
@@ -403,7 +430,7 @@ export async function callGeminiDirectStream(params: {
 
         if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
           reqBody.generationConfig.thinkingConfig = {
-            thinkingLevel: 'LOW',
+            thinkingBudget: 0,
           };
         }
 
@@ -956,6 +983,22 @@ export async function directGenerateScripts(params: {
   const batchResults = await Promise.all(
     batchTasks.map(async (task) => {
       const endIndex = task.startIndex + task.batchCount - 1;
+      const safeFeatures = Array.isArray(productBrief.features) && productBrief.features.length > 0
+        ? productBrief.features.join(', ')
+        : (Array.isArray((productBrief as any).keyFeatures) && (productBrief as any).keyFeatures.length > 0
+            ? (productBrief as any).keyFeatures.join(', ')
+            : 'Sesuai deskripsi');
+
+      const safeBenefits = Array.isArray(productBrief.benefits) && productBrief.benefits.length > 0
+        ? productBrief.benefits.join(', ')
+        : 'Sesuai deskripsi';
+
+      const safePainPoints = Array.isArray(productBrief.painPoints) && productBrief.painPoints.length > 0
+        ? productBrief.painPoints.join(', ')
+        : (Array.isArray((productBrief as any).targetAudiencePainPoints) && (productBrief as any).targetAudiencePainPoints.length > 0
+            ? (productBrief as any).targetAudiencePainPoints.join(', ')
+            : 'Kebutuhan fungsional sehari-hari');
+
       const userPrompt = `TUGAS BATCH #${task.batchNumber}: Buat TEPAT ${task.batchCount} KONSEP SKRIP AFFILIATE SIAP REKAM.
 Nomor konsep: Konsep #${task.startIndex} sampai #${endIndex}.
 
@@ -963,11 +1006,11 @@ DATA PRODUK:
 - Nama Produk: ${productBrief.name}
 - Kategori: ${productBrief.category}
 - Ringkasan: ${productBrief.description}
-- Fitur: ${productBrief.features.join(', ')}
-- Manfaat: ${productBrief.benefits.join(', ')}
-- Target Persona: ${productBrief.audience}
-- Pain Points: ${productBrief.painPoints.join(', ')}
-- Harga: ${productBrief.currentPrice || 'Tidak disebutkan'}
+- Fitur: ${safeFeatures}
+- Manfaat: ${safeBenefits}
+- Target Persona: ${productBrief.audience || (productBrief as any).targetAudience || 'Pengguna umum'}
+- Pain Points: ${safePainPoints}
+- Harga: ${productBrief.currentPrice || (productBrief as any).priceRange || 'Tidak disebutkan'}
 
 KONFIGURASI:
 - Durasi: ${config.durationSeconds} detik (${targetWords.min}-${targetWords.max} kata lisan)
@@ -1189,15 +1232,15 @@ export async function directGenerateScriptsStream(params: {
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    if (remaining === 1) {
-      batchCounts.push(1);
+    if (remaining <= 3) {
+      batchCounts.push(remaining);
       break;
     }
-    if (remaining === 3) {
-      batchCounts.push(2, 1);
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
       break;
     }
-    const size = 2; // Batches of 2 provide immediate TTFT and fast 1st script delivery on mobile
+    const size = 3;
     batchCounts.push(size);
     remaining -= size;
   }
@@ -1231,9 +1274,7 @@ export async function directGenerateScriptsStream(params: {
     currentStart += bCount;
   }
 
-  const allScripts: ScriptItem[] = [];
-
-  for (const task of batchTasks) {
+  const processBatchTask = async (task: typeof batchTasks[0], taskIdx: number): Promise<ScriptItem[]> => {
     const endIndex = task.startIndex + task.batchCount - 1;
     const userPrompt = `TUGAS BATCH #${task.batchNumber}: Buat TEPAT ${task.batchCount} KONSEP SKRIP AFFILIATE SIAP REKAM.
 Nomor konsep: Konsep #${task.startIndex} sampai #${endIndex}.
@@ -1446,7 +1487,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         maxOutputTokens: 2500,
         onChunk: (chunk) => {
           accumulatedText += chunk;
-          if (onChunk) onChunk(chunk);
+          if (taskIdx === 0 && onChunk) onChunk(chunk);
           if (onScriptReady && accumulatedText.length > 80 && accumulatedText.includes('}')) {
             const parsed = parseAndEmitScripts(accumulatedText);
             parsed.forEach((script, idx) => {
@@ -1460,6 +1501,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
       });
 
       const batchScripts = parseAndEmitScripts(accumulatedText);
+      const outputList: ScriptItem[] = [];
       if (batchScripts.length === 0) {
         task.assignedAngles.forEach((ang, idx) => {
           const fb = buildDirectFallbackScript(
@@ -1473,7 +1515,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
             emittedIndices.add(idx);
             onScriptReady(fb);
           }
-          allScripts.push(fb);
+          outputList.push(fb);
         });
       } else {
         batchScripts.forEach((script, idx) => {
@@ -1481,9 +1523,10 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
             emittedIndices.add(idx);
             onScriptReady(script);
           }
-          allScripts.push(script);
+          outputList.push(script);
         });
       }
+      return outputList;
     } catch (batchErr: any) {
       const msg = batchErr?.message || '';
       if (
@@ -1497,6 +1540,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
       }
 
       console.warn(`[DirectGemini Stream Batch Error] Using fallback synthesis:`, msg);
+      const fallbackList: ScriptItem[] = [];
       task.assignedAngles.forEach((ang, idx) => {
         const fb = buildDirectFallbackScript(
           productBrief,
@@ -1509,8 +1553,24 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
           emittedIndices.add(idx);
           onScriptReady(fb);
         }
-        allScripts.push(fb);
+        fallbackList.push(fb);
       });
+      return fallbackList;
+    }
+  };
+
+  let allScripts: ScriptItem[] = [];
+
+  if (batchTasks.length === 1) {
+    allScripts = await processBatchTask(batchTasks[0], 0);
+  } else {
+    const results = await runWithConcurrency(
+      batchTasks,
+      Math.min(2, batchTasks.length),
+      async (task, taskIdx) => processBatchTask(task, taskIdx)
+    );
+    for (const r of results) {
+      if (Array.isArray(r)) allScripts.push(...r);
     }
   }
 

@@ -16,26 +16,26 @@ export interface GoogleModelOption {
  */
 export const SUPPORTED_GOOGLE_MODELS: GoogleModelOption[] = [
   {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
+    tag: 'Bawaan Utama (Ultra Cepat ~600ms)',
+    desc: 'Model Google generasi terbaru tercepat, responsif, dan optimal untuk ekstraksi brief serta skrip video affiliate.',
+  },
+  {
+    id: 'gemini-flash-lite-latest',
+    name: 'Gemini Flash Lite Latest',
+    tag: 'Alternatif Ke-2 (Stabil & Ringan)',
+    desc: 'Model berkecepatan tinggi dengan ketersediaan tinggi dan performa stabil tanpa antrean.',
+  },
+  {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    tag: 'Bawaan Utama (Teknologi Terbaru)',
-    desc: 'Model Google generasi terbaru tercepat, paling cerdas, dan optimal untuk pembuatan skrip video affiliate.',
-  },
-  {
-    id: 'gemini-3.7-flash',
-    name: 'Gemini 3.7 Flash',
-    tag: 'Alternatif Ke-2 (Handal)',
-    desc: 'Model penalaran cepat dengan akurasi tinggi dan kuota terpisah di Google AI Studio.',
-  },
-  {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    tag: 'Alternatif Ke-3 (Super Stabil)',
-    desc: 'Throughput tinggi, latensi super rendah, dan performa stabil tanpa kendala antrean.',
+    tag: 'Alternatif Ke-3 (Kapasitas Besar)',
+    desc: 'Model multimodal generasi terbaru dengan penalaran mendalam dan pemahaman visual yang kuat.',
   },
 ];
 
-export const GEMINI_MODEL = 'gemini-3.8-flash';
+export const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 /**
  * Membersihkan string dari karakter tersembunyi Unicode, smart quotes,

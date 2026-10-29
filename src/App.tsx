@@ -859,7 +859,6 @@ export default function App() {
             if (exists) return prev;
             return [...prev, newScript];
           });
-          showToast(`Konsep "${newScript.title}" siap direkam!`, 'info');
         },
       });
 
@@ -1208,6 +1207,21 @@ export default function App() {
                       Gemini sedang merancang konsep video dengan hook scroll-stopper dan arahan visual B-roll. Setiap konsep yang selesai langsung tampil di bawah dan siap diedit manual!
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Live Streaming Progress Banner while concepts are generating */}
+              {isGenerating && scripts.length > 0 && (
+                <div className="bg-[#007AFF]/10 border border-[#007AFF]/25 dark:border-[#007AFF]/35 rounded-[18px] p-3.5 flex items-center justify-between text-xs text-[#007AFF] font-medium shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#007AFF] shrink-0" />
+                    <span>
+                      Sedang meracik konsep berikutnya... (<strong>{scripts.length}</strong> dari <strong>{config.scriptCount}</strong> konsep siap)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold tracking-wider uppercase bg-[#007AFF] text-white px-2.5 py-0.5 rounded-full shadow-xs shrink-0">
+                    Live Stream
+                  </span>
                 </div>
               )}
 

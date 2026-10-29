@@ -189,7 +189,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
 
       const left = Math.max(1, Math.ceil((expectedDurationMs - elapsed) / 1000));
       setRemainingSeconds(left);
-    }, 50);
+    }, 200);
 
     return () => {
       clearInterval(ticker);
