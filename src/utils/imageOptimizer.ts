@@ -109,6 +109,11 @@ export async function optimizeImageForAi(
           const base64Data = compressedDataUrl.split(',')[1] || '';
           const approxBytes = Math.ceil((base64Data.length * 3) / 4);
 
+          // Release memory immediately for mobile WebView performance
+          canvas.width = 0;
+          canvas.height = 0;
+          img.src = '';
+
           resolve({
             name: file.name.replace(/\.[^/.]+$/, '') + '.jpg',
             mimeType: targetMime,
@@ -118,6 +123,7 @@ export async function optimizeImageForAi(
           });
         } catch {
           // In case canvas fails, fallback gracefully
+          img.src = '';
           const base64Data = dataUrl.split(',')[1] || '';
           resolve({
             name: file.name,

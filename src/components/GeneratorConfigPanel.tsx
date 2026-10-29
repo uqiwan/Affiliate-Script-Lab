@@ -617,7 +617,7 @@ const IosAnimatedSwitch: React.FC<IosAnimatedSwitchProps> = ({
   );
 };
 
-export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
+const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
   config,
   onChange,
   onGenerate,
@@ -1397,3 +1397,5 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
     </div>
   );
 };
+
+export const GeneratorConfigPanel = React.memo(GeneratorConfigPanelComponent);

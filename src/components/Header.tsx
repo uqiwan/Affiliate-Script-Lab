@@ -40,7 +40,7 @@ interface HeaderProps {
   onToggleSettingsSheet?: (open: boolean) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+const HeaderComponent: React.FC<HeaderProps> = ({
   user,
   onLogin,
   onLogout,
@@ -607,3 +607,6 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
+export const Header = React.memo(HeaderComponent);
+

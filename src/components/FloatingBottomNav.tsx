@@ -51,7 +51,7 @@ interface FloatingBottomNavProps {
   onOpenSettings?: () => void;
 }
 
-export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
+const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
   currentStep,
   onStepChange,
   isBriefUnlocked,
@@ -309,4 +309,6 @@ export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
     </div>
   );
 };
+
+export const FloatingBottomNav = React.memo(FloatingBottomNavComponent);
 

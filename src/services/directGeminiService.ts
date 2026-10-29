@@ -222,7 +222,7 @@ export async function callGeminiDirect(params: {
 
         if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
           reqBody.generationConfig.thinkingConfig = {
-            thinkingBudget: 0,
+            thinkingLevel: 'LOW',
           };
         }
 
@@ -430,7 +430,7 @@ export async function callGeminiDirectStream(params: {
 
         if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
           reqBody.generationConfig.thinkingConfig = {
-            thinkingBudget: 0,
+            thinkingLevel: 'LOW',
           };
         }
 
@@ -1484,11 +1484,11 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         apiKey,
         temperature: 0.8,
         responseMimeType: 'application/json',
-        maxOutputTokens: 2500,
+        maxOutputTokens: 8192,
         onChunk: (chunk) => {
           accumulatedText += chunk;
           if (taskIdx === 0 && onChunk) onChunk(chunk);
-          if (onScriptReady && accumulatedText.length > 80 && accumulatedText.includes('}')) {
+          if (onScriptReady && chunk.includes('}') && accumulatedText.length > 80) {
             const parsed = parseAndEmitScripts(accumulatedText);
             parsed.forEach((script, idx) => {
               if (!emittedIndices.has(idx) && script.segments && script.segments.length >= 3) {

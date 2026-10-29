@@ -300,6 +300,11 @@ export async function callGeminiWithRetry(
       let timeoutTimer: NodeJS.Timeout | undefined;
       try {
         const baseConfig = options.config ? { ...options.config } : {};
+        if (baseConfig.thinkingConfig) {
+          if ('thinkingBudget' in baseConfig.thinkingConfig) {
+            delete (baseConfig.thinkingConfig as any).thinkingBudget;
+          }
+        }
         if (
           !baseConfig.thinkingConfig &&
           (modelName.includes('3.8') || modelName.includes('3.7') || modelName.includes('4-'))
@@ -512,6 +517,11 @@ export async function callGeminiStreamWithRetry(
       let timeoutTimer: NodeJS.Timeout | undefined;
       try {
         const baseConfig = options.config ? { ...options.config } : {};
+        if (baseConfig.thinkingConfig) {
+          if ('thinkingBudget' in baseConfig.thinkingConfig) {
+            delete (baseConfig.thinkingConfig as any).thinkingBudget;
+          }
+        }
         if (
           !baseConfig.thinkingConfig &&
           (modelName.includes('3.8') || modelName.includes('3.7') || modelName.includes('4-'))
@@ -524,7 +534,39 @@ export async function callGeminiStreamWithRetry(
 
         const streamPromise = (async () => {
           let accumulated = '';
-          const responseStream = await client.models.generateContentStream(payload);
+          let responseStream;
+          try {
+            responseStream = await client.models.generateContentStream(payload);
+          } catch (initErr: any) {
+            const initMsg = initErr?.message || '';
+            if (
+              (initMsg.includes('thinkingConfig') ||
+                initMsg.includes('thinking_config') ||
+                initMsg.includes('thinkingLevel') ||
+                initMsg.includes('thinkingBudget')) &&
+              payload.config?.thinkingConfig
+            ) {
+              const fallbackConfig = { ...payload.config };
+              delete fallbackConfig.thinkingConfig;
+              responseStream = await client.models.generateContentStream({
+                ...payload,
+                config: fallbackConfig,
+              });
+            } else if (
+              (initErr?.status === 503 || initMsg.includes('503') || initMsg.includes('high demand')) &&
+              payload.config?.responseMimeType
+            ) {
+              const fallbackConfig = { ...payload.config };
+              delete fallbackConfig.responseMimeType;
+              responseStream = await client.models.generateContentStream({
+                ...payload,
+                config: fallbackConfig,
+              });
+            } else {
+              throw initErr;
+            }
+          }
+
           for await (const chunk of responseStream) {
             const chunkText = chunk.text;
             if (chunkText) {
@@ -756,7 +798,7 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
           responseMimeType: 'application/json',
           maxOutputTokens: 1500,
           thinkingConfig: {
-            thinkingBudget: 0,
+            thinkingLevel: ThinkingLevel.MINIMAL,
           },
         },
       },
@@ -1867,6 +1909,9 @@ async function generateBatchOfScripts(params: {
           temperature: 0.85,
           responseMimeType: 'application/json',
           maxOutputTokens: 8192,
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.LOW,
+          },
         },
       },
       customApiKey,
@@ -1963,9 +2008,9 @@ async function generateBatchOfScriptsStream(params: {
           systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
           temperature: 0.85,
           responseMimeType: 'application/json',
-          maxOutputTokens: 2500,
+          maxOutputTokens: 8192,
           thinkingConfig: {
-            thinkingBudget: 0,
+            thinkingLevel: ThinkingLevel.LOW,
           },
         },
       },
@@ -1973,8 +2018,8 @@ async function generateBatchOfScriptsStream(params: {
       (chunk) => {
         accumulatedText += chunk;
         if (onChunk) onChunk(chunk);
-        // Attempt progressive object extraction as tokens arrive in real-time
-        if (onScriptReady && accumulatedText.length > 80 && accumulatedText.includes('}')) {
+        // Only trigger balanced JSON brace parsing when a closing brace '}' arrives
+        if (onScriptReady && chunk.includes('}') && accumulatedText.length > 80) {
           const completedObjs = extractCompletedJsonObjects(accumulatedText);
           if (completedObjs.length > 0) {
             const partial = normalizeRawScripts(
