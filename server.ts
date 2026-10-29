@@ -13,6 +13,7 @@ import type { ScrapedPageResult } from './server/ssrf.ts';
 import {
   extractProductBrief,
   generateScripts,
+  generateScriptsStream,
   refineSingleScript,
   testGeminiApiKey,
 } from './server/gemini.ts';
@@ -283,6 +284,66 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
     res.json(responseData);
   } catch (error: any) {
     next(error);
+  }
+});
+
+// 2b. GENERATE SCRIPTS (REAL-TIME SSE STREAMING)
+app.post('/api/generate-scripts-stream', async (req: Request, res: Response) => {
+  try {
+    const { productBrief, config } = req.body as GenerateScriptsRequest;
+    const customApiKey =
+      (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
+
+    if (!productBrief || !productBrief.name) {
+      return res.status(400).json({
+        error: 'Data brief produk tidak lengkap. Harap isi minimal nama dan deskripsi produk.',
+      });
+    }
+
+    if (!config || !config.scriptCount || !config.durationSeconds) {
+      return res.status(400).json({
+        error: 'Konfigurasi generator (jumlah skrip dan durasi) wajib disertakan.',
+      });
+    }
+
+    // Set Server-Sent Events headers
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    config.scriptCount = Math.max(1, Math.min(30, Math.floor(config.scriptCount)));
+
+    const scripts = await generateScriptsStream({
+      productBrief,
+      config,
+      customApiKey,
+      onChunk: (text) => {
+        try {
+          res.write(`event: chunk\ndata: ${JSON.stringify({ text })}\n\n`);
+        } catch {}
+      },
+      onScriptReady: (script) => {
+        try {
+          res.write(`event: script\ndata: ${JSON.stringify({ script })}\n\n`);
+        } catch {}
+      },
+    });
+
+    res.write(`event: done\ndata: ${JSON.stringify({ productBrief, scripts })}\n\n`);
+    res.end();
+  } catch (error: any) {
+    const msg = error?.message || 'Terjadi kesalahan saat memproduksi skrip.';
+    console.error('[API Stream Error]', msg);
+    try {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: msg, isQuota: !!error?.isQuotaExhausted })}\n\n`);
+      res.end();
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).json({ error: msg });
+      }
+    }
   }
 });
 

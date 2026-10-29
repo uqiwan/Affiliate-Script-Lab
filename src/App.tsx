@@ -40,6 +40,7 @@ import { apiUrl, safeParseJsonResponse } from './utils/api';
 import {
   executeExtractProduct,
   executeGenerateScripts,
+  executeGenerateScriptsStream,
   executeRefineScript,
 } from './services/aiClientService';
 import {
@@ -86,6 +87,7 @@ import {
   MonitorPlay,
   PictureInPicture2,
   Film,
+  Loader2,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -284,6 +286,23 @@ function getFriendlyErrorMessage(err: any, fallbackMessage: string): string {
   return msg || fallbackMessage;
 }
 
+function cleanStreamingPreviewText(raw: string): string {
+  if (!raw) return '';
+  const dialogueMatches = raw.match(/"spokenDialogue"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g);
+  if (dialogueMatches && dialogueMatches.length > 0) {
+    const dialogues = dialogueMatches
+      .map((m) => {
+        const match = m.match(/"spokenDialogue"\s*:\s*"([\s\S]*)"/);
+        return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : '';
+      })
+      .filter(Boolean);
+    if (dialogues.length > 0) {
+      return dialogues.join('\n\n');
+    }
+  }
+  return raw.replace(/^\[\s*\{?/, '').replace(/[\{\}\[\]"]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export default function App() {
   const [productBrief, setProductBrief] = useState<ProductBrief>(INITIAL_BRIEF);
   const [config, setConfig] = useState<GenerationConfig>(INITIAL_CONFIG);
@@ -297,6 +316,7 @@ export default function App() {
   // Loading States
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [streamingLiveText, setStreamingLiveText] = useState<string>('');
   const [isRefining, setIsRefining] = useState<boolean>(false);
   const [activeInputMode, setActiveInputMode] = useState<InputMode>('images');
 
@@ -663,8 +683,8 @@ export default function App() {
   const isBriefUnlocked = Boolean(productBrief.name || productBrief.description);
   // Step 3 unlocks ONLY after user clicks "Setujui Brief"
   const isConfigUnlocked = isBriefApproved;
-  // Step 4 unlocks ONLY after scripts are generated
-  const isScriptsUnlocked = scripts.length > 0;
+  // Step 4 unlocks when scripts exist or while actively generating
+  const isScriptsUnlocked = scripts.length > 0 || isGenerating;
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -810,7 +830,7 @@ export default function App() {
     showToast('Brief disetujui! Lanjut mengatur skrip.', 'success');
   };
 
-  // 3. Generate scripts: Unlocks Step 4 (Skrip) & Archives to History
+  // 3. Generate scripts: Real-time token streaming with 1-2s TTFT & Progressive Render
   const handleGenerateScripts = async () => {
     // Check if an AI key is available either from server backend or custom API key
     const canGenerate = serverHasKey || Boolean(apiKey && apiKey.trim());
@@ -830,18 +850,31 @@ export default function App() {
 
     setIsGenerating(true);
     setGlobalError(null);
+    setStreamingLiveText('');
+    setScripts([]); // Reset previous scripts so user sees new concepts streaming in
+    setCurrentStep(4); // Advance immediately to Step 4 so user experiences live generation
 
     try {
-      const resData = await executeGenerateScripts({
+      const resData = await executeGenerateScriptsStream({
         productBrief,
         config,
         apiKey,
+        onChunk: (chunk) => {
+          setStreamingLiveText((prev) => prev + chunk);
+        },
+        onScriptReady: (newScript) => {
+          setScripts((prev) => {
+            const exists = prev.some((s) => s.id === newScript.id || s.title === newScript.title);
+            if (exists) return prev;
+            return [...prev, newScript];
+          });
+          showToast(`Konsep "${newScript.title}" siap direkam!`, 'info');
+        },
       });
 
-      const generatedScripts = resData.scripts || [];
+      const generatedScripts = resData.scripts && resData.scripts.length > 0 ? resData.scripts : [];
       setScripts(generatedScripts);
       setVisualModes({});
-      setCurrentStep(4); // Advance to Step 4: Skrip
 
       // Automatically archive this generation session to History
       const newSession: HistorySession = {
@@ -881,6 +914,7 @@ export default function App() {
       }
     } finally {
       setIsGenerating(false);
+      setStreamingLiveText('');
     }
   };
 
@@ -943,6 +977,30 @@ export default function App() {
     } finally {
       setIsRefining(false);
     }
+  };
+
+  // 6. Update single script after manual user editing
+  const handleUpdateScript = (updatedScript: ScriptItem) => {
+    setScripts((prev) => {
+      const next = prev.map((s) => (s.id === updatedScript.id ? updatedScript : s));
+
+      // Also persist to history so changes aren't lost
+      saveSessionToHistory({
+        id: `session-${Date.now()}`,
+        timestamp: Date.now(),
+        productName: productBrief.name || 'Produk',
+        category: productBrief.category || 'Umum',
+        scriptCount: next.length,
+        durationSeconds: config.durationSeconds,
+        productBrief,
+        config,
+        scripts: next,
+      });
+
+      return next;
+    });
+
+    showToast(`Perubahan pada skrip "${updatedScript.title}" berhasil disimpan!`, 'success');
   };
 
   // Execute full reset reliably without window.confirm
@@ -1112,10 +1170,56 @@ export default function App() {
             </div>
           )}
 
-          {/* TAHAP 4: SKRIP (Muncul setelah proses buat skrip selesai) */}
+          {/* TAHAP 4: SKRIP (Muncul saat streaming atau skrip sudah siap) */}
           {currentStep === 4 && isScriptsUnlocked && (
             <div className="animate-in fade-in duration-150 space-y-3.5">
-              {/* Toolbar Aksi Skrip */}
+              {/* LIVE STREAMING TYPEWRITER CARD (Time to First Token 1-2 detik) */}
+              {isGenerating && (
+                <div className="bg-gradient-to-br from-indigo-950/40 via-purple-950/25 to-slate-900/60 dark:from-indigo-950/70 dark:via-purple-950/40 dark:to-black/80 rounded-[22px] border-2 border-[#007AFF]/40 dark:border-[#0A84FF]/40 p-4 sm:p-5 shadow-lg space-y-3.5 relative overflow-hidden backdrop-blur-md">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-pulse" />
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
+                        <span>AI Sedang Mengetik Skrip Real-Time</span>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          Streaming Aktif (Latency ~1s)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <span>{scripts.length} dari {config.scriptCount} konsep siap</span>
+                    </div>
+                  </div>
+
+                  {/* Typewriter Preview Box */}
+                  <div className="bg-white/90 dark:bg-black/70 rounded-xl p-3.5 border border-slate-200/80 dark:border-white/10 font-mono text-xs sm:text-sm leading-relaxed max-h-52 overflow-y-auto shadow-inner text-slate-800 dark:text-slate-200 select-text whitespace-pre-wrap">
+                    {streamingLiveText ? (
+                      <>
+                        {cleanStreamingPreviewText(streamingLiveText)}
+                        <span className="inline-block w-2 h-4 ml-1 bg-[#007AFF] animate-pulse align-middle" />
+                      </>
+                    ) : (
+                      <span className="text-slate-400 italic flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" />
+                        Menghubungkan ke Gemini 3 Flash... Kata pertama muncul dalam 1–2 detik
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>Setiap konsep yang selesai langsung tampil di bawah dan bisa langsung Anda edit manual!</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Toolbar Aksi Skrip (Tampil saat minimal 1 konsep sudah selesai) */}
+              {scripts.length > 0 && (
               <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs p-4 sm:p-5 space-y-3">
                 {/* Header Info */}
                 <div className="flex items-center gap-3">
@@ -1198,6 +1302,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Tampilan Konsep Vertikal: Konsep 1, 2, 3, dst langsung berurutan ke bawah */}
               <div className="space-y-4">
@@ -1241,6 +1346,7 @@ export default function App() {
                         openToken: prev.openToken + 1,
                       }));
                     }}
+                    onUpdateScript={handleUpdateScript}
                   />
                 ))}
               </div>
@@ -1398,10 +1504,10 @@ export default function App() {
         title={manualCopy.title}
       />
 
-      {/* Active Processing Modal / Progress Indicator */}
+      {/* Active Processing Modal / Progress Indicator (Active during input analysis) */}
       <ProcessingModal
         isAnalyzing={isAnalyzing}
-        isGenerating={isGenerating}
+        isGenerating={false}
         activeInputMode={activeInputMode}
         config={config}
         productName={productBrief.name}

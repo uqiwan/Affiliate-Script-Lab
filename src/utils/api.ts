@@ -2,11 +2,12 @@ import { cleanSingleKey, safeHeaderValue, parseApiKeys } from './apiKeys';
 
 // URL backend cloud utama untuk koneksi dari APK Android / perangkat mobile
 export const DEFAULT_CLOUD_BACKEND =
-  'https://ais-pre-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app';
+  'https://ais-pre-4voemh22ujg3yfnkvzfhge-697942877129.asia-east1.run.app';
 
 export const FALLBACK_CLOUD_BACKENDS = [
+  'https://ais-pre-4voemh22ujg3yfnkvzfhge-697942877129.asia-east1.run.app',
+  'https://ais-dev-4voemh22ujg3yfnkvzfhge-697942877129.asia-east1.run.app',
   'https://ais-pre-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app',
-  'https://ais-dev-773zbaas6smry4j3rvq74s-216989869346.asia-northeast1.run.app',
 ];
 
 /**

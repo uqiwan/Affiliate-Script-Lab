@@ -319,7 +319,7 @@ export function extractEcommerceFromUrl(urlObj: URL): {
  */
 async function followRedirectsSafely(
   initialUrl: URL,
-  maxRedirects = 5
+  maxRedirects = 3
 ): Promise<{ finalUrl: URL; redirected: boolean }> {
   let currentUrl = initialUrl;
   let redirected = false;
@@ -327,7 +327,7 @@ async function followRedirectsSafely(
   for (let i = 0; i < maxRedirects; i++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
       const res = await fetch(currentUrl.toString(), {
         method: 'GET',
@@ -376,7 +376,7 @@ async function fetchTikTokOembed(videoUrl: string): Promise<{
   try {
     const oembedEndpoint = `https://www.tiktok.com/oembed?url=${encodeURIComponent(videoUrl)}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 2500);
 
     const res = await fetch(oembedEndpoint, {
       signal: controller.signal,
@@ -451,7 +451,7 @@ export async function safeFetchProductPage(rawInput: string): Promise<ScrapedPag
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout
+    const timeout = setTimeout(() => controller.abort(), 3500); // 3.5s timeout for fast response
 
     // Fetch the target URL HTML
     const response = await fetch(targetUrl.toString(), {

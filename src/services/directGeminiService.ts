@@ -15,6 +15,7 @@ import type {
 } from '../types';
 import { parseApiKeys, cleanSingleKey, safeHeaderValue } from '../utils/apiKeys';
 import { countWords, evaluateDurationStatus } from '../utils/wordCount';
+import { STATIC_AFFILIATE_SYSTEM_PROMPT } from '../utils/constants';
 
 // Candidate models prioritized for speed, reasoning, and throughput
 export const CANDIDATE_MODELS = [
@@ -192,6 +193,12 @@ export async function callGeminiDirect(params: {
           reqBody.generationConfig.responseMimeType = responseMimeType;
         }
 
+        if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
+          reqBody.generationConfig.thinkingConfig = {
+            thinkingLevel: 'LOW',
+          };
+        }
+
         if (systemInstruction) {
           reqBody.systemInstruction = {
             parts: [{ text: systemInstruction }],
@@ -290,6 +297,253 @@ export async function callGeminiDirect(params: {
   }
 
   throw lastError || new Error('Gagal menghubungi Google AI Studio. Pastikan koneksi internet aktif.');
+}
+
+/**
+ * Streams tokens directly from Google Generative Language REST API using SSE (?alt=sse).
+ * Works directly in Android APK WebView or Web browser with zero server latency (TTFT 1-2s).
+ */
+export async function callGeminiDirectStream(params: {
+  contents: any;
+  systemInstruction?: string;
+  preferredModel?: string;
+  responseMimeType?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+  apiKey?: string;
+  timeoutMs?: number;
+  onChunk?: (text: string) => void;
+}): Promise<string> {
+  const {
+    contents,
+    systemInstruction,
+    preferredModel,
+    responseMimeType = 'application/json',
+    temperature = 0.7,
+    maxOutputTokens = 8192,
+    apiKey,
+    timeoutMs = 45000,
+    onChunk,
+  } = params;
+
+  let rawKeys: string[] = [];
+  if (apiKey) {
+    rawKeys = parseApiKeys(apiKey);
+  }
+  if (rawKeys.length === 0 && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('affiliate_script_lab_api_key');
+      if (stored) rawKeys = parseApiKeys(stored);
+    } catch {}
+  }
+
+  if (rawKeys.length === 0) {
+    const err: any = new Error(
+      'MISSING_MOBILE_API_KEY: API Key Google AI Studio belum diatur. Harap masukkan API Key Anda di menu profil/kunci kanan atas.'
+    );
+    err.isMissingKey = true;
+    err.status = 401;
+    throw err;
+  }
+
+  const totalKeys = rawKeys.length;
+  const startIdx = (directRotationIndex++) % totalKeys;
+  const orderedKeys: { key: string; index: number }[] = [];
+  for (let i = 0; i < totalKeys; i++) {
+    const idx = (startIdx + i) % totalKeys;
+    orderedKeys.push({ key: rawKeys[idx], index: idx });
+  }
+
+  const models = [...CANDIDATE_MODELS];
+  if (preferredModel && models.includes(preferredModel)) {
+    const pIdx = models.indexOf(preferredModel);
+    if (pIdx > 0) {
+      models.splice(pIdx, 1);
+      models.unshift(preferredModel);
+    }
+  }
+
+  const now = Date.now();
+  let lastError: any;
+  let exhaustedCount = 0;
+
+  for (const { key: rawKey } of orderedKeys) {
+    const cleanKey = cleanSingleKey(rawKey);
+    if (!cleanKey || cleanKey.length < 6) continue;
+
+    const cooldownUntil = directQuotaTracker.get(cleanKey);
+    if (cooldownUntil && now < cooldownUntil && totalKeys > 1) {
+      exhaustedCount++;
+      continue;
+    }
+
+    for (const model of models) {
+      let controller: AbortController | null = null;
+      let timer: any = null;
+
+      try {
+        controller = new AbortController();
+        timer = setTimeout(() => controller?.abort(), timeoutMs);
+
+        // Standard Google Generative Language REST API streaming endpoint
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          model
+        )}:streamGenerateContent?alt=sse&key=${encodeURIComponent(cleanKey)}`;
+
+        const reqBody: any = {
+          generationConfig: {
+            temperature,
+            maxOutputTokens,
+          },
+        };
+
+        if (responseMimeType) {
+          reqBody.generationConfig.responseMimeType = responseMimeType;
+        }
+
+        if (model.includes('3.8') || model.includes('3.7') || model.includes('4-')) {
+          reqBody.generationConfig.thinkingConfig = {
+            thinkingLevel: 'LOW',
+          };
+        }
+
+        if (systemInstruction) {
+          reqBody.systemInstruction = {
+            parts: [{ text: systemInstruction }],
+          };
+        }
+
+        if (typeof contents === 'string') {
+          reqBody.contents = [{ parts: [{ text: contents }] }];
+        } else if (Array.isArray(contents)) {
+          reqBody.contents = [{ parts: contents }];
+        } else if (contents && contents.parts) {
+          reqBody.contents = [contents];
+        } else {
+          reqBody.contents = [{ parts: [{ text: JSON.stringify(contents) }] }];
+        }
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        };
+        if (cleanKey.startsWith('ya29.')) {
+          headers['Authorization'] = `Bearer ${safeHeaderValue(cleanKey)}`;
+        } else {
+          headers['x-goog-api-key'] = safeHeaderValue(cleanKey);
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(reqBody),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          const errorJson = await res.json().catch(() => null);
+          const errorMsg =
+            errorJson?.error?.message ||
+            `HTTP ${res.status} ${res.statusText || 'Gagal memproses'}`;
+          const err: any = new Error(errorMsg);
+          err.status = res.status;
+          throw err;
+        }
+
+        if (!res.body) {
+          throw new Error('ReadableStream tidak didukung di lingkungan ini.');
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulated = '';
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trim();
+            if (!jsonStr) continue;
+            try {
+              const parsedChunk = JSON.parse(jsonStr);
+              const chunkText =
+                parsedChunk?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (chunkText) {
+                accumulated += chunkText;
+                if (onChunk) {
+                  try {
+                    onChunk(chunkText);
+                  } catch {}
+                }
+              }
+            } catch {}
+          }
+        }
+
+        if (buffer.trim().startsWith('data:')) {
+          try {
+            const parsedChunk = JSON.parse(buffer.trim().slice(5).trim());
+            const chunkText =
+              parsedChunk?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (chunkText) {
+              accumulated += chunkText;
+              if (onChunk) onChunk(chunkText);
+            }
+          } catch {}
+        }
+
+        directQuotaTracker.delete(cleanKey);
+        return accumulated;
+      } catch (err: any) {
+        if (timer) clearTimeout(timer);
+        lastError = err;
+        const msg = err?.message || '';
+
+        const isQuota =
+          err?.status === 429 ||
+          msg.includes('429') ||
+          msg.includes('RESOURCE_EXHAUSTED') ||
+          msg.includes('quota') ||
+          msg.includes('Quota exceeded');
+
+        const isKeyInvalid =
+          err?.status === 400 &&
+          (msg.includes('API_KEY_INVALID') ||
+            msg.includes('API key not valid') ||
+            msg.includes('PERMISSION_DENIED'));
+
+        if (isQuota) {
+          continue;
+        }
+
+        if (isKeyInvalid) {
+          break;
+        }
+
+        continue;
+      }
+    }
+  }
+
+  if (exhaustedCount >= totalKeys && totalKeys > 0) {
+    const quotaErr: any = new Error(
+      'TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh API Key Google Anda telah mencapai batas. Harap ganti dengan API Key Google AI Studio baru yang masih memiliki kuota untuk melanjutkan.'
+    );
+    quotaErr.isQuotaExhausted = true;
+    quotaErr.status = 429;
+    throw quotaErr;
+  }
+
+  throw lastError || new Error('Gagal streaming dari Google AI Studio.');
 }
 
 /**
@@ -653,23 +907,17 @@ export async function directGenerateScripts(params: {
   };
   const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
 
-  const systemPrompt = `Anda adalah Master Copywriter & Content Strategist Video Affiliate Short Video nomor satu di Indonesia.
-Anda memproduksi skrip video affiliate yang siap rekam, multi-platform, memikat perhatian di detik awal, dan memiliki kepatuhan faktual 100%.
-
-ATURAN KRUSIAL MULTI-PLATFORM:
-1. DILARANG KERAS menyebut nama platform (Shopee, TikTok, Tokopedia).
-2. DILARANG KERAS menggunakan istilah "keranjang kuning" atau "keranjang orange".
-3. Wajib sebutan netral: "keranjang kiri bawah" atau "keranjang bawah video ini".
-4. DILARANG mengarang angka harga, promo, atau klaim medis yang tidak tercantum di brief.
-5. Durasi ${config.durationSeconds} detik: WAJIB berkisar antara ${targetWords.min} sampai ${targetWords.max} KATA lisan.
-6. Format JSON Array murni tanpa markdown.`;
+  const systemPrompt = STATIC_AFFILIATE_SYSTEM_PROMPT;
 
   const totalCount = Math.max(1, Math.min(30, config.scriptCount));
-  const maxBatchSize = 5;
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    const size = Math.min(remaining, maxBatchSize);
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
+      break;
+    }
+    const size = Math.min(remaining, 3);
     batchCounts.push(size);
     remaining -= size;
   }
@@ -703,7 +951,282 @@ ATURAN KRUSIAL MULTI-PLATFORM:
     currentStart += bCount;
   }
 
-  const generatedScripts: ScriptItem[] = [];
+  // Execute batches concurrently in parallel for 3x-4x lower latency
+  const batchResults = await Promise.all(
+    batchTasks.map(async (task) => {
+      const endIndex = task.startIndex + task.batchCount - 1;
+      const userPrompt = `TUGAS BATCH #${task.batchNumber}: Buat TEPAT ${task.batchCount} KONSEP SKRIP AFFILIATE SIAP REKAM.
+Nomor konsep: Konsep #${task.startIndex} sampai #${endIndex}.
+
+DATA PRODUK:
+- Nama Produk: ${productBrief.name}
+- Kategori: ${productBrief.category}
+- Ringkasan: ${productBrief.description}
+- Fitur: ${productBrief.features.join(', ')}
+- Manfaat: ${productBrief.benefits.join(', ')}
+- Target Persona: ${productBrief.audience}
+- Pain Points: ${productBrief.painPoints.join(', ')}
+- Harga: ${productBrief.currentPrice || 'Tidak disebutkan'}
+
+KONFIGURASI:
+- Durasi: ${config.durationSeconds} detik (${targetWords.min}-${targetWords.max} kata lisan)
+- Gaya: ${config.style}
+- Pronoun: ${config.pronouns}
+- Instruksi Tambahan: ${config.extraInstructions || '-'}
+
+PENUGASAN ANGLE WAJIB:
+${task.assignedAngles
+  .map((ang, i) => `* Konsep #${task.startIndex + i}: Angle "${ang}"`)
+  .join('\n')}
+
+FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
+[
+  {
+    "id": "skrip-${task.startIndex}",
+    "title": "Konsep #${task.startIndex}: ${task.assignedAngles[0]}",
+    "angle": "${task.assignedAngles[0]}",
+    "persona": "${config.audiencePersona}",
+    "differentiator": "Pembeda konsep",
+    "hookType": "${config.hookType}",
+    "triggers": ["Pattern Interrupt", "Relatable Problem", "Direct Solution"],
+    "estimatedDurationSeconds": ${config.durationSeconds},
+    "spokenWordCount": ${Math.round((targetWords.min + targetWords.max) / 2)},
+    "durationStatus": "ok",
+    "segments": [
+      {
+        "timeRange": "0-3 detik",
+        "segmentName": "HOOK",
+        "visualDirection": "Arahan visual kamera HP",
+        "spokenDialogue": "Dialog pembuka memikat",
+        "overlayText": "Teks safe zone",
+        "strategyNote": "Catatan psikologi hook"
+      },
+      {
+        "timeRange": "3-8 detik",
+        "segmentName": "PROBLEM",
+        "visualDirection": "Konteks masalah",
+        "spokenDialogue": "Dialog relate masalah",
+        "overlayText": "Teks masalah",
+        "strategyNote": "Relatability"
+      },
+      {
+        "timeRange": "8-20 detik",
+        "segmentName": "DEMO",
+        "visualDirection": "Demonstrasi produk",
+        "spokenDialogue": "Penjelasan solusi natural",
+        "overlayText": "Fitur produk",
+        "strategyNote": "Bukti visual"
+      },
+      {
+        "timeRange": "20-25 detik",
+        "segmentName": "VALUE",
+        "visualDirection": "Tunjukkan produk utuh",
+        "spokenDialogue": "Penegasan nilai kegunaan",
+        "overlayText": "Nilai guna",
+        "strategyNote": "Value"
+      },
+      {
+        "timeRange": "25-30 detik",
+        "segmentName": "CTA",
+        "visualDirection": "Tunjuk ke sudut kiri bawah",
+        "spokenDialogue": "Langsung cek detailnya di keranjang kiri bawah sekarang ya!",
+        "overlayText": "Cek Keranjang Kiri Bawah ⬇️",
+        "strategyNote": "Neutral CTA"
+      }
+    ],
+    "voiceoverOnly": "Gabungan dialog lisan",
+    "qualityChecklist": ["Hook 3 detik pertama", "Safe zone overlay", "Durasi sesuai target"],
+    "warnings": []
+  }
+]`;
+
+      try {
+        const rawText = await callGeminiDirect({
+          contents: userPrompt,
+          systemInstruction: systemPrompt,
+          apiKey,
+          temperature: 0.8,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 4096,
+        });
+
+        let rawScripts: any[] = [];
+        try {
+          rawScripts = JSON.parse(cleanJsonString(rawText));
+        } catch {
+          const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (match) {
+            try {
+              rawScripts = JSON.parse(match[0]);
+            } catch {}
+          }
+        }
+
+        if (!Array.isArray(rawScripts) || rawScripts.length === 0) {
+          return task.assignedAngles.map((ang, idx) =>
+            buildDirectFallbackScript(
+              productBrief,
+              config,
+              ang,
+              task.startIndex + idx,
+              targetWords
+            )
+          );
+        }
+
+        return rawScripts.map((s, idx) => {
+          const itemIdx = task.startIndex + idx;
+          const assignedAngle = task.assignedAngles[idx] || s.angle || 'Problem-Solution';
+          const rawSegments = Array.isArray(s.segments) ? s.segments : [];
+
+          const segments = rawSegments.map((seg: any, sIdx: number) => ({
+            timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
+            segmentName:
+              seg.segmentName ||
+              (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
+            visualDirection:
+              sanitizeCrossPlatformText(seg.visualDirection) || 'Tunjukkan produk ke kamera',
+            spokenDialogue: sanitizeCrossPlatformText(seg.spokenDialogue) || '',
+            overlayText: sanitizeCrossPlatformText(seg.overlayText) || '',
+            strategyNote: seg.strategyNote || '',
+          }));
+
+          const rawVo =
+            s.voiceoverOnly ||
+            segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+          const compiledVoiceover = sanitizeCrossPlatformText(rawVo);
+          const actualWords = countWords(compiledVoiceover);
+          const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
+
+          return {
+            id: s.id || `script-${Date.now()}-${itemIdx}`,
+            title: sanitizeCrossPlatformText(
+              s.title || `Konsep #${itemIdx}: ${assignedAngle}`
+            ),
+            angle: assignedAngle,
+            persona: s.persona || config.audiencePersona,
+            differentiator:
+              s.differentiator || `Pendekatan unik berbasis angle ${assignedAngle}`,
+            hookType: s.hookType || config.hookType,
+            triggers:
+              Array.isArray(s.triggers) && s.triggers.length > 0
+                ? s.triggers
+                : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
+            estimatedDurationSeconds: config.durationSeconds,
+            spokenWordCount: actualWords,
+            durationStatus: evalStatus.status,
+            segments,
+            voiceoverOnly: compiledVoiceover,
+            qualityChecklist: [
+              'Hook 3 detik pertama',
+              'Fakta produk akurat',
+              'Safe zone overlay',
+              `Target kata ${targetWords.min}-${targetWords.max} kata`,
+            ],
+            warnings: evalStatus.status !== 'ok' ? [evalStatus.message] : [],
+          };
+        });
+      } catch (batchErr: any) {
+        const msg = batchErr?.message || '';
+        if (
+          batchErr?.isQuotaExhausted ||
+          batchErr?.isMissingKey ||
+          msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+          msg.includes('429') ||
+          msg.includes('MISSING_MOBILE_API_KEY')
+        ) {
+          throw batchErr;
+        }
+
+        console.warn(`[DirectGemini Batch Error] Using fallback synthesis:`, msg);
+        return task.assignedAngles.map((ang, idx) =>
+          buildDirectFallbackScript(
+            productBrief,
+            config,
+            ang,
+            task.startIndex + idx,
+            targetWords
+          )
+        );
+      }
+    })
+  );
+
+  const generatedScripts: ScriptItem[] = batchResults.flat();
+  const trimmed = generatedScripts.slice(0, totalCount);
+
+  return {
+    productBrief,
+    scripts: trimmed,
+  };
+}
+
+/**
+ * Direct Client-Side Script Generation with Live Real-Time Token Streaming (TTFT 1-2s).
+ * Enables word-by-word streaming on Native Android APK (Capacitor) directly against Google AI Studio API.
+ */
+export async function directGenerateScriptsStream(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  apiKey?: string;
+  onChunk?: (text: string) => void;
+  onScriptReady?: (script: ScriptItem) => void;
+}): Promise<GenerateScriptsResponse> {
+  const { productBrief, config, apiKey, onChunk, onScriptReady } = params;
+
+  const targetWordsMap: Record<number, { min: number; max: number }> = {
+    15: { min: 30, max: 40 },
+    20: { min: 45, max: 55 },
+    30: { min: 60, max: 75 },
+    60: { min: 125, max: 150 },
+    90: { min: 200, max: 225 },
+    120: { min: 275, max: 320 },
+  };
+  const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
+
+  const totalCount = Math.max(1, Math.min(30, config.scriptCount));
+  const batchCounts: number[] = [];
+  let remaining = totalCount;
+  while (remaining > 0) {
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
+      break;
+    }
+    const size = Math.min(remaining, 3);
+    batchCounts.push(size);
+    remaining -= size;
+  }
+
+  let currentStart = 1;
+  const batchTasks: {
+    batchNumber: number;
+    startIndex: number;
+    batchCount: number;
+    assignedAngles: string[];
+  }[] = [];
+
+  const sourceAngles =
+    config.selectedAngles && config.selectedAngles.length > 0
+      ? config.selectedAngles
+      : DEFAULT_20_ANGLES;
+
+  for (let b = 0; b < batchCounts.length; b++) {
+    const bCount = batchCounts[b];
+    const assignedAngles: string[] = [];
+    for (let i = 0; i < bCount; i++) {
+      const aIdx = (currentStart - 1 + i) % sourceAngles.length;
+      assignedAngles.push(sourceAngles[aIdx]);
+    }
+    batchTasks.push({
+      batchNumber: b + 1,
+      startIndex: currentStart,
+      batchCount: bCount,
+      assignedAngles,
+    });
+    currentStart += bCount;
+  }
+
+  const allScripts: ScriptItem[] = [];
 
   for (const task of batchTasks) {
     const endIndex = task.startIndex + task.batchCount - 1;
@@ -792,20 +1315,15 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
   }
 ]`;
 
-    try {
-      const rawText = await callGeminiDirect({
-        contents: userPrompt,
-        systemInstruction: systemPrompt,
-        apiKey,
-        temperature: 0.8,
-        responseMimeType: 'application/json',
-      });
+    let accumulatedText = '';
+    const emittedIndices = new Set<number>();
 
+    const parseAndEmitScripts = (text: string) => {
       let rawScripts: any[] = [];
       try {
-        rawScripts = JSON.parse(cleanJsonString(rawText));
+        rawScripts = JSON.parse(cleanJsonString(text));
       } catch {
-        const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        const match = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (match) {
           try {
             rawScripts = JSON.parse(match[0]);
@@ -814,71 +1332,121 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
       }
 
       if (!Array.isArray(rawScripts) || rawScripts.length === 0) {
-        // Fallback for this batch
-        const fallbacks = task.assignedAngles.map((ang, idx) =>
-          buildDirectFallbackScript(
+        // Find individual closed JSON objects
+        const objRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*"segments"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/g;
+        const matches = text.match(objRegex);
+        if (matches) {
+          for (const m of matches) {
+            try {
+              const obj = JSON.parse(m);
+              if (obj && obj.segments) rawScripts.push(obj);
+            } catch {}
+          }
+        }
+      }
+
+      if (!Array.isArray(rawScripts)) return [];
+
+      return rawScripts.map((s, idx) => {
+        const itemIdx = task.startIndex + idx;
+        const assignedAngle = task.assignedAngles[idx] || s.angle || 'Problem-Solution';
+        const rawSegments = Array.isArray(s.segments) ? s.segments : [];
+
+        const segments = rawSegments.map((seg: any, sIdx: number) => ({
+          timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
+          segmentName:
+            seg.segmentName ||
+            (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
+          visualDirection:
+            sanitizeCrossPlatformText(seg.visualDirection) || 'Tunjukkan produk ke kamera',
+          spokenDialogue: sanitizeCrossPlatformText(seg.spokenDialogue) || '',
+          overlayText: sanitizeCrossPlatformText(seg.overlayText) || '',
+          strategyNote: seg.strategyNote || '',
+        }));
+
+        const rawVo =
+          s.voiceoverOnly ||
+          segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+        const compiledVoiceover = sanitizeCrossPlatformText(rawVo);
+        const actualWords = countWords(compiledVoiceover);
+        const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
+
+        return {
+          id: s.id || `script-${Date.now()}-${itemIdx}`,
+          title: sanitizeCrossPlatformText(
+            s.title || `Konsep #${itemIdx}: ${assignedAngle}`
+          ),
+          angle: assignedAngle,
+          persona: s.persona || config.audiencePersona,
+          differentiator:
+            s.differentiator || `Pendekatan unik berbasis angle ${assignedAngle}`,
+          hookType: s.hookType || config.hookType,
+          triggers:
+            Array.isArray(s.triggers) && s.triggers.length > 0
+              ? s.triggers
+              : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
+          estimatedDurationSeconds: config.durationSeconds,
+          spokenWordCount: actualWords,
+          durationStatus: evalStatus.status,
+          segments,
+          voiceoverOnly: compiledVoiceover,
+          qualityChecklist: [
+            'Hook 3 detik pertama',
+            'Fakta produk akurat',
+            'Safe zone overlay',
+            `Target kata ${targetWords.min}-${targetWords.max} kata`,
+          ],
+          warnings: evalStatus.status !== 'ok' ? [evalStatus.message] : [],
+        };
+      });
+    };
+
+    try {
+      accumulatedText = await callGeminiDirectStream({
+        contents: userPrompt,
+        systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
+        apiKey,
+        temperature: 0.8,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 4096,
+        onChunk: (chunk) => {
+          if (onChunk) onChunk(chunk);
+          if (onScriptReady && accumulatedText.length > 250) {
+            const parsed = parseAndEmitScripts(accumulatedText);
+            parsed.forEach((script, idx) => {
+              if (!emittedIndices.has(idx) && script.segments && script.segments.length >= 3) {
+                emittedIndices.add(idx);
+                onScriptReady(script);
+              }
+            });
+          }
+        },
+      });
+
+      const batchScripts = parseAndEmitScripts(accumulatedText);
+      if (batchScripts.length === 0) {
+        task.assignedAngles.forEach((ang, idx) => {
+          const fb = buildDirectFallbackScript(
             productBrief,
             config,
             ang,
             task.startIndex + idx,
             targetWords
-          )
-        );
-        generatedScripts.push(...fallbacks);
-      } else {
-        const processed = rawScripts.map((s, idx) => {
-          const itemIdx = task.startIndex + idx;
-          const assignedAngle = task.assignedAngles[idx] || s.angle || 'Problem-Solution';
-          const rawSegments = Array.isArray(s.segments) ? s.segments : [];
-
-          const segments = rawSegments.map((seg: any, sIdx: number) => ({
-            timeRange: seg.timeRange || `${sIdx * 5}-${(sIdx + 1) * 5}s`,
-            segmentName:
-              seg.segmentName ||
-              (sIdx === 0 ? 'HOOK' : sIdx === rawSegments.length - 1 ? 'CTA' : 'BODY'),
-            visualDirection:
-              sanitizeCrossPlatformText(seg.visualDirection) || 'Tunjukkan produk ke kamera',
-            spokenDialogue: sanitizeCrossPlatformText(seg.spokenDialogue) || '',
-            overlayText: sanitizeCrossPlatformText(seg.overlayText) || '',
-            strategyNote: seg.strategyNote || '',
-          }));
-
-          const rawVo =
-            s.voiceoverOnly ||
-            segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
-          const compiledVoiceover = sanitizeCrossPlatformText(rawVo);
-          const actualWords = countWords(compiledVoiceover);
-          const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
-
-          return {
-            id: s.id || `script-${Date.now()}-${itemIdx}`,
-            title: sanitizeCrossPlatformText(
-              s.title || `Konsep #${itemIdx}: ${assignedAngle}`
-            ),
-            angle: assignedAngle,
-            persona: s.persona || config.audiencePersona,
-            differentiator:
-              s.differentiator || `Pendekatan unik berbasis angle ${assignedAngle}`,
-            hookType: s.hookType || config.hookType,
-            triggers:
-              Array.isArray(s.triggers) && s.triggers.length > 0
-                ? s.triggers
-                : ['Pattern Interrupt', 'Relatable Context', 'Direct CTA'],
-            estimatedDurationSeconds: config.durationSeconds,
-            spokenWordCount: actualWords,
-            durationStatus: evalStatus.status,
-            segments,
-            voiceoverOnly: compiledVoiceover,
-            qualityChecklist: [
-              'Hook 3 detik pertama',
-              'Fakta produk akurat',
-              'Safe zone overlay',
-              `Target kata ${targetWords.min}-${targetWords.max} kata`,
-            ],
-            warnings: evalStatus.status !== 'ok' ? [evalStatus.message] : [],
-          };
+          );
+          if (onScriptReady && !emittedIndices.has(idx)) {
+            emittedIndices.add(idx);
+            onScriptReady(fb);
+          }
+          allScripts.push(fb);
         });
-        generatedScripts.push(...processed);
+      } else {
+        batchScripts.forEach((script, idx) => {
+          if (onScriptReady && !emittedIndices.has(idx)) {
+            emittedIndices.add(idx);
+            onScriptReady(script);
+          }
+          allScripts.push(script);
+        });
       }
     } catch (batchErr: any) {
       const msg = batchErr?.message || '';
@@ -892,22 +1460,25 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         throw batchErr;
       }
 
-      console.warn(`[DirectGemini Batch Error] Using fallback synthesis:`, msg);
-      const fallbacks = task.assignedAngles.map((ang, idx) =>
-        buildDirectFallbackScript(
+      console.warn(`[DirectGemini Stream Batch Error] Using fallback synthesis:`, msg);
+      task.assignedAngles.forEach((ang, idx) => {
+        const fb = buildDirectFallbackScript(
           productBrief,
           config,
           ang,
           task.startIndex + idx,
           targetWords
-        )
-      );
-      generatedScripts.push(...fallbacks);
+        );
+        if (onScriptReady && !emittedIndices.has(idx)) {
+          emittedIndices.add(idx);
+          onScriptReady(fb);
+        }
+        allScripts.push(fb);
+      });
     }
   }
 
-  // Final trim to totalCount
-  const trimmed = generatedScripts.slice(0, totalCount);
+  const trimmed = allScripts.slice(0, totalCount);
 
   return {
     productBrief,

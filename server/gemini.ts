@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import type { ProductBrief, GenerationConfig, ScriptItem, SourceProvenance } from '../src/types/index.ts';
 import type { ScrapedPageResult } from './ssrf.ts';
 import { countWords, evaluateDurationStatus } from '../src/utils/wordCount.ts';
+import { STATIC_AFFILIATE_SYSTEM_PROMPT } from '../src/utils/constants.ts';
 
 import {
   SUPPORTED_GOOGLE_MODELS,
@@ -282,14 +283,34 @@ export async function callGeminiWithRetry(
     for (const modelName of candidateModels) {
       let timeoutTimer: NodeJS.Timeout | undefined;
       try {
-        const payload = { ...options, model: modelName };
+        const baseConfig = options.config ? { ...options.config } : {};
+        if (
+          !baseConfig.thinkingConfig &&
+          (modelName.includes('3.8') || modelName.includes('3.7') || modelName.includes('4-'))
+        ) {
+          baseConfig.thinkingConfig = {
+            thinkingLevel: ThinkingLevel.LOW,
+          };
+        }
+        const payload = { ...options, model: modelName, config: baseConfig };
 
-        // Eksekusi generateContent dengan penanganan otomatis untuk lonjakan antrean 503
+        // Eksekusi generateContent dengan penanganan otomatis untuk lonjakan antrean 503 & fallback config
         const generatePromise = (async () => {
           try {
             return await client.models.generateContent(payload);
           } catch (callErr: any) {
             const callMsg = callErr?.message || '';
+            // Jika model tidak mendukung thinkingConfig, coba ulang tanpa thinkingConfig
+            if (
+              (callMsg.includes('thinkingConfig') ||
+                callMsg.includes('thinking_config') ||
+                callMsg.includes('thinkingLevel')) &&
+              payload.config?.thinkingConfig
+            ) {
+              const fallbackConfig = { ...payload.config };
+              delete fallbackConfig.thinkingConfig;
+              return await client.models.generateContent({ ...payload, config: fallbackConfig });
+            }
             // Jika 503 (high demand) atau 400 dan menggunakan responseMimeType: 'application/json',
             // coba langsung tanpa responseMimeType karena prompt sudah mewajibkan JSON dan parser kita menangani markdown
             if (
@@ -384,6 +405,179 @@ export async function callGeminiWithRetry(
   if (keysExhaustedQuotaCount >= totalKeys && totalKeys > 0) {
     const quotaExhaustedErr: any = new Error(
       `TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh ${totalKeys} API Key Google Anda telah mencapai batas. Harap masukkan atau ganti dengan API Key Google AI Studio baru yang masih memiliki kuota untuk melanjutkan.`
+    );
+    quotaExhaustedErr.isQuotaExhausted = true;
+    quotaExhaustedErr.status = 429;
+    throw quotaExhaustedErr;
+  }
+
+  throw lastError;
+}
+
+/**
+ * Menjalankan panggilan Gemini generateContentStream dengan rotasi multi-API Key dan failover model terdepan.
+ * Mengalirkan potongan teks langsung ke callback onChunk secara real-time (Time to First Token 1-2 detik).
+ */
+export async function callGeminiStreamWithRetry(
+  options: any,
+  customApiKey?: string | string[],
+  onChunk?: (text: string) => void,
+  timeoutPerCallMs = 50000
+): Promise<string> {
+  let rawKeys: string[] = [];
+
+  if (Array.isArray(customApiKey)) {
+    rawKeys = customApiKey.flatMap((k) => parseApiKeys(k));
+  } else if (typeof customApiKey === 'string') {
+    rawKeys = parseApiKeys(customApiKey);
+  }
+
+  // Fallback ke process.env jika tidak ada custom key
+  if (rawKeys.length === 0 && typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) {
+    rawKeys = parseApiKeys(process.env.GEMINI_API_KEY);
+  }
+
+  if (rawKeys.length === 0) {
+    const noKeyErr: any = new Error(
+      'API Key Google AI Studio belum diatur. Silakan atur API Key Anda di menu profil kanan atas.'
+    );
+    noKeyErr.isMissingKey = true;
+    noKeyErr.status = 401;
+    throw noKeyErr;
+  }
+
+  const totalKeys = rawKeys.length;
+  const startIdx = (globalKeyRotationIndex++) % totalKeys;
+  const orderedKeys: { key: string; originalIndex: number }[] = [];
+  for (let i = 0; i < totalKeys; i++) {
+    const idx = (startIdx + i) % totalKeys;
+    orderedKeys.push({ key: rawKeys[idx], originalIndex: idx });
+  }
+
+  const candidateModels = [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+  ];
+
+  const requestedModel = options.model;
+  if (requestedModel && candidateModels.includes(requestedModel)) {
+    const rIdx = candidateModels.indexOf(requestedModel);
+    if (rIdx > 0) {
+      candidateModels.splice(rIdx, 1);
+      candidateModels.unshift(requestedModel);
+    }
+  }
+
+  const now = Date.now();
+  const allInCooldown = totalKeys > 1 && orderedKeys.every(({ key }) => {
+    const until = quotaExhaustedTracker.get(key);
+    return Boolean(until && now < until);
+  });
+  if (allInCooldown) {
+    quotaExhaustedTracker.clear();
+  }
+
+  let lastError: any;
+  let keysExhaustedQuotaCount = 0;
+
+  for (const { key: currentKey, originalIndex } of orderedKeys) {
+    const exhaustedUntil = quotaExhaustedTracker.get(currentKey);
+    if (exhaustedUntil && now < exhaustedUntil && totalKeys > 1) {
+      keysExhaustedQuotaCount++;
+      continue;
+    }
+
+    const client = getAiClient(currentKey);
+    let keyQuotaExhaustedAllModels = true;
+
+    for (const modelName of candidateModels) {
+      let timeoutTimer: NodeJS.Timeout | undefined;
+      try {
+        const baseConfig = options.config ? { ...options.config } : {};
+        if (
+          !baseConfig.thinkingConfig &&
+          (modelName.includes('3.8') || modelName.includes('3.7') || modelName.includes('4-'))
+        ) {
+          baseConfig.thinkingConfig = {
+            thinkingLevel: ThinkingLevel.LOW,
+          };
+        }
+        const payload = { ...options, model: modelName, config: baseConfig };
+
+        const streamPromise = (async () => {
+          let accumulated = '';
+          const responseStream = await client.models.generateContentStream(payload);
+          for await (const chunk of responseStream) {
+            const chunkText = chunk.text;
+            if (chunkText) {
+              accumulated += chunkText;
+              if (onChunk) {
+                try {
+                  onChunk(chunkText);
+                } catch {
+                  // callback error ignored
+                }
+              }
+            }
+          }
+          return accumulated;
+        })();
+
+        const timeoutPromise = new Promise<string>((_, reject) => {
+          timeoutTimer = setTimeout(() => {
+            const timeoutErr: any = new Error(`Model ${modelName} stream timeout.`);
+            timeoutErr.status = 504;
+            reject(timeoutErr);
+          }, timeoutPerCallMs);
+        });
+
+        const fullText = await Promise.race([streamPromise, timeoutPromise]);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+
+        quotaExhaustedTracker.delete(currentKey);
+        return fullText;
+      } catch (err: any) {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        lastError = err;
+        const msg = err?.message || '';
+
+        const isQuota =
+          err?.status === 429 ||
+          msg.includes('429') ||
+          msg.includes('RESOURCE_EXHAUSTED') ||
+          msg.includes('quota') ||
+          msg.includes('Quota exceeded') ||
+          msg.includes('rate limit');
+
+        const isInvalid =
+          msg.includes('API_KEY_INVALID') ||
+          msg.includes('API key not valid') ||
+          msg.includes('PERMISSION_DENIED');
+
+        if (isQuota) {
+          continue;
+        }
+
+        if (isInvalid) {
+          keyQuotaExhaustedAllModels = false;
+          break;
+        }
+
+        keyQuotaExhaustedAllModels = false;
+        continue;
+      }
+    }
+
+    if (keyQuotaExhaustedAllModels) {
+      keysExhaustedQuotaCount++;
+      quotaExhaustedTracker.set(currentKey, Date.now() + QUOTA_COOLDOWN_MS);
+    }
+  }
+
+  if (keysExhaustedQuotaCount >= totalKeys && totalKeys > 0) {
+    const quotaExhaustedErr: any = new Error(
+      `TOKEN_QUOTA_EXHAUSTED: Token/kuota dari seluruh ${totalKeys} API Key Google Anda telah mencapai batas.`
     );
     quotaExhaustedErr.isQuotaExhausted = true;
     quotaExhaustedErr.status = 429;
@@ -541,12 +735,13 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
         model: GEMINI_MODEL,
         contents: { parts },
         config: {
-          temperature: 0.25,
+          temperature: 0.2,
           responseMimeType: 'application/json',
+          maxOutputTokens: 2500,
         },
       },
       params.customApiKey,
-      45000
+      25000
     );
     rawText = response.text || '{}';
   } catch (err: any) {
@@ -1275,35 +1470,17 @@ function buildFallbackScript(
   };
 }
 
-/**
- * Generates a focused batch of up to 5 scripts with distinct assigned angles and structured segments.
- */
-async function generateBatchOfScripts(params: {
-  productBrief: ProductBrief;
-  config: GenerationConfig;
-  batchNumber: number;
-  startIndex: number;
-  batchCount: number;
-  assignedAngles: string[];
-  targetWords: { min: number; max: number };
-  systemPrompt: string;
-  customApiKey?: string;
-}): Promise<ScriptItem[]> {
-  const {
-    productBrief,
-    config,
-    batchNumber,
-    startIndex,
-    batchCount,
-    assignedAngles,
-    targetWords,
-    systemPrompt,
-    customApiKey,
-  } = params;
-
-  const endIndex = startIndex + batchCount - 1;
-
-  const userPrompt = `
+function buildBatchUserPrompt(
+  productBrief: ProductBrief,
+  config: GenerationConfig,
+  batchNumber: number,
+  startIndex: number,
+  endIndex: number,
+  batchCount: number,
+  assignedAngles: string[],
+  targetWords: { min: number; max: number }
+): string {
+  return `
 TUGAS BATCH #${batchNumber}: Anda WAJIB memproduksi TEPAT ${batchCount} KONSEP SKRIP AFFILIATE MULTI-PLATFORM (SIAP REKAM) DENGAN CERITA, HOOK, DAN VISUAL YANG BERBEDA SECARA RADIKAL.
 Nomor urut konsep dalam batch ini: Konsep #${startIndex} sampai #${endIndex} (Total tepat ${batchCount} konsep).
 
@@ -1423,83 +1600,21 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
     "warnings": []
   }
 ]`;
+}
 
-  let rawScripts: any[] = [];
-  try {
-    const response = await callGeminiWithRetry(
-      {
-        model: GEMINI_MODEL,
-        contents: userPrompt,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0.85,
-          responseMimeType: 'application/json',
-          maxOutputTokens: 8192,
-        },
-      },
-      customApiKey,
-      40000
-    );
-
-    const rawText = response.text || '[]';
-    try {
-      rawScripts = JSON.parse(cleanJsonString(rawText));
-    } catch {
-      try {
-        const cleaned = cleanJsonString(rawText);
-        rawScripts = JSON.parse(cleaned);
-      } catch {
-        const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (match) {
-          try {
-            rawScripts = JSON.parse(match[0]);
-          } catch {}
-        }
-      }
-    }
-  } catch (err: any) {
-    const msg = err?.message || '';
-    // Jika error karena kuota token habis atau key invalid, JANGAN DITELAN! Lemparkan langsung agar user tahu
-    if (
-      err?.isQuotaExhausted ||
-      err?.isMissingKey ||
-      msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
-      msg.includes('429') ||
-      msg.includes('RESOURCE_EXHAUSTED') ||
-      msg.includes('quota') ||
-      msg.includes('Quota exceeded') ||
-      msg.includes('API_KEY_INVALID') ||
-      msg.includes('API key not valid') ||
-      msg.includes('PERMISSION_DENIED')
-    ) {
-      throw err;
-    }
-
-    console.warn(
-      `[Gemini Batch #${batchNumber}] Jaringan bermasalah, memproduksi skrip multi-angle terdiversifikasi:`,
-      msg
-    );
-    // Fallback: construct distinct scripts based on verified brief & specific assigned angles
-    return assignedAngles.slice(0, batchCount).map((angle, idx) =>
-      buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords)
-    );
-  }
-
-  if (!Array.isArray(rawScripts)) {
-    if (typeof rawScripts === 'object' && Array.isArray((rawScripts as any).scripts)) {
-      rawScripts = (rawScripts as any).scripts;
-    } else if (rawScripts && typeof rawScripts === 'object') {
-      rawScripts = [rawScripts];
-    } else {
-      rawScripts = [];
-    }
-  }
-
-  // If parsed array is empty, also use fallback
-  if (rawScripts.length === 0) {
-    return assignedAngles.slice(0, batchCount).map((angle, idx) =>
-      buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords)
-    );
+/**
+ * Normalizes an array of raw script objects into validated ScriptItems.
+ */
+export function normalizeRawScripts(
+  rawScripts: any[],
+  productBrief: ProductBrief,
+  config: GenerationConfig,
+  assignedAngles: string[],
+  startIndex: number,
+  targetWords: { min: number; max: number }
+): ScriptItem[] {
+  if (!Array.isArray(rawScripts) || rawScripts.length === 0) {
+    return [];
   }
 
   return rawScripts.map((s, index) => {
@@ -1570,8 +1685,289 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
 }
 
 /**
+ * Extracts and parses complete script items from raw text (streaming or batch).
+ */
+export function extractScriptsFromRawText(
+  rawText: string,
+  productBrief: ProductBrief,
+  config: GenerationConfig,
+  assignedAngles: string[],
+  startIndex: number,
+  targetWords: { min: number; max: number }
+): ScriptItem[] {
+  let parsed: any[] = [];
+  try {
+    parsed = JSON.parse(cleanJsonString(rawText));
+  } catch {
+    try {
+      const match = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      }
+    } catch {
+      // Find individual closed JSON objects containing "segments"
+      const objRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*"segments"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/g;
+      const matches = rawText.match(objRegex);
+      if (matches) {
+        const found: any[] = [];
+        for (const m of matches) {
+          try {
+            const obj = JSON.parse(m);
+            if (obj && (obj.segments || obj.spokenDialogue || obj.title)) {
+              found.push(obj);
+            }
+          } catch {}
+        }
+        if (found.length > 0) parsed = found;
+      }
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    if (typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as any).scripts)) {
+      parsed = (parsed as any).scripts;
+    } else if (parsed && typeof parsed === 'object' && parsed !== null) {
+      parsed = [parsed];
+    } else {
+      parsed = [];
+    }
+  }
+
+  return normalizeRawScripts(parsed, productBrief, config, assignedAngles, startIndex, targetWords);
+}
+
+/**
+ * Generates a focused batch of scripts with distinct assigned angles and structured segments.
+ * Uses STATIC_AFFILIATE_SYSTEM_PROMPT for 100% prefix cache hits on Gemini servers.
+ */
+async function generateBatchOfScripts(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  batchNumber: number;
+  startIndex: number;
+  batchCount: number;
+  assignedAngles: string[];
+  targetWords: { min: number; max: number };
+  systemPrompt?: string;
+  customApiKey?: string;
+}): Promise<ScriptItem[]> {
+  const {
+    productBrief,
+    config,
+    batchNumber,
+    startIndex,
+    batchCount,
+    assignedAngles,
+    targetWords,
+    customApiKey,
+  } = params;
+
+  const endIndex = startIndex + batchCount - 1;
+  const userPrompt = buildBatchUserPrompt(
+    productBrief,
+    config,
+    batchNumber,
+    startIndex,
+    endIndex,
+    batchCount,
+    assignedAngles,
+    targetWords
+  );
+
+  let rawScripts: any[] = [];
+  try {
+    const response = await callGeminiWithRetry(
+      {
+        model: GEMINI_MODEL,
+        contents: userPrompt,
+        config: {
+          systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
+          temperature: 0.85,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 8192,
+        },
+      },
+      customApiKey,
+      40000
+    );
+
+    const rawText = response.text || '[]';
+    rawScripts = extractScriptsFromRawText(
+      rawText,
+      productBrief,
+      config,
+      assignedAngles,
+      startIndex,
+      targetWords
+    );
+  } catch (err: any) {
+    const msg = err?.message || '';
+    if (
+      err?.isQuotaExhausted ||
+      err?.isMissingKey ||
+      msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('quota') ||
+      msg.includes('API_KEY_INVALID')
+    ) {
+      throw err;
+    }
+
+    console.warn(`[Gemini Batch #${batchNumber}] Fallback due to:`, msg);
+    return assignedAngles.slice(0, batchCount).map((angle, idx) =>
+      buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords)
+    );
+  }
+
+  if (rawScripts.length === 0) {
+    return assignedAngles.slice(0, batchCount).map((angle, idx) =>
+      buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords)
+    );
+  }
+
+  return rawScripts;
+}
+
+/**
+ * Generates a batch of scripts with live streaming chunks (TTFT 1-2s) and progressive parsing.
+ */
+async function generateBatchOfScriptsStream(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  batchNumber: number;
+  startIndex: number;
+  batchCount: number;
+  assignedAngles: string[];
+  targetWords: { min: number; max: number };
+  customApiKey?: string;
+  onChunk?: (text: string) => void;
+  onScriptReady?: (script: ScriptItem) => void;
+}): Promise<ScriptItem[]> {
+  const {
+    productBrief,
+    config,
+    batchNumber,
+    startIndex,
+    batchCount,
+    assignedAngles,
+    targetWords,
+    customApiKey,
+    onChunk,
+    onScriptReady,
+  } = params;
+
+  const endIndex = startIndex + batchCount - 1;
+  const userPrompt = buildBatchUserPrompt(
+    productBrief,
+    config,
+    batchNumber,
+    startIndex,
+    endIndex,
+    batchCount,
+    assignedAngles,
+    targetWords
+  );
+
+  let accumulatedText = '';
+  const emittedIndices = new Set<number>();
+
+  try {
+    accumulatedText = await callGeminiStreamWithRetry(
+      {
+        model: GEMINI_MODEL,
+        contents: userPrompt,
+        config: {
+          systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
+          temperature: 0.85,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 8192,
+        },
+      },
+      customApiKey,
+      (chunk) => {
+        if (onChunk) onChunk(chunk);
+        // Attempt progressive object extraction as tokens arrive
+        if (onScriptReady && accumulatedText.length > 250) {
+          const partial = extractScriptsFromRawText(
+            accumulatedText,
+            productBrief,
+            config,
+            assignedAngles,
+            startIndex,
+            targetWords
+          );
+          partial.forEach((item, pIdx) => {
+            if (!emittedIndices.has(pIdx) && item.segments && item.segments.length >= 3) {
+              emittedIndices.add(pIdx);
+              onScriptReady(item);
+            }
+          });
+        }
+      },
+      45000
+    );
+  } catch (err: any) {
+    const msg = err?.message || '';
+    if (
+      err?.isQuotaExhausted ||
+      err?.isMissingKey ||
+      msg.includes('TOKEN_QUOTA_EXHAUSTED') ||
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('quota') ||
+      msg.includes('API_KEY_INVALID')
+    ) {
+      throw err;
+    }
+
+    console.warn(`[Gemini Stream Batch #${batchNumber}] Fallback due to:`, msg);
+    const fallbacks = assignedAngles.slice(0, batchCount).map((angle, idx) => {
+      const fb = buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords);
+      if (onScriptReady && !emittedIndices.has(idx)) {
+        emittedIndices.add(idx);
+        onScriptReady(fb);
+      }
+      return fb;
+    });
+    return fallbacks;
+  }
+
+  // Final parsing of all scripts in this batch
+  const finalScripts = extractScriptsFromRawText(
+    accumulatedText,
+    productBrief,
+    config,
+    assignedAngles,
+    startIndex,
+    targetWords
+  );
+
+  if (finalScripts.length === 0) {
+    return assignedAngles.slice(0, batchCount).map((angle, idx) => {
+      const fb = buildFallbackScript(productBrief, config, angle, startIndex + idx, targetWords);
+      if (onScriptReady && !emittedIndices.has(idx)) {
+        emittedIndices.add(idx);
+        onScriptReady(fb);
+      }
+      return fb;
+    });
+  }
+
+  // Emit any scripts not yet emitted
+  finalScripts.forEach((item, pIdx) => {
+    if (onScriptReady && !emittedIndices.has(pIdx)) {
+      emittedIndices.add(pIdx);
+      onScriptReady(item);
+    }
+  });
+
+  return finalScripts;
+}
+
+/**
  * Generates TikTok & multi-platform affiliate scripts based on verified brief and configuration.
- * Generates exact requested count (1, 5, 10, 20, 30) using optimized concurrent batches and distinct angles.
+ * Uses STATIC_AFFILIATE_SYSTEM_PROMPT to benefit from Gemini implicit Prompt Caching.
  */
 export async function generateScripts(params: {
   productBrief: ProductBrief;
@@ -1580,11 +1976,6 @@ export async function generateScripts(params: {
 }): Promise<ScriptItem[]> {
   const { productBrief, config, customApiKey } = params;
 
-  // Target word counts strictly from PRD:
-  // 15s: 30-40 words
-  // 30s: 60-75 words
-  // 60s: 125-150 words
-  // 90s: 200-225 words
   const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
     20: { min: 45, max: 55 },
@@ -1595,61 +1986,19 @@ export async function generateScripts(params: {
   };
   const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
 
-  const systemPrompt = `Anda adalah Master Copywriter & Content Strategist Video Affiliate Short Video (Multi-Platform: Shopee Video, TikTok, Tokopedia) nomor satu di Indonesia.
-Anda memproduksi skrip video affiliate yang siap rekam, multi-platform (bisa di-mirror ke semua e-commerce), mengalir alami, memikat perhatian di detik awal, dan memiliki kepatuhan etika & faktual 100%.
-
-ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
-1. VIDEO AKAN DI-MIRROR / DI-CROSS-POST KE BERBAGAI PLATFORM (Shopee Video, TikTok Shop, Tokopedia, dll):
-   - DILARANG KERAS MENYEBUT NAMA PLATFORM APAPUN (JANGAN sebut "TikTok", "Shopee", "Tokopedia", "Lazada", dll) dalam dialog narasi lisan, overlay text, maupun arahan visual!
-   - DILARANG KERAS MENGGUNAKAN ISTILAH EKSKLUSIF 1 PLATFORM SEPERTI "keranjang kuning" ATAU "keranjang orange"!
-   - WAJIB MENGGUNAKAN SEBUTAN NETRAL UNIVERSAL UNTUK CALL TO ACTION (CTA), seperti:
-     * "klik keranjang di kiri bawah"
-     * "cek keranjang bawah video ini"
-     * "klik ikon keranjang di bawah"
-     * "langsung cek variasi di keranjang bawah"
-     * "lihat detailnya di keranjang kiri bawah"
-     * "checkout sekarang lewat keranjang di bawah"
-2. JANGAN PERNAH MENGARANG DATA:
-   - Jika harga saat ini (${productBrief.currentPrice || 'TIDAK ADA'}) tidak ada, DILARANG menyebut angka harga atau membuat price anchoring palsu.
-   - Jika promo/stok/deadline (${productBrief.stockOrDeadline || 'TIDAK ADA'}) tidak ada, DILARANG memakai scarcity palsu ("tinggal sedikit", "promo berakhir hari ini").
-   - Jika social proof (${productBrief.socialProof || 'TIDAK ADA'}) tidak ada, DILARANG mengaku "sudah terjual ribuan" atau "banyak ulasan positif".
-   - Jika pengalaman kreator (${productBrief.creatorExperience || 'TIDAK ADA'}) tidak ada, DILARANG memakai "saya sudah pakai 1 bulan" atau testimoni palsu orang pertama.
-   - DILARANG menjanjikan kesembuhan penyakit, hasil instan tanpa bukti, atau overclaim.
-3. ATURAN DIVERSIFIKASI & ANTI-REPETISI ANTAR-KONSEP (INTI APLIKASI GAGASWARA):
-   - DILARANG KERAS MENGHASILKAN POLA ATAU FORMULA KALIMAT YANG SAMA ANTARA SATU KONSEP DENGAN KONSEP LAINNYA!
-   - Setiap konsep HARUS memiliki:
-     * Hook pembuka berbeda total (gaya pertanyaan kontras, cerita POV orang pertama, bantahan mitos, spill rahasia, atau demo kilat).
-     * Skenario dialog dan alur cerita unik yang mengeksplorasi sudut pandang berbeda dari produk tersebut.
-     * Arahan visual B-roll yang variatif untuk bahan video affiliate dalam jumlah banyak.
-     * Pembeda spesifik (differentiator) yang kuat.
-4. TARGET JUMLAH KATA NARASI DIALOG LISAN (DIHITUNG HANYA DIALOG, BUKAN ARAHAN VISUAL/OVERLAY):
-   - Durasi ${config.durationSeconds} detik: WAJIB berkisar antara ${targetWords.min} sampai ${targetWords.max} KATA lisan.
-   - Pacing harus pas: tidak terlalu padat dan tidak terlalu renggang.
-5. STRUKTUR SEGMEN:
-   - HOOK (0-3 detik): Scroll-stopper kuat, sebut kata kunci/nama produk secara natural bila relevan.
-   - PROBLEM / RELATABLE CONTEXT: Masalah nyata atau situasi yang dialami penonton.
-   - DEMONSTRASI & BUKTI: B-roll dan visual realistis yang murah dan mudah direkam kreator dengan smartphone.
-   - VALUE / HARGA (Hanya bila data harga tersedia): Nilai guna atau perbandingan logis.
-   - CTA: Ajakan bertindak jelas ke keranjang kiri bawah / keranjang bawah video ini / cek variasi di bawah, tanpa memanipulasi urgensi, tanpa menyebut nama platform, dan TANPA kata 'keranjang kuning'.
-6. SAFE ZONE UNIVERSAL VERTICAL (1080x1920):
-   - Teks overlay harus pendek, mudah dibaca cepat, kontras, dan berada di tengah (menghindari margin atas 130px, margin kanan 140px, margin bawah 484px).
-7. STRATEGI:
-   - Gunakan sedikitnya 3 pemicu konten (misal: pattern interrupt, curiosity loop, relatable problem, demo proof, value framing, low-friction CTA).
-   - Tulis pemicu di kolom catatan strategi, BUKAN diucapkan dalam dialog narasi.
-`;
-
-  // Determine batch plan based on total scriptCount (up to 5 scripts per batch for optimal speed & quota efficiency)
   const totalCount = Math.max(1, Math.min(30, config.scriptCount));
-  const maxBatchSize = 5;
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    const size = Math.min(remaining, maxBatchSize);
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
+      break;
+    }
+    const size = Math.min(remaining, 3);
     batchCounts.push(size);
     remaining -= size;
   }
 
-  // Build batch tasks with calculated start indices and assigned distinct angles
   let currentStart = 1;
   const batchTasks: {
     batchNumber: number;
@@ -1670,7 +2019,6 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
     currentStart += bCount;
   }
 
-  // Execute batches concurrently in parallel (up to 4 batches simultaneously) to maximize throughput
   const batchResults = await runWithConcurrency(
     batchTasks,
     Math.min(4, batchTasks.length),
@@ -1683,7 +2031,6 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
         batchCount: task.batchCount,
         assignedAngles: task.assignedAngles,
         targetWords,
-        systemPrompt,
         customApiKey,
       });
     }
@@ -1696,7 +2043,6 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
     }
   }
 
-  // Verification & Top-Up: If any batch produced fewer than requested, generate the missing ones!
   if (combinedScripts.length < totalCount) {
     const missingCount = totalCount - combinedScripts.length;
     const topUpStartIndex = combinedScripts.length + 1;
@@ -1711,7 +2057,6 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
         batchCount: missingCount,
         assignedAngles: topUpAngles,
         targetWords,
-        systemPrompt,
         customApiKey,
       });
       if (Array.isArray(topUpScripts)) {
@@ -1733,13 +2078,100 @@ ATURAN UTAMA MULTI-PLATFORM & NETRALITAS E-COMMERCE (KRUSIAL & MUTLAK):
     }
   }
 
-  // Final trim in case of any overflow
   if (combinedScripts.length > totalCount) {
     combinedScripts = combinedScripts.slice(0, totalCount);
   }
 
-  // Normalize sequential numbering and titles
   const validatedScripts = combinedScripts.map((s, idx) => {
+    const itemNum = idx + 1;
+    let title = s.title;
+    if (!title || !title.toLowerCase().startsWith('konsep #')) {
+      title = `Konsep #${itemNum}: ${s.angle || 'Affiliate'}`;
+    }
+    return {
+      ...s,
+      id: `script-${Date.now()}-${itemNum}`,
+      title: sanitizeCrossPlatformText(title),
+    };
+  });
+
+  return validatedScripts;
+}
+
+/**
+ * Streaming version: Streams tokens in real-time (Time to First Token 1-2s) and progressively emits scripts.
+ */
+export async function generateScriptsStream(params: {
+  productBrief: ProductBrief;
+  config: GenerationConfig;
+  customApiKey?: string;
+  onChunk?: (text: string) => void;
+  onScriptReady?: (script: ScriptItem) => void;
+}): Promise<ScriptItem[]> {
+  const { productBrief, config, customApiKey, onChunk, onScriptReady } = params;
+
+  const targetWordsMap: Record<number, { min: number; max: number }> = {
+    15: { min: 30, max: 40 },
+    20: { min: 45, max: 55 },
+    30: { min: 60, max: 75 },
+    60: { min: 125, max: 150 },
+    90: { min: 200, max: 225 },
+    120: { min: 275, max: 320 },
+  };
+  const targetWords = targetWordsMap[config.durationSeconds] || targetWordsMap[30];
+
+  const totalCount = Math.max(1, Math.min(30, config.scriptCount));
+  const batchCounts: number[] = [];
+  let remaining = totalCount;
+  while (remaining > 0) {
+    if (remaining === 4) {
+      batchCounts.push(2, 2);
+      break;
+    }
+    const size = Math.min(remaining, 3);
+    batchCounts.push(size);
+    remaining -= size;
+  }
+
+  let currentStart = 1;
+  const batchTasks: {
+    batchNumber: number;
+    startIndex: number;
+    batchCount: number;
+    assignedAngles: string[];
+  }[] = [];
+
+  for (let b = 0; b < batchCounts.length; b++) {
+    const bCount = batchCounts[b];
+    const assignedAngles = getAssignedAngles(currentStart, bCount, config.selectedAngles);
+    batchTasks.push({
+      batchNumber: b + 1,
+      startIndex: currentStart,
+      batchCount: bCount,
+      assignedAngles,
+    });
+    currentStart += bCount;
+  }
+
+  const allScripts: ScriptItem[] = [];
+
+  for (const task of batchTasks) {
+    const bScripts = await generateBatchOfScriptsStream({
+      productBrief,
+      config,
+      batchNumber: task.batchNumber,
+      startIndex: task.startIndex,
+      batchCount: task.batchCount,
+      assignedAngles: task.assignedAngles,
+      targetWords,
+      customApiKey,
+      onChunk,
+      onScriptReady,
+    });
+    allScripts.push(...bScripts);
+  }
+
+  const validatedScripts = allScripts.slice(0, totalCount).map((s, idx) => {
     const itemNum = idx + 1;
     let title = s.title;
     if (!title || !title.toLowerCase().startsWith('konsep #')) {
