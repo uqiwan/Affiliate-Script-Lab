@@ -1540,7 +1540,7 @@ ATURAN ANTI-REPETISI & DIVERSIFIKASI MUTLAK:
 4. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
 5. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
 
-FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchCount} objek skrip):
+FORMAT OUTPUT JSON (Kembalikan JSON Array murni berisi TEPAT ${batchCount} objek skrip dengan struktur berikut):
 [
   {
     "id": "skrip-${startIndex}",
@@ -1557,16 +1557,16 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
       {
         "timeRange": "0-3 detik",
         "segmentName": "HOOK",
-        "visualDirection": "Arahan visual & B-roll detail (bisa dieksekusi sendiri dengan HP)",
+        "visualDirection": "Arahan visual & B-roll detail smartphone",
         "spokenDialogue": "Dialog narasi lisan pembuka yang unik sesuai angle",
         "overlayText": "Teks singkat kontras di safe zone",
-        "strategyNote": "Catatan strategi psikologi"
+        "strategyNote": "Catatan strategi psikologi hook"
       },
       {
         "timeRange": "3-8 detik",
         "segmentName": "PROBLEM",
         "visualDirection": "Arahan visual konteks masalah",
-        "spokenDialogue": "Dialog kelanjutan cerita masalah",
+        "spokenDialogue": "Dialog kelanjutan cerita masalah relatable",
         "overlayText": "Teks masalah",
         "strategyNote": "Membangun rasa relate"
       },
@@ -1592,7 +1592,7 @@ FORMAT OUTPUT JSON (Kembalikan Array murni tanpa markdown, berisi TEPAT ${batchC
         "visualDirection": "Arahkan gestur ke sudut kiri bawah layar smartphone",
         "spokenDialogue": "Langsung cek detailnya di keranjang kiri bawah sekarang ya!",
         "overlayText": "Cek Keranjang Kiri Bawah ⬇️",
-        "strategyNote": "Ajakan bertindak netral tanpa manipulasi"
+        "strategyNote": "Ajakan bertindak netral multi-platform"
       }
     ],
     "voiceoverOnly": "Seluruh dialog lisan spokenDialogue digabung siap rekam",
@@ -2170,11 +2170,15 @@ export async function generateScriptsStream(params: {
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    if (remaining === 4) {
-      batchCounts.push(2, 2);
+    if (remaining === 1) {
+      batchCounts.push(1);
       break;
     }
-    const size = Math.min(remaining, 3);
+    if (remaining === 3) {
+      batchCounts.push(2, 1);
+      break;
+    }
+    const size = 2; // Batches of 2 provide immediate TTFT and fast 1st script delivery
     batchCounts.push(size);
     remaining -= size;
   }

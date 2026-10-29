@@ -88,6 +88,7 @@ import {
   PictureInPicture2,
   Film,
   Loader2,
+  PenLine,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -286,60 +287,7 @@ function getFriendlyErrorMessage(err: any, fallbackMessage: string): string {
   return msg || fallbackMessage;
 }
 
-function cleanStreamingPreviewText(raw: string): string {
-  if (!raw) return '';
 
-  // Extract title if available
-  const titleMatch = raw.match(/"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/);
-  const currentTitle = titleMatch ? titleMatch[1].replace(/\\"/g, '"').trim() : '';
-
-  // Extract angle if available
-  const angleMatch = raw.match(/"angle"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/);
-  const currentAngle = angleMatch ? angleMatch[1].replace(/\\"/g, '"').trim() : '';
-
-  // Extract all spokenDialogue segments (including the active in-flight segment currently being typed)
-  const segments: string[] = [];
-  const dialogueRegex = /"spokenDialogue"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/g;
-  let dMatch: RegExpExecArray | null;
-  while ((dMatch = dialogueRegex.exec(raw)) !== null) {
-    const text = dMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').trim();
-    if (text) {
-      segments.push(text);
-    }
-  }
-
-  if (segments.length > 0) {
-    let header = '';
-    if (currentTitle) {
-      header = `🎬 ${currentTitle}${currentAngle ? ` • [${currentAngle}]` : ''}\n\n`;
-    }
-    return header + segments.map((s, idx) => `[Bagian ${idx + 1}] "${s}"`).join('\n\n');
-  }
-
-  // If dialogue hasn't started yet, show visual direction or title
-  const visualRegex = /"visualDirection"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/g;
-  const visuals: string[] = [];
-  let vMatch: RegExpExecArray | null;
-  while ((vMatch = visualRegex.exec(raw)) !== null) {
-    const vText = vMatch[1].replace(/\\"/g, '"').trim();
-    if (vText) visuals.push(vText);
-  }
-
-  if (visuals.length > 0) {
-    return (currentTitle ? `🎬 ${currentTitle}\n\n` : '') + `👁️ Arahan Visual: "${visuals[visuals.length - 1]}"`;
-  }
-
-  if (currentTitle) {
-    return `🎬 ${currentTitle}${currentAngle ? ` (${currentAngle})` : ''}\n\nMenulis kalimat pembuka hook...`;
-  }
-
-  // Fallback: clean raw syntax into readable words
-  return raw
-    .replace(/[\[\]\{\}"]/g, ' ')
-    .replace(/(?:id|title|angle|persona|differentiator|hookType|triggers|estimatedDurationSeconds|spokenWordCount|durationStatus|segments|timeRange|segmentName|visualDirection|spokenDialogue|overlayText|strategyNote|voiceoverOnly|qualityChecklist|warnings)\s*:/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 export default function App() {
   const [productBrief, setProductBrief] = useState<ProductBrief>(INITIAL_BRIEF);
@@ -1211,48 +1159,50 @@ export default function App() {
           {/* TAHAP 4: SKRIP (Muncul saat streaming atau skrip sudah siap) */}
           {currentStep === 4 && isScriptsUnlocked && (
             <div className="animate-in fade-in duration-150 space-y-3.5">
-              {/* LIVE STREAMING TYPEWRITER CARD (Time to First Token 1-2 detik) */}
+              {/* INDIKATOR STREAMING AKTIF MELAYANG (FLOATING SINGLE-ROW BUTTON) */}
               {isGenerating && (
-                <div className="bg-gradient-to-br from-indigo-950/40 via-purple-950/25 to-slate-900/60 dark:from-indigo-950/70 dark:via-purple-950/40 dark:to-black/80 rounded-[22px] border-2 border-[#007AFF]/40 dark:border-[#0A84FF]/40 p-4 sm:p-5 shadow-lg space-y-3.5 relative overflow-hidden backdrop-blur-md">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-pulse" />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                <div className="sticky top-14 sm:top-16 z-30 py-1 transition-all duration-300">
+                  <div className="mx-auto max-w-lg w-full bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-xl border border-[#007AFF]/35 dark:border-[#0A84FF]/40 shadow-[0_8px_24px_rgba(0,122,255,0.18)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.6)] rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2.5 text-xs">
+                    {/* Animasi sederhana menulis skrip & keterangan pengerjaan */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#007AFF] opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#007AFF]"></span>
                       </span>
-                      <span className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                        <span>AI Sedang Mengetik Skrip Real-Time</span>
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20">
-                          Streaming Aktif (Latency ~1s)
+                      <div className="flex items-center gap-1.5 font-semibold text-[#1C1C1E] dark:text-white truncate">
+                        <PenLine className="w-3.5 h-3.5 text-[#007AFF] animate-bounce shrink-0" style={{ animationDuration: '1.2s' }} />
+                        <span className="truncate text-xs">
+                          {scripts.length === 0
+                            ? 'Sedang menulis konsep skrip pertama...'
+                            : `Sedang menulis skrip ke-${scripts.length + 1}...`}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Keterangan jumlah sudah dibuat & sisa skrip */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#0A84FF] border border-[#007AFF]/25 tabular-nums">
+                        {scripts.length} selesai • Sisa {Math.max(0, config.scriptCount - scripts.length)}
                       </span>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                      <span>{scripts.length} dari {config.scriptCount} konsep siap</span>
-                    </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Typewriter Preview Box */}
-                  <div className="bg-white/90 dark:bg-black/70 rounded-xl p-3.5 border border-slate-200/80 dark:border-white/10 font-mono text-xs sm:text-sm leading-relaxed max-h-52 overflow-y-auto shadow-inner text-slate-800 dark:text-slate-200 select-text whitespace-pre-wrap">
-                    {streamingLiveText ? (
-                      <>
-                        {cleanStreamingPreviewText(streamingLiveText)}
-                        <span className="inline-block w-2 h-4 ml-1 bg-[#007AFF] animate-pulse align-middle" />
-                      </>
-                    ) : (
-                      <span className="text-slate-400 italic flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" />
-                        Menghubungkan ke Gemini 3 Flash... Kata pertama muncul dalam 1–2 detik
-                      </span>
-                    )}
+              {/* Tampilan awal saat skrip pertama sedang dirancang (0 skrip siap) */}
+              {isGenerating && scripts.length === 0 && (
+                <div className="bg-white/70 dark:bg-[#1C1C1E]/70 rounded-[22px] border border-dashed border-[#007AFF]/30 p-8 text-center space-y-3 backdrop-blur-sm animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-[#007AFF]/10 text-[#007AFF] mx-auto flex items-center justify-center">
+                    <PenLine className="w-6 h-6 animate-bounce" />
                   </div>
-
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>Setiap konsep yang selesai langsung tampil di bawah dan bisa langsung Anda edit manual!</span>
-                  </p>
+                  <div>
+                    <h4 className="text-sm font-bold text-[#1C1C1E] dark:text-white">
+                      Memulai Penulisan Skrip Affiliate
+                    </h4>
+                    <p className="text-xs text-[#8E8E93] max-w-md mx-auto mt-1">
+                      Gemini sedang merancang konsep video dengan hook scroll-stopper dan arahan visual B-roll. Setiap konsep yang selesai langsung tampil di bawah dan siap diedit manual!
+                    </p>
+                  </div>
                 </div>
               )}
 

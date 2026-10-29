@@ -1188,11 +1188,15 @@ export async function directGenerateScriptsStream(params: {
   const batchCounts: number[] = [];
   let remaining = totalCount;
   while (remaining > 0) {
-    if (remaining === 4) {
-      batchCounts.push(2, 2);
+    if (remaining === 1) {
+      batchCounts.push(1);
       break;
     }
-    const size = Math.min(remaining, 3);
+    if (remaining === 3) {
+      batchCounts.push(2, 1);
+      break;
+    }
+    const size = 2; // Batches of 2 provide immediate TTFT and fast 1st script delivery on mobile
     batchCounts.push(size);
     remaining -= size;
   }
