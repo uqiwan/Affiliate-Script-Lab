@@ -1685,6 +1685,57 @@ export function normalizeRawScripts(
 }
 
 /**
+ * Safely extracts all completed JSON objects from an in-flight streaming JSON array string.
+ * Tracks nested curly brace depth while skipping string literals, enabling instant extraction
+ * of Concept #1, #2, etc. as soon as its closing brace '}' arrives from the Gemini stream.
+ */
+export function extractCompletedJsonObjects(text: string): any[] {
+  if (!text) return [];
+  const objects: any[] = [];
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  let startIndex = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === '{') {
+        if (depth === 0) {
+          startIndex = i;
+        }
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0 && startIndex !== -1) {
+          const candidate = text.slice(startIndex, i + 1);
+          try {
+            const parsed = JSON.parse(candidate);
+            if (parsed && typeof parsed === 'object') {
+              objects.push(parsed);
+            }
+          } catch {}
+          startIndex = -1;
+        }
+      }
+    }
+  }
+  return objects;
+}
+
+/**
  * Extracts and parses complete script items from raw text (streaming or batch).
  */
 export function extractScriptsFromRawText(
@@ -1705,22 +1756,13 @@ export function extractScriptsFromRawText(
         parsed = JSON.parse(match[0]);
       }
     } catch {
-      // Find individual closed JSON objects containing "segments"
-      const objRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*"segments"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/g;
-      const matches = rawText.match(objRegex);
-      if (matches) {
-        const found: any[] = [];
-        for (const m of matches) {
-          try {
-            const obj = JSON.parse(m);
-            if (obj && (obj.segments || obj.spokenDialogue || obj.title)) {
-              found.push(obj);
-            }
-          } catch {}
-        }
-        if (found.length > 0) parsed = found;
-      }
+      // Find individual closed JSON objects using balanced brace parser
+      parsed = extractCompletedJsonObjects(rawText);
     }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    parsed = extractCompletedJsonObjects(rawText);
   }
 
   if (!Array.isArray(parsed)) {
@@ -1886,23 +1928,27 @@ async function generateBatchOfScriptsStream(params: {
       },
       customApiKey,
       (chunk) => {
+        accumulatedText += chunk;
         if (onChunk) onChunk(chunk);
-        // Attempt progressive object extraction as tokens arrive
-        if (onScriptReady && accumulatedText.length > 250) {
-          const partial = extractScriptsFromRawText(
-            accumulatedText,
-            productBrief,
-            config,
-            assignedAngles,
-            startIndex,
-            targetWords
-          );
-          partial.forEach((item, pIdx) => {
-            if (!emittedIndices.has(pIdx) && item.segments && item.segments.length >= 3) {
-              emittedIndices.add(pIdx);
-              onScriptReady(item);
-            }
-          });
+        // Attempt progressive object extraction as tokens arrive in real-time
+        if (onScriptReady && accumulatedText.length > 150) {
+          const completedObjs = extractCompletedJsonObjects(accumulatedText);
+          if (completedObjs.length > 0) {
+            const partial = normalizeRawScripts(
+              completedObjs,
+              productBrief,
+              config,
+              assignedAngles,
+              startIndex,
+              targetWords
+            );
+            partial.forEach((item, pIdx) => {
+              if (!emittedIndices.has(pIdx) && item.segments && item.segments.length >= 3) {
+                emittedIndices.add(pIdx);
+                onScriptReady(item);
+              }
+            });
+          }
         }
       },
       45000

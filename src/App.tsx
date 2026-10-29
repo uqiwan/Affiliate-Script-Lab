@@ -288,19 +288,57 @@ function getFriendlyErrorMessage(err: any, fallbackMessage: string): string {
 
 function cleanStreamingPreviewText(raw: string): string {
   if (!raw) return '';
-  const dialogueMatches = raw.match(/"spokenDialogue"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g);
-  if (dialogueMatches && dialogueMatches.length > 0) {
-    const dialogues = dialogueMatches
-      .map((m) => {
-        const match = m.match(/"spokenDialogue"\s*:\s*"([\s\S]*)"/);
-        return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : '';
-      })
-      .filter(Boolean);
-    if (dialogues.length > 0) {
-      return dialogues.join('\n\n');
+
+  // Extract title if available
+  const titleMatch = raw.match(/"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/);
+  const currentTitle = titleMatch ? titleMatch[1].replace(/\\"/g, '"').trim() : '';
+
+  // Extract angle if available
+  const angleMatch = raw.match(/"angle"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/);
+  const currentAngle = angleMatch ? angleMatch[1].replace(/\\"/g, '"').trim() : '';
+
+  // Extract all spokenDialogue segments (including the active in-flight segment currently being typed)
+  const segments: string[] = [];
+  const dialogueRegex = /"spokenDialogue"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/g;
+  let dMatch: RegExpExecArray | null;
+  while ((dMatch = dialogueRegex.exec(raw)) !== null) {
+    const text = dMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').trim();
+    if (text) {
+      segments.push(text);
     }
   }
-  return raw.replace(/^\[\s*\{?/, '').replace(/[\{\}\[\]"]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (segments.length > 0) {
+    let header = '';
+    if (currentTitle) {
+      header = `🎬 ${currentTitle}${currentAngle ? ` • [${currentAngle}]` : ''}\n\n`;
+    }
+    return header + segments.map((s, idx) => `[Bagian ${idx + 1}] "${s}"`).join('\n\n');
+  }
+
+  // If dialogue hasn't started yet, show visual direction or title
+  const visualRegex = /"visualDirection"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"?/g;
+  const visuals: string[] = [];
+  let vMatch: RegExpExecArray | null;
+  while ((vMatch = visualRegex.exec(raw)) !== null) {
+    const vText = vMatch[1].replace(/\\"/g, '"').trim();
+    if (vText) visuals.push(vText);
+  }
+
+  if (visuals.length > 0) {
+    return (currentTitle ? `🎬 ${currentTitle}\n\n` : '') + `👁️ Arahan Visual: "${visuals[visuals.length - 1]}"`;
+  }
+
+  if (currentTitle) {
+    return `🎬 ${currentTitle}${currentAngle ? ` (${currentAngle})` : ''}\n\nMenulis kalimat pembuka hook...`;
+  }
+
+  // Fallback: clean raw syntax into readable words
+  return raw
+    .replace(/[\[\]\{\}"]/g, ' ')
+    .replace(/(?:id|title|angle|persona|differentiator|hookType|triggers|estimatedDurationSeconds|spokenWordCount|durationStatus|segments|timeRange|segmentName|visualDirection|spokenDialogue|overlayText|strategyNote|voiceoverOnly|qualityChecklist|warnings)\s*:/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export default function App() {

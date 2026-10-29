@@ -620,6 +620,9 @@ const IosAnimatedSwitch: React.FC<IosAnimatedSwitchProps> = ({
 export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
   config,
   onChange,
+  onGenerate,
+  isGenerating,
+  disabled,
   productBrief,
   onBackToBrief,
   user,
@@ -1327,9 +1330,60 @@ export const GeneratorConfigPanel: React.FC<GeneratorConfigPanelProps> = ({
         </div>
       )}
 
+      {/* Primary Action Button: Buat Skrip Video Real-Time Streaming */}
+      <div className="bg-gradient-to-r from-[#007AFF]/10 via-[#5856D6]/10 to-[#34C759]/10 p-4 sm:p-5 rounded-[22px] border border-[#007AFF]/20 space-y-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#007AFF]" />
+              <span>Siap Membuat {config.scriptCount} Konsep Skrip Video</span>
+            </div>
+            <p className="text-xs text-[#8E8E93] mt-0.5">
+              Mode streaming real-time aktif (TTFT 1–2s). Teks skrip langsung muncul kata demi kata.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (isAuthLocked && !hasApiKey) {
+                onRequireAuthOrKey();
+              } else if (!isGenerating && onGenerate) {
+                onGenerate();
+              }
+            }}
+            disabled={isGenerating || disabled}
+            className={`h-12 px-6 rounded-[14px] text-xs sm:text-sm font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0 ${
+              isGenerating
+                ? 'bg-[#007AFF]/70 cursor-wait'
+                : isAuthLocked && !hasApiKey
+                ? 'bg-amber-500 hover:bg-amber-600'
+                : 'bg-gradient-to-r from-[#007AFF] via-[#5856D6] to-[#007AFF] hover:opacity-95 shadow-[#007AFF]/25'
+            }`}
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span>AI Sedang Mengetik Skrip...</span>
+              </>
+            ) : isAuthLocked && !hasApiKey ? (
+              <>
+                <Lock className="w-4 h-4" />
+                <span>Atur API Key untuk Mulai</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 fill-white text-white" />
+                <span>Buat {config.scriptCount} Skrip Streaming Sekarang</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Action Bar: Navigasi Kembali */}
       {onBackToBrief && (
-        <div className="pt-2 flex items-center justify-start">
+        <div className="pt-1 flex items-center justify-start">
           <button
             type="button"
             onClick={onBackToBrief}

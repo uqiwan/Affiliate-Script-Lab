@@ -322,16 +322,25 @@ app.post('/api/generate-scripts-stream', async (req: Request, res: Response) => 
       onChunk: (text) => {
         try {
           res.write(`event: chunk\ndata: ${JSON.stringify({ text })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
         } catch {}
       },
       onScriptReady: (script) => {
         try {
           res.write(`event: script\ndata: ${JSON.stringify({ script })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
         } catch {}
       },
     });
 
     res.write(`event: done\ndata: ${JSON.stringify({ productBrief, scripts })}\n\n`);
+    if (typeof (res as any).flush === 'function') {
+      (res as any).flush();
+    }
     res.end();
   } catch (error: any) {
     const msg = error?.message || 'Terjadi kesalahan saat memproduksi skrip.';

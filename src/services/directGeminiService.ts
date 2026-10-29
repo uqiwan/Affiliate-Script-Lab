@@ -1323,26 +1323,56 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
       try {
         rawScripts = JSON.parse(cleanJsonString(text));
       } catch {
-        const match = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (match) {
-          try {
+        try {
+          const match = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (match) {
             rawScripts = JSON.parse(match[0]);
-          } catch {}
-        }
+          }
+        } catch {}
       }
 
       if (!Array.isArray(rawScripts) || rawScripts.length === 0) {
-        // Find individual closed JSON objects
-        const objRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*"segments"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/g;
-        const matches = text.match(objRegex);
-        if (matches) {
-          for (const m of matches) {
-            try {
-              const obj = JSON.parse(m);
-              if (obj && obj.segments) rawScripts.push(obj);
-            } catch {}
+        // Find individual closed JSON objects using balanced brace extraction
+        const objects: any[] = [];
+        let depth = 0;
+        let inString = false;
+        let escapeNext = false;
+        let startIndex = -1;
+
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          if (char === '\\' && inString) {
+            escapeNext = true;
+            continue;
+          }
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          if (!inString) {
+            if (char === '{') {
+              if (depth === 0) startIndex = i;
+              depth++;
+            } else if (char === '}') {
+              depth--;
+              if (depth === 0 && startIndex !== -1) {
+                const candidate = text.slice(startIndex, i + 1);
+                try {
+                  const parsed = JSON.parse(candidate);
+                  if (parsed && typeof parsed === 'object') {
+                    objects.push(parsed);
+                  }
+                } catch {}
+                startIndex = -1;
+              }
+            }
           }
         }
+        if (objects.length > 0) rawScripts = objects;
       }
 
       if (!Array.isArray(rawScripts)) return [];
@@ -1410,8 +1440,9 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         responseMimeType: 'application/json',
         maxOutputTokens: 4096,
         onChunk: (chunk) => {
+          accumulatedText += chunk;
           if (onChunk) onChunk(chunk);
-          if (onScriptReady && accumulatedText.length > 250) {
+          if (onScriptReady && accumulatedText.length > 150) {
             const parsed = parseAndEmitScripts(accumulatedText);
             parsed.forEach((script, idx) => {
               if (!emittedIndices.has(idx) && script.segments && script.segments.length >= 3) {
