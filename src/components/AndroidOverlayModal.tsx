@@ -112,7 +112,7 @@ export const AndroidOverlayModal: React.FC<AndroidOverlayModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 animate-in fade-in duration-200">
       <div className="relative w-full max-w-xl rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl text-white overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-zinc-800 bg-zinc-950/70">

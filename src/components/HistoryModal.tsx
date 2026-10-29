@@ -67,7 +67,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 animate-in fade-in duration-150">
       <div
         className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] shadow-2xl border border-zinc-200 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}

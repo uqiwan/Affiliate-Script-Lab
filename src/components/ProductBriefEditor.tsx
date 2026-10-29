@@ -210,24 +210,21 @@ const ProductBriefEditorComponent: React.FC<ProductBriefEditorProps> = ({
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-10">
       {/* Main White Card Container */}
-      <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl border border-zinc-200/80 dark:border-[#38383A] shadow-xs p-5 sm:p-6 space-y-5">
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs p-5 sm:p-6 space-y-5">
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-[#2C2C2E]">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#34C759]/10 text-[#34C759] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-1.5 tracking-tight">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-1.5 tracking-tight">
                 <span>Product Brief Terverifikasi</span>
                 <InfoTooltip
                   title="Product Brief Terverifikasi"
                   content="Seluruh informasi fakta produk yang akan menjadi bahan skrip. Anda dapat mengedit, menambah, atau mengurangi teks secara bebas tanpa batasan."
                 />
               </h2>
-              <p className="text-xs text-zinc-500 dark:text-[#8E8E93] font-medium">
-                Semua kolom dapat diedit manual sepenuhnya (tekan Enter untuk baris baru, spasi bebas)
-              </p>
             </div>
           </div>
         </div>

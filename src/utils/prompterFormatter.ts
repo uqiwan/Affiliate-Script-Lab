@@ -258,6 +258,39 @@ export function formatConceptDisplayTitle(
   return `Konsep #${conceptNumber}: ${cleanTitle}`;
 }
 
+export function formatConceptDisplayParts(
+  conceptNumber: number,
+  title?: string,
+  angle?: string
+): { line1: string; line2: string } {
+  let cleanTitle = (title || '').trim();
+  const cleanAngle = (angle || '').trim();
+
+  cleanTitle = cleanTitle.replace(new RegExp(`^konsep\\s*(?:#?\\s*${conceptNumber})?\\s*[:\\-–—]?\\s*`, 'i'), '').trim();
+  cleanTitle = cleanTitle.replace(/^konsep\s*#?\d+\s*[:\\-–—]?\s*/i, '').trim();
+
+  if (!cleanTitle && cleanAngle) {
+    cleanTitle = cleanAngle;
+  }
+  if (!cleanTitle) {
+    cleanTitle = 'Skrip Affiliate';
+  }
+
+  let line2 = cleanTitle;
+  if (
+    cleanAngle &&
+    cleanAngle.toLowerCase() !== cleanTitle.toLowerCase() &&
+    !cleanTitle.toLowerCase().includes(cleanAngle.toLowerCase())
+  ) {
+    line2 = `${cleanTitle} (${cleanAngle})`;
+  }
+
+  return {
+    line1: `KONSEP #${conceptNumber}`,
+    line2,
+  };
+}
+
 function classifyWordToken(word: string, productKeywords: string[]): PrompterToken {
   // Bersihkan simbol untuk pengecekan kata
   const strippedWord = word.replace(/[^\w]/g, '').toUpperCase();

@@ -40,7 +40,7 @@ export const UnauthorizedDomainModal: React.FC<UnauthorizedDomainModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-zinc-200 overflow-hidden space-y-0">
         {/* Header */}
         <div className="p-4 border-b border-zinc-100 flex items-center justify-between bg-amber-50/80">

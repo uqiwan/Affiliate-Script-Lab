@@ -89,6 +89,8 @@ import {
   Film,
   Loader2,
   PenLine,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export type StepNumber = 1 | 2 | 3 | 4;
@@ -298,6 +300,7 @@ export default function App() {
   // Workflow Stage State
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
   const [isBriefApproved, setIsBriefApproved] = useState<boolean>(false);
+  const [showBulkActions, setShowBulkActions] = useState<boolean>(false);
 
   // Loading & In-flight request deduplication states
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -1073,13 +1076,13 @@ export default function App() {
         onToggleSettingsSheet={setSettingsSheetOpen}
       />
 
-      {/* Toast Notification (iOS Capsule Style) */}
+      {/* Toast Notification (Solid Pill Style) */}
       {toastMessage && (
         <div className="fixed top-16 sm:top-20 inset-x-0 mx-auto max-w-sm z-50 flex items-center justify-center pointer-events-none px-4">
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-2xl border border-black/5 dark:border-white/10 text-xs sm:text-sm font-semibold bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-xl text-[#1C1C1E] dark:text-white pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
-            {toastMessage.type === 'success' && <CheckCircle className="w-4 h-4 text-[#34C759]" />}
-            {toastMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-[#FF3B30]" />}
-            {toastMessage.type === 'info' && <Sparkles className="w-4 h-4 text-[#007AFF]" />}
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-xl border border-slate-200 dark:border-zinc-800 text-xs sm:text-sm font-semibold bg-white dark:bg-[#1C1C1E] text-slate-900 dark:text-white pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
+            {toastMessage.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+            {toastMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
+            {toastMessage.type === 'info' && <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
             <span>{toastMessage.text}</span>
           </div>
         </div>
@@ -1163,18 +1166,18 @@ export default function App() {
           {/* TAHAP 4: SKRIP (Muncul saat streaming atau skrip sudah siap) */}
           {currentStep === 4 && isScriptsUnlocked && (
             <div className="animate-in fade-in duration-150 space-y-3.5">
-              {/* INDIKATOR STREAMING AKTIF MELAYANG (FLOATING SINGLE-ROW BUTTON) */}
+              {/* INDIKATOR STREAMING AKTIF MELAYANG (SOLID MODERN PILL) */}
               {isGenerating && (
                 <div className="sticky top-14 sm:top-16 z-30 py-1 transition-all duration-300">
-                  <div className="mx-auto max-w-lg w-full bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-xl border border-[#007AFF]/35 dark:border-[#0A84FF]/40 shadow-[0_8px_24px_rgba(0,122,255,0.18)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.6)] rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2.5 text-xs">
+                  <div className="mx-auto max-w-lg w-full bg-white dark:bg-[#1C1C1E] border border-blue-500/40 shadow-lg rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2.5 text-xs">
                     {/* Animasi sederhana menulis skrip & keterangan pengerjaan */}
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#007AFF] opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#007AFF]"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-600 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
                       </span>
-                      <div className="flex items-center gap-1.5 font-semibold text-[#1C1C1E] dark:text-white truncate">
-                        <PenLine className="w-3.5 h-3.5 text-[#007AFF] animate-bounce shrink-0" style={{ animationDuration: '1.2s' }} />
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white truncate">
+                        <PenLine className="w-3.5 h-3.5 text-blue-600 animate-bounce shrink-0" style={{ animationDuration: '1.2s' }} />
                         <span className="truncate text-xs">
                           {scripts.length === 0
                             ? 'Sedang menulis konsep skrip pertama...'
@@ -1185,7 +1188,7 @@ export default function App() {
 
                     {/* Keterangan jumlah sudah dibuat & sisa skrip */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#007AFF]/10 text-[#007AFF] dark:bg-[#007AFF]/20 dark:text-[#0A84FF] border border-[#007AFF]/25 tabular-nums">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 tabular-nums">
                         {scripts.length} selesai • Sisa {Math.max(0, config.scriptCount - scripts.length)}
                       </span>
                     </div>
@@ -1195,15 +1198,15 @@ export default function App() {
 
               {/* Tampilan awal saat skrip pertama sedang dirancang (0 skrip siap) */}
               {isGenerating && scripts.length === 0 && (
-                <div className="bg-white/70 dark:bg-[#1C1C1E]/70 rounded-[22px] border border-dashed border-[#007AFF]/30 p-8 text-center space-y-3 backdrop-blur-sm animate-pulse">
-                  <div className="w-12 h-12 rounded-full bg-[#007AFF]/10 text-[#007AFF] mx-auto flex items-center justify-center">
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-dashed border-blue-300 dark:border-blue-700/50 p-8 text-center space-y-3 shadow-xs animate-pulse">
+                  <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
                     <PenLine className="w-6 h-6 animate-bounce" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-[#1C1C1E] dark:text-white">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                       Memulai Penulisan Skrip Affiliate
                     </h4>
-                    <p className="text-xs text-[#8E8E93] max-w-md mx-auto mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
                       Gemini sedang merancang konsep video dengan hook scroll-stopper dan arahan visual B-roll. Setiap konsep yang selesai langsung tampil di bawah dan siap diedit manual!
                     </p>
                   </div>
@@ -1212,14 +1215,14 @@ export default function App() {
 
               {/* Live Streaming Progress Banner while concepts are generating */}
               {isGenerating && scripts.length > 0 && (
-                <div className="bg-[#007AFF]/10 border border-[#007AFF]/25 dark:border-[#007AFF]/35 rounded-[18px] p-3.5 flex items-center justify-between text-xs text-[#007AFF] font-medium shadow-xs">
+                <div className="bg-white dark:bg-[#1C1C1E] border border-blue-200 dark:border-blue-800 rounded-xl p-3.5 flex items-center justify-between text-xs text-blue-700 dark:text-blue-300 font-medium shadow-xs">
                   <div className="flex items-center gap-2.5">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#007AFF] shrink-0" />
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
                     <span>
                       Sedang meracik konsep berikutnya... (<strong>{scripts.length}</strong> dari <strong>{config.scriptCount}</strong> konsep siap)
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold tracking-wider uppercase bg-[#007AFF] text-white px-2.5 py-0.5 rounded-full shadow-xs shrink-0">
+                  <span className="text-[10px] font-bold tracking-wider uppercase bg-blue-600 text-white px-2.5 py-0.5 rounded-full shadow-xs shrink-0">
                     Live Stream
                   </span>
                 </div>
@@ -1227,87 +1230,110 @@ export default function App() {
 
               {/* Toolbar Aksi Skrip (Tampil saat minimal 1 konsep sudah selesai) */}
               {scripts.length > 0 && (
-              <div className="bg-white dark:bg-[#1C1C1E] rounded-[22px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs p-4 sm:p-5 space-y-3">
-                {/* Header Info */}
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-[12px] bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center shrink-0">
-                    <Film className="w-5 h-5" />
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs p-4 sm:p-5 space-y-3">
+                {/* Header Info dengan Toggle Opsi Tersembunyi */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Film className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5 tracking-tight">
+                        <span>{scripts.length} Konsep Skrip Siap Rekam</span>
+                        <InfoTooltip
+                          title="Hasil Skrip Siap Rekam"
+                          content="Daftar konsep skrip video tersusun vertikal ke bawah dengan hook 3 detik, arahan visual B-roll, batas kata aman, dan ajakan bertindak (CTA) netral multi-platform."
+                        />
+                      </h3>
+                      <p className="text-[11px] text-[#8E8E93] font-medium truncate">
+                        Fokus pada skrip atau buka menu untuk opsi ekspor
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5 tracking-tight">
-                      <span>{scripts.length} Konsep Skrip Siap Rekam</span>
-                      <InfoTooltip
-                        title="Hasil Skrip Siap Rekam"
-                        content="Daftar konsep skrip video tersusun vertikal ke bawah dengan hook 3 detik, arahan visual B-roll, batas kata aman, dan ajakan bertindak (CTA) netral multi-platform."
-                      />
-                    </h3>
-                    <p className="text-[11px] text-[#8E8E93] font-medium">Siap diekspor atau dibaca di teleprompter</p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkActions(!showBulkActions)}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[10px] text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white transition-all cursor-pointer border border-black/5 dark:border-white/10 shrink-0 active:scale-95"
+                    title={showBulkActions ? 'Sembunyikan menu opsi massal' : 'Buka menu opsi massal'}
+                  >
+                    <span>{showBulkActions ? 'Tutup Opsi' : 'Opsi Massal'}</span>
+                    {showBulkActions ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-[#8E8E93]" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-[#8E8E93]" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Menu-menu opsi yang terbuka ketika diklik saja */}
+                {showBulkActions && (
+                  <div className="space-y-3 pt-2 border-t border-[#F2F2F7] dark:border-[#2C2C2E] animate-in fade-in duration-200">
+                    {/* 1. Tombol Arahan Visual Seluruh Konsep: Memanjang Penuh Rata Kiri-Kanan */}
+                    <button
+                      type="button"
+                      onClick={handleToggleAllVisuals}
+                      className={`w-full flex items-center justify-between h-10 px-4 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                        isAllVisuals
+                          ? 'bg-[#34C759] text-white border-[#34C759] shadow-xs hover:bg-[#30B753]'
+                          : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border-[#E5E5EA] dark:border-[#38383A]'
+                      }`}
+                      title={isAllVisuals ? 'Sembunyikan arahan visual semua konsep' : 'Tampilkan arahan visual semua konsep'}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-[#34C759] dark:text-[#30D158]" />
+                        <span>Arahan visual untuk semua konsep</span>
+                      </span>
+                      <span className="text-[11px] font-medium opacity-80">
+                        {isAllVisuals ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </button>
+
+                    {/* 2. Tombol Salin: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
+                    <div className="grid grid-cols-2 gap-2.5 w-full">
+                      <button
+                        type="button"
+                        onClick={handleCopyAllVoiceovers}
+                        className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
+                        title="Salin seluruh teks narasi suara saja"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <span>Semua Narasi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyAllScripts}
+                        className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
+                        title="Salin seluruh skrip lengkap (visual + dialog + overlay)"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-[#34C759]" />
+                        <span>Semua Skrip</span>
+                      </button>
+                    </div>
+
+                    {/* 3. Tombol Unduh: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
+                    <div className="grid grid-cols-2 gap-2.5 w-full">
+                      <button
+                        type="button"
+                        onClick={handleDownloadVoiceoversTxt}
+                        className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+                        title="Unduh file .txt teks narasi suara saja"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#34C759]" />
+                        <span>Unduh Narasi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadScriptsTxt}
+                        className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+                        title="Unduh file .txt naskah skrip lengkap"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <span>Unduh Skrip</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                {/* 1. Tombol Arahan Visual Seluruh Konsep: Memanjang Penuh Rata Kiri-Kanan */}
-                <button
-                  type="button"
-                  onClick={handleToggleAllVisuals}
-                  className={`w-full flex items-center justify-between h-10 px-4 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                    isAllVisuals
-                      ? 'bg-[#34C759] text-white border-[#34C759] shadow-xs hover:bg-[#30B753]'
-                      : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border-[#E5E5EA] dark:border-[#38383A]'
-                  }`}
-                  title={isAllVisuals ? 'Sembunyikan arahan visual semua konsep' : 'Tampilkan arahan visual semua konsep'}
-                >
-                  <span className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-[#34C759] dark:text-[#30D158]" />
-                    <span>Arahan visual untuk semua konsep</span>
-                  </span>
-                  <span className="text-[11px] font-medium opacity-80">
-                    {isAllVisuals ? 'Aktif' : 'Nonaktif'}
-                  </span>
-                </button>
-
-                {/* 2. Tombol Salin: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
-                <div className="grid grid-cols-2 gap-2.5 w-full">
-                  <button
-                    type="button"
-                    onClick={handleCopyAllVoiceovers}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
-                    title="Salin seluruh teks narasi suara saja"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-[#007AFF]" />
-                    <span>Semua Narasi</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopyAllScripts}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#F2F2F7] dark:bg-[#2C2C2E] hover:bg-[#E5E5EA] dark:hover:bg-[#38383A] text-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-[#38383A] transition-all cursor-pointer active:scale-[0.99]"
-                    title="Salin seluruh skrip lengkap (visual + dialog + overlay)"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-[#34C759]" />
-                    <span>Semua Skrip</span>
-                  </button>
-                </div>
-
-                {/* 3. Tombol Unduh: Memanjang Penuh Rata Kiri-Kanan (Semua Narasi & Semua Skrip) */}
-                <div className="grid grid-cols-2 gap-2.5 w-full">
-                  <button
-                    type="button"
-                    onClick={handleDownloadVoiceoversTxt}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
-                    title="Unduh file .txt teks narasi suara saja"
-                  >
-                    <Download className="w-3.5 h-3.5 text-[#34C759]" />
-                    <span>Semua Narasi</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadScriptsTxt}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-3 rounded-xl text-xs font-semibold bg-[#1C1C1E] dark:bg-[#2C2C2E] text-white hover:bg-black dark:hover:bg-[#38383A] border border-black/10 dark:border-white/10 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
-                    title="Unduh file .txt naskah skrip lengkap"
-                  >
-                    <Download className="w-3.5 h-3.5 text-[#007AFF]" />
-                    <span>Semua Skrip</span>
-                  </button>
-                </div>
+                )}
               </div>
               )}
 

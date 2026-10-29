@@ -144,7 +144,7 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
     <div className="fixed bottom-3 sm:bottom-4 inset-x-0 mx-auto max-w-lg px-3 sm:px-4 z-40 pointer-events-none">
       <nav
         aria-label="Tahapan Alur Gagaswara"
-        className="pointer-events-auto w-full bg-white/75 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/60 dark:border-white/15 shadow-[0_16px_44px_rgba(0,0,0,0.18),_inset_0_1px_1px_rgba(255,255,255,0.7)] rounded-[22px] p-1.5 flex items-stretch gap-1.5 select-none"
+        className="pointer-events-auto w-full bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-zinc-800 shadow-xl rounded-2xl p-1.5 flex items-stretch gap-1.5 select-none"
       >
         {/* ========================================================= */}
         {/* 1. TOMBOL ANALISIS (Tahap Sumber Info)                    */}
@@ -153,14 +153,14 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
           type="button"
           onClick={handleStep1}
           style={getChevronStyle(0)}
-          className={`group flex-1 h-13 py-1.5 pl-2.5 pr-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 cursor-pointer rounded-l-[14px] ${
+          className={`flex-1 h-12 py-1 pl-2.5 pr-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 cursor-pointer rounded-l-xl ${
             currentStep === 1
               ? isAnalyzing
-                ? 'bg-gradient-to-b from-[#6366F1]/90 via-[#4F46E5]/85 to-[#3B82F6]/90 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(79,70,229,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(30,27,75,0.35)] cursor-wait'
+                ? 'bg-indigo-600 text-white shadow-xs cursor-wait'
                 : !isInputValid
-                ? 'bg-gradient-to-b from-[#6366F1]/75 via-[#4F46E5]/70 to-[#3B82F6]/75 text-white/90 backdrop-blur-md shadow-[0_4px_12px_rgba(79,70,229,0.25),_inset_0_1px_1px_rgba(255,255,255,0.5),_inset_0_-2px_0px_rgba(30,27,75,0.3)]'
-                : 'bg-gradient-to-b from-[#6366F1]/95 via-[#4F46E5]/90 to-[#3B82F6]/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(79,70,229,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(30,27,75,0.4)] active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(79,70,229,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
-              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 active:translate-y-[1px]'
+                ? 'bg-indigo-600/70 text-white/90 shadow-xs'
+                : 'bg-indigo-600 text-white shadow-xs active:scale-95'
+              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200/80 dark:hover:bg-zinc-700 active:scale-95'
           }`}
           title={
             currentStep === 1
@@ -170,19 +170,16 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
               : 'Kembali ke tahap Sumber Info Produk'
           }
         >
-          {/* 3D Gloss / Sheen Highlight */}
-          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none rounded-t-lg" />
-
           {isAnalyzing && currentStep === 1 ? (
-            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5 relative z-10" />
+            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5" />
           ) : (
             <Sparkles
-              className={`w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] ${
-                currentStep === 1 && isInputValid ? 'text-amber-200' : ''
+              className={`w-4 h-4 mb-0.5 ${
+                currentStep === 1 && isInputValid ? 'text-amber-300' : ''
               }`}
             />
           )}
-          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+          <span className="text-[11px] font-bold tracking-tight">
             {isAnalyzing && currentStep === 1 ? 'Menganalisis' : 'Analisis'}
           </span>
         </button>
@@ -195,14 +192,14 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
           onClick={handleStep2}
           disabled={!isBriefUnlocked}
           style={getChevronStyle(1)}
-          className={`group flex-1 h-13 py-1.5 px-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 ${
+          className={`flex-1 h-12 py-1 px-3.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 ${
             !isBriefUnlocked
-              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              ? 'bg-slate-50 dark:bg-zinc-900/50 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
               : currentStep === 2
-              ? 'bg-gradient-to-b from-teal-500/95 via-emerald-600/90 to-teal-700/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(16,185,129,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(6,78,59,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(16,185,129,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
+              ? 'bg-emerald-600 text-white shadow-xs cursor-pointer active:scale-95'
               : isBriefApproved
-              ? 'bg-gradient-to-b from-emerald-50/85 via-emerald-100/50 to-emerald-200/35 dark:from-emerald-950/40 dark:via-emerald-900/25 dark:to-emerald-950/15 text-emerald-800 dark:text-emerald-300 backdrop-blur-md shadow-[0_2px_6px_rgba(16,185,129,0.08),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-emerald-100/90 hover:via-emerald-100/60 hover:to-emerald-200/45 dark:hover:from-emerald-900/40 cursor-pointer active:translate-y-[1px]'
-              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer active:scale-95'
+              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200/80 dark:hover:bg-zinc-700 cursor-pointer active:scale-95'
           }`}
           title={
             !isBriefUnlocked
@@ -212,15 +209,12 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
               : 'Lihat Product Brief'
           }
         >
-          {/* 3D Gloss / Sheen Highlight */}
-          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none" />
-
           {isBriefApproved ? (
-            <Check className="w-4 h-4 mb-0.5 text-emerald-300 stroke-[2.5] relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+            <Check className="w-4 h-4 mb-0.5 text-emerald-300 stroke-[2.5]" />
           ) : (
-            <FileText className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+            <FileText className="w-4 h-4 mb-0.5" />
           )}
-          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+          <span className="text-[11px] font-bold tracking-tight">
             Brief
           </span>
         </button>
@@ -233,16 +227,16 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
           onClick={handleStep3}
           disabled={!isConfigUnlocked}
           style={getChevronStyle(2)}
-          className={`group flex-1 h-13 py-1.5 px-3 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 ${
+          className={`flex-1 h-12 py-1 px-3 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 ${
             !isConfigUnlocked
-              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              ? 'bg-slate-50 dark:bg-zinc-900/50 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
               : currentStep === 3
               ? isGenerating
-                ? 'bg-gradient-to-b from-[#7C3AED]/90 via-[#6366F1]/85 to-[#3B82F6]/90 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(124,58,237,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(46,16,101,0.35)] cursor-wait'
+                ? 'bg-blue-600 text-white shadow-xs cursor-wait'
                 : isAuthLocked
-                ? 'bg-gradient-to-b from-amber-500/95 via-orange-500/90 to-amber-600/95 text-white backdrop-blur-md shadow-[0_6px_18px_rgba(249,115,22,0.35),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(124,45,18,0.35)] cursor-pointer active:translate-y-[2px]'
-                : 'bg-gradient-to-b from-[#7C3AED]/95 via-[#6366F1]/90 to-[#3B82F6]/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(124,58,237,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(46,16,101,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(124,58,237,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
-              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+                ? 'bg-amber-600 text-white shadow-xs cursor-pointer active:scale-95'
+                : 'bg-blue-600 text-white shadow-xs cursor-pointer active:scale-95'
+              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200/80 dark:hover:bg-zinc-700 cursor-pointer active:scale-95'
           }`}
           title={
             !isConfigUnlocked
@@ -254,17 +248,14 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
               : 'Lihat Setelan Skrip'
           }
         >
-          {/* 3D Gloss / Sheen Highlight */}
-          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none" />
-
           {isGenerating && currentStep === 3 ? (
-            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5 relative z-10" />
+            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mb-0.5" />
           ) : isAuthLocked && currentStep === 3 ? (
-            <Lock className="w-4 h-4 mb-0.5 text-white relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+            <Lock className="w-4 h-4 mb-0.5 text-white" />
           ) : (
-            <Wand2 className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
+            <Wand2 className="w-4 h-4 mb-0.5" />
           )}
-          <span className="text-[11px] font-bold tracking-tight truncate max-w-full relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+          <span className="text-[11px] font-bold tracking-tight truncate max-w-full">
             {isGenerating && currentStep === 3 ? 'Membuat...' : 'Buat Skrip'}
           </span>
         </button>
@@ -277,12 +268,12 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
           onClick={handleStep4}
           disabled={!isScriptsUnlocked}
           style={getChevronStyle(3)}
-          className={`group flex-1 h-13 py-1.5 pl-3.5 pr-2.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-200 rounded-r-[14px] ${
+          className={`flex-1 h-12 py-1 pl-3.5 pr-2.5 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 rounded-r-xl ${
             !isScriptsUnlocked
-              ? 'bg-gradient-to-b from-black/[0.04] to-black/[0.01] dark:from-white/[0.04] dark:to-white/[0.01] text-[#8E8E93]/40 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+              ? 'bg-slate-50 dark:bg-zinc-900/50 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
               : currentStep === 4
-              ? 'bg-gradient-to-b from-amber-500/95 via-orange-500/90 to-amber-600/95 text-white backdrop-blur-md shadow-[0_6px_20px_rgba(249,115,22,0.4),_inset_0_1px_1px_rgba(255,255,255,0.7),_inset_0_-3px_0px_rgba(124,45,18,0.4)] cursor-pointer active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(249,115,22,0.3),_inset_0_2px_4px_rgba(0,0,0,0.3)]'
-              : 'bg-gradient-to-b from-white/85 via-white/60 to-white/40 dark:from-white/12 dark:via-white/8 dark:to-white/4 text-zinc-800 dark:text-zinc-200 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.05),_inset_0_1px_1px_rgba(255,255,255,0.85),_inset_0_-2px_0px_rgba(0,0,0,0.08)] hover:from-white/95 hover:via-white/70 hover:to-white/50 dark:hover:from-white/18 dark:hover:to-white/8 cursor-pointer active:translate-y-[1px]'
+              ? 'bg-amber-600 text-white shadow-xs cursor-pointer active:scale-95'
+              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200/80 dark:hover:bg-zinc-700 cursor-pointer active:scale-95'
           }`}
           title={
             !isScriptsUnlocked
@@ -292,15 +283,12 @@ const FloatingBottomNavComponent: React.FC<FloatingBottomNavProps> = ({
               : 'Lihat Hasil Skrip'
           }
         >
-          {/* 3D Gloss / Sheen Highlight */}
-          <span className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/35 via-white/10 to-transparent pointer-events-none rounded-t-lg" />
-
-          <MonitorPlay className="w-4 h-4 mb-0.5 relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" />
-          <span className="text-[11px] font-bold tracking-tight relative z-10 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+          <MonitorPlay className="w-4 h-4 mb-0.5" />
+          <span className="text-[11px] font-bold tracking-tight">
             Prompter
           </span>
           {scriptsCount > 0 && (
-            <span className="absolute top-1.5 right-2 text-[9px] font-extrabold bg-gradient-to-b from-white to-amber-100 text-[#FF9500] rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1 shadow-[0_2px_5px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.9)] z-20">
+            <span className="absolute top-1 right-2 text-[9px] font-bold bg-white text-amber-700 rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1 shadow-xs">
               {scriptsCount}
             </span>
           )}

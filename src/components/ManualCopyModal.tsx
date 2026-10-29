@@ -38,7 +38,7 @@ export const ManualCopyModal: React.FC<ManualCopyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-zinc-200 p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
           <h3 className="text-sm sm:text-base font-bold text-zinc-900">{title}</h3>

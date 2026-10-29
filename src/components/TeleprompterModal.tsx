@@ -29,6 +29,7 @@ import {
   buildPrompterConcept,
   extractProductKeywords,
   formatConceptDisplayTitle,
+  formatConceptDisplayParts,
   PrompterConcept,
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
@@ -499,7 +500,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             top: `${minimizedPos.y}px`,
             touchAction: 'none',
           }}
-          className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-[16px] bg-[#1C1C1E]/95 text-white border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl select-none"
+          className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-[#1C1C1E] text-white border border-zinc-700 shadow-2xl select-none"
         >
           {/* 1. Tombol Geser di paling kiri sebelum teks "teleprompter Gagaswara" */}
           <button
@@ -561,8 +562,6 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
           backgroundColor:
             activeTheme.id === 'light_clean'
               ? `rgba(255, 255, 255, ${opacity / 100})`
-              : activeTheme.id === 'soft_comfort'
-              ? `rgba(24, 24, 27, ${opacity / 100})`
               : `rgba(0, 0, 0, ${opacity / 100})`,
           color: activeTheme.textColor,
         }}
@@ -572,7 +571,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
       <button
         type="button"
         onClick={onClose}
-        className="fixed top-3 right-3 sm:top-5 sm:right-5 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-2xl border-2 border-white/30 backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+        className="fixed top-3 right-3 sm:top-5 sm:right-5 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-2xl border-2 border-white/40 transition-all active:scale-90 cursor-pointer"
         title="Tutup Teleprompter (Esc)"
         aria-label="Tutup Teleprompter"
       >
@@ -624,7 +623,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             setIsCountingDown(false);
             setIsPlaying(true);
           }}
-          className="absolute inset-0 z-40 bg-black/85 backdrop-blur-xs flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-150"
+          className="absolute inset-0 z-40 bg-black/90 flex flex-col items-center justify-center cursor-pointer animate-in fade-in duration-150"
         >
           <div
             style={{ color: activeTheme.highlightColor }}
@@ -646,7 +645,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
               borderColor: activeTheme.highlightColor,
               color: activeTheme.highlightColor,
             }}
-            className="p-5 rounded-full bg-black/80 border shadow-2xl backdrop-blur-md"
+            className="p-5 rounded-full bg-black/90 border shadow-2xl"
           >
             {tapFeedback === 'play' ? (
               <Play className="w-10 h-10 fill-current" />
@@ -686,109 +685,131 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
               : 'max-w-4xl mx-auto'
           }`}
         >
-          {activeConcepts.map((concept) => (
-            <section
-              key={concept.id}
-              className="space-y-6 border-b border-zinc-800/40 pb-12 last:border-b-0"
-            >
-              {/* Pemisah Antar-Konsep Sesuai Tema */}
-              <div
-                style={{
-                  backgroundColor: activeTheme.cardBg,
-                  borderColor: activeTheme.cardBorder,
-                  color: activeTheme.cardTextColor,
-                }}
-                className="w-full my-4 p-4 sm:p-5 rounded-2xl border-2 shadow-xl flex flex-wrap items-center justify-between gap-3 select-none"
+          {activeConcepts.map((concept, cIdx) => {
+            const parts = formatConceptDisplayParts(concept.conceptNumber, concept.title, concept.angle);
+            return (
+              <section
+                key={concept.id}
+                className={`space-y-6 border-b border-zinc-800/40 pb-16 last:border-b-0 ${cIdx > 0 ? 'mt-16 pt-10' : ''}`}
               >
-                <div className="flex items-center gap-3">
-                  <span
-                    style={{ backgroundColor: activeTheme.highlightColor }}
-                    className="w-3.5 h-3.5 rounded-full ring-4 ring-black/10 shrink-0"
-                  />
-                  <h2
-                    style={{ color: activeTheme.cardTextColor }}
-                    className="text-base sm:text-lg md:text-xl font-black tracking-tight uppercase"
-                  >
-                    {formatConceptDisplayTitle(concept.conceptNumber, concept.title, concept.angle)}
-                  </h2>
-                </div>
+                {/* Jeda Khusus Antar-Konsep: Memberi Waktu Kreator Menekan Tombol Kamera */}
+                {cIdx > 0 && (
+                  <div className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/10 text-center select-none mb-6">
+                    <span className="text-xs sm:text-sm font-bold tracking-widest text-amber-400 uppercase">
+                      ⏱ Jeda Nafas & Siap Rekam Kamera Sebelum Konsep Berikutnya
+                    </span>
+                  </div>
+                )}
+
+                {/* Pemisah Antar-Konsep Sesuai Tema (2 Baris Lengkap) */}
                 <div
                   style={{
-                    color: activeTheme.secondaryTextColor,
-                    backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
+                    backgroundColor: activeTheme.cardBg,
                     borderColor: activeTheme.cardBorder,
+                    color: activeTheme.cardTextColor,
                   }}
-                  className="flex items-center gap-2 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-xl border shrink-0"
+                  className="w-full my-4 p-4 sm:p-5 rounded-2xl border-2 shadow-xl flex items-start justify-between gap-4 select-none"
                 >
-                  <span>±{concept.estimatedDuration}s</span>
-                  <span className="opacity-50">·</span>
-                  <span>{concept.wordCount || 0} kata</span>
-                </div>
-              </div>
-
-              {/* Teks Dialog dengan Spasi Antar-Bagian Lebih Lebar & Subtitle Jelas */}
-              <div className="space-y-6 sm:space-y-8">
-                {concept.lines.map((line) => (
-                  <div
-                    key={line.id}
-                    style={{
-                      fontSize: `${fontSize}px`,
-                      lineHeight: activePreset.lineHeight || '1.45',
-                      letterSpacing: activePreset.letterSpacing || 'normal',
-                      color: activeTheme.textColor,
-                      textShadow: activeTheme.id === 'light_clean' ? 'none' : activePreset.textShadow,
-                      fontWeight: activePreset.fontWeight,
-                      backgroundColor: activePreset.pillBg || 'transparent',
-                    }}
-                    className={`transition-all duration-150 tracking-wide ${
-                      activePreset.pillBg
-                        ? 'p-3 rounded-2xl ' + (activePreset.borderClass || '')
-                        : ''
-                    }`}
-                  >
-                    {line.tokens.map((token, tIdx) => {
-                      if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
-                        return (
-                          <span
-                            key={tIdx}
-                            style={{ color: activeTheme.highlightColor }}
-                            className="font-black uppercase tracking-wider"
-                          >
-                            {token.text}{' '}
-                          </span>
-                        );
-                      }
-                      if (token.type === 'pause-short') {
-                        return (
-                          <span
-                            key={tIdx}
-                            style={{ color: activeTheme.highlightColor }}
-                            className="font-bold mx-1.5 opacity-80 select-none"
-                            title="Jeda Intonasi"
-                          >
-                            /{' '}
-                          </span>
-                        );
-                      }
-                      if (token.type === 'pause-long') {
-                        return (
-                          <span
-                            key={tIdx}
-                            style={{ color: activeTheme.highlightColor }}
-                            className="font-black mx-1.5 opacity-90 select-none"
-                            title="Jeda Intonasi Panjang"
-                          >
-                            //{' '}
-                          </span>
-                        );
-                      }
-                      return <span key={tIdx}>{token.text} </span>;
-                    })}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <span
+                      style={{ backgroundColor: activeTheme.highlightColor }}
+                      className="w-3.5 h-3.5 rounded-full ring-4 ring-black/10 shrink-0 mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      {/* Baris 1: Nomor Konsep */}
+                      <div
+                        style={{ color: activeTheme.highlightColor }}
+                        className="text-xs sm:text-sm font-black tracking-wider uppercase leading-tight"
+                      >
+                        {parts.line1}
+                      </div>
+                      {/* Baris 2: Nama Formula & Sudut Skrip Lengkap */}
+                      <h2
+                        style={{ color: activeTheme.cardTextColor }}
+                        className="text-base sm:text-lg md:text-xl font-bold tracking-tight leading-snug mt-1 break-words"
+                      >
+                        {parts.line2}
+                      </h2>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </section>
-          ))}
+                  <div
+                    style={{
+                      color: activeTheme.secondaryTextColor,
+                      backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
+                      borderColor: activeTheme.cardBorder,
+                    }}
+                    className="flex items-center gap-2 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-xl border shrink-0 mt-0.5"
+                  >
+                    <span>±{concept.estimatedDuration}s</span>
+                    <span className="opacity-50">·</span>
+                    <span>{concept.wordCount || 0} kata</span>
+                  </div>
+                </div>
+
+                {/* Teks Dialog dengan Spasi Antar-Bagian Lebih Lebar & Subtitle Jelas */}
+                <div className="space-y-6 sm:space-y-8">
+                  {concept.lines.map((line) => (
+                    <div
+                      key={line.id}
+                      style={{
+                        fontSize: `${fontSize}px`,
+                        lineHeight: activePreset.lineHeight || '1.45',
+                        letterSpacing: activePreset.letterSpacing || 'normal',
+                        color: activeTheme.textColor,
+                        textShadow: activeTheme.id === 'light_clean' ? 'none' : activePreset.textShadow,
+                        fontWeight: activePreset.fontWeight,
+                        backgroundColor: activePreset.pillBg || 'transparent',
+                      }}
+                      className={`transition-all duration-150 tracking-wide ${
+                        activePreset.pillBg
+                          ? 'p-3 rounded-2xl ' + (activePreset.borderClass || '')
+                          : ''
+                      }`}
+                    >
+                      {line.tokens.map((token, tIdx) => {
+                        if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
+                          return (
+                            <span
+                              key={tIdx}
+                              style={{ color: activePreset.highlightColor }}
+                              className="font-black uppercase tracking-wider"
+                            >
+                              {token.text}{' '}
+                            </span>
+                          );
+                        }
+                        if (token.type === 'pause-short') {
+                          return (
+                            <span
+                              key={tIdx}
+                              style={{ color: activePreset.highlightColor }}
+                              className="font-bold mx-1.5 opacity-80 select-none"
+                              title="Jeda Intonasi"
+                            >
+                              /{' '}
+                            </span>
+                          );
+                        }
+                        if (token.type === 'pause-long') {
+                          return (
+                            <span
+                              key={tIdx}
+                              style={{ color: activePreset.highlightColor }}
+                              className="font-black mx-1.5 opacity-90 select-none"
+                              title="Jeda Intonasi Panjang"
+                            >
+                              //{' '}
+                            </span>
+                          );
+                        }
+                        return <span key={tIdx}>{token.text} </span>;
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
 
           {/* Buffer dasar agar baris terakhir tetap terbaca pada garis fokus kamera */}
           <div className="h-96 flex flex-col items-center justify-center text-zinc-600 text-xs font-semibold gap-2 border-t border-zinc-900 pt-8">
@@ -812,7 +833,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
         - Background abu-abu bergaya iOS dengan tombol sub-tab yang tampak aktif secara visual (tactile)
       */}
       {isSettingsOpen && !isPlaying && (
-        <div className="no-tap-toggle fixed right-3 sm:right-6 bottom-20 z-50 w-[75vw] max-w-[360px] sm:max-w-[400px] bg-zinc-800/95 border border-zinc-600/70 rounded-2xl p-4 shadow-2xl space-y-3.5 text-xs text-zinc-200 animate-in slide-in-from-right-2 duration-150 backdrop-blur-xl max-h-[calc(100dvh-6.5rem)] overflow-y-auto">
+        <div className="no-tap-toggle fixed right-3 sm:right-6 bottom-20 z-50 w-[75vw] max-w-[360px] sm:max-w-[400px] bg-zinc-900 border border-zinc-700 rounded-2xl p-4 shadow-2xl space-y-3.5 text-xs text-zinc-200 animate-in slide-in-from-right-2 duration-150 max-h-[calc(100dvh-6.5rem)] overflow-y-auto">
           {/* Header Panel */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-700/80">
             <span className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
@@ -1103,7 +1124,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
           backgroundColor: activeTheme.dockBg,
           borderTopColor: activeTheme.dockBorder,
         }}
-        className={`no-tap-toggle relative z-30 px-2 sm:px-4 py-2 border-t backdrop-blur-md shrink-0 pb-[max(env(safe-area-inset-bottom),8px)] transition-all duration-200 ${
+        className={`no-tap-toggle relative z-30 px-2 sm:px-4 py-2 border-t shrink-0 pb-[max(env(safe-area-inset-bottom),8px)] transition-all duration-200 ${
           isPlaying
             ? 'opacity-35 hover:opacity-100 focus-within:opacity-100'
             : 'opacity-100'

@@ -30,6 +30,7 @@ import {
   buildPrompterConcept,
   extractProductKeywords,
   formatConceptDisplayTitle,
+  formatConceptDisplayParts,
   PrompterConcept,
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
@@ -525,7 +526,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
             transformOrigin: 'center center',
           }}
-          className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-[16px] bg-[#1C1C1E]/95 dark:bg-[#1C1C1E]/95 text-white border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl select-none"
+          className="fixed z-[9999] flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-[#1C1C1E] text-white border border-zinc-700 shadow-2xl select-none"
         >
           {/* 1. Tombol Geser di paling kiri sebelum teks "teleprompter Gagaswara" */}
           <button
@@ -654,7 +655,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                 borderColor: activeTheme.highlightColor,
                 color: activeTheme.highlightColor,
               }}
-              className="p-4 rounded-full bg-black/80 border shadow-2xl backdrop-blur-md"
+              className="p-4 rounded-full bg-black/90 border shadow-2xl"
             >
               {tapFeedback === 'play' ? (
                 <Play className="w-7 h-7 fill-current" />
@@ -699,103 +700,126 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             }}
             className="transition-transform duration-200"
           >
-            {activeConcepts.map((concept, cIdx) => (
-              <div key={concept.id || cIdx} className="space-y-4 mb-8">
-                {/* Header Pemisah Konsep Sesuai Tema */}
-                <div
-                  style={{
-                    backgroundColor: activeTheme.cardBg,
-                    borderColor: activeTheme.cardBorder,
-                    color: activeTheme.cardTextColor,
-                  }}
-                  className="w-full my-2.5 p-2.5 rounded-xl border-2 shadow-md flex items-center justify-between gap-2 select-none"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      style={{ backgroundColor: activeTheme.highlightColor }}
-                      className="w-2.5 h-2.5 rounded-full ring-2 ring-black/10 shrink-0"
-                    />
-                    <h2
-                      style={{ color: activeTheme.cardTextColor }}
-                      className="text-xs sm:text-sm font-black tracking-tight uppercase truncate"
-                    >
-                      {formatConceptDisplayTitle(concept.conceptNumber, concept.title, concept.angle)}
-                    </h2>
-                  </div>
-                  <span
-                    style={{
-                      color: activeTheme.secondaryTextColor,
-                      backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
-                      borderColor: activeTheme.cardBorder,
-                    }}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0"
-                  >
-                    ±{concept.estimatedDuration}s
-                  </span>
-                </div>
-
-                {/* Baris Dialog dengan Spasi Antar-Bagian Lebih Luas */}
-                <div className="space-y-4 sm:space-y-5">
-                  {concept.lines.map((line, lIdx) => (
-                    <div
-                      key={line.id || lIdx}
-                      style={{
-                        fontSize: `${fontSize}px`,
-                        lineHeight: '1.45',
-                        color: activeTheme.textColor,
-                        textShadow: activeTheme.id === 'light_clean' ? 'none' : activePreset.textShadow,
-                        fontWeight: activePreset.fontWeight,
-                        backgroundColor: activePreset.pillBg || 'transparent',
-                      }}
-                      className={`transition-all duration-150 ${
-                        activePreset.pillBg ? 'px-2.5 py-1 rounded-xl ' + (activePreset.borderClass || '') : ''
-                      }`}
-                    >
-                      {line.tokens.map((token, tIdx) => {
-                        if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
-                          return (
-                            <span
-                              key={tIdx}
-                              style={{
-                                color: activeTheme.highlightColor,
-                              }}
-                              className="font-black uppercase tracking-wider"
-                            >
-                              {token.text}{' '}
-                            </span>
-                          );
-                        }
-                        if (token.type === 'pause-short') {
-                          return (
-                            <span
-                              key={tIdx}
-                              style={{ color: activeTheme.highlightColor }}
-                              className="font-bold mx-1 opacity-80 select-none"
-                              title="Jeda Intonasi"
-                            >
-                              /{' '}
-                            </span>
-                          );
-                        }
-                        if (token.type === 'pause-long') {
-                          return (
-                            <span
-                              key={tIdx}
-                              style={{ color: activeTheme.highlightColor }}
-                              className="font-black mx-1.5 opacity-90 select-none"
-                              title="Jeda Intonasi Panjang"
-                            >
-                              //{' '}
-                            </span>
-                          );
-                        }
-                        return <span key={tIdx}>{token.text} </span>;
-                      })}
+            {activeConcepts.map((concept, cIdx) => {
+              const parts = formatConceptDisplayParts(concept.conceptNumber, concept.title, concept.angle);
+              return (
+                <div key={concept.id || cIdx} className={`space-y-4 mb-10 ${cIdx > 0 ? 'mt-16 pt-10 border-t border-dashed border-white/20' : ''}`}>
+                  {/* Jeda Khusus Antar-Konsep: Memberi Waktu Kreator Menekan Tombol Kamera */}
+                  {cIdx > 0 && (
+                    <div className="w-full py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-center select-none">
+                      <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase">
+                        ⏱ Jeda Nafas & Siap Rekam Kamera
+                      </span>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Header Pemisah Konsep Sesuai Tema (2 Baris: Baris 1 Nomor, Baris 2 Nama Konsep & Formula) */}
+                  <div
+                    style={{
+                      backgroundColor: activeTheme.cardBg,
+                      borderColor: activeTheme.cardBorder,
+                      color: activeTheme.cardTextColor,
+                    }}
+                    className="w-full my-3 p-3 rounded-xl border-2 shadow-md flex items-start justify-between gap-2.5 select-none"
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <span
+                        style={{ backgroundColor: activeTheme.highlightColor }}
+                        className="w-2.5 h-2.5 rounded-full ring-2 ring-black/10 shrink-0 mt-1"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {/* Baris 1: Nomor Konsep */}
+                        <div
+                          style={{ color: activeTheme.highlightColor }}
+                          className="text-[11px] font-black tracking-wider uppercase leading-tight"
+                        >
+                          {parts.line1}
+                        </div>
+                        {/* Baris 2: Nama Formula & Sudut Skrip */}
+                        <h2
+                          style={{ color: activeTheme.cardTextColor }}
+                          className="text-xs sm:text-sm font-bold tracking-tight leading-snug mt-0.5 break-words"
+                        >
+                          {parts.line2}
+                        </h2>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        color: activeTheme.secondaryTextColor,
+                        backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
+                        borderColor: activeTheme.cardBorder,
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 mt-0.5"
+                    >
+                      ±{concept.estimatedDuration}s
+                    </span>
+                  </div>
+
+                  {/* Baris Dialog dengan Subtitle Preset Asli */}
+                  <div className="space-y-4 sm:space-y-5">
+                    {concept.lines.map((line, lIdx) => (
+                      <div
+                        key={line.id || lIdx}
+                        style={{
+                          fontSize: `${fontSize}px`,
+                          lineHeight: activePreset.lineHeight || '1.45',
+                          letterSpacing: activePreset.letterSpacing || 'normal',
+                          color: activeTheme.textColor,
+                          textShadow: activeTheme.id === 'light_clean' ? 'none' : activePreset.textShadow,
+                          fontWeight: activePreset.fontWeight,
+                          backgroundColor: activePreset.pillBg || 'transparent',
+                        }}
+                        className={`transition-all duration-150 ${
+                          activePreset.pillBg ? 'px-2.5 py-1 rounded-xl ' + (activePreset.borderClass || '') : ''
+                        }`}
+                      >
+                        {line.tokens.map((token, tIdx) => {
+                          if (token.type === 'emphasis' || token.type === 'promo' || token.type === 'cta') {
+                            return (
+                              <span
+                                key={tIdx}
+                                style={{
+                                  color: activePreset.highlightColor,
+                                }}
+                                className="font-black uppercase tracking-wider"
+                              >
+                                {token.text}{' '}
+                              </span>
+                            );
+                          }
+                          if (token.type === 'pause-short') {
+                            return (
+                              <span
+                                key={tIdx}
+                                style={{ color: activePreset.highlightColor }}
+                                className="font-bold mx-1 opacity-80 select-none"
+                                title="Jeda Intonasi"
+                              >
+                                /{' '}
+                              </span>
+                            );
+                          }
+                          if (token.type === 'pause-long') {
+                            return (
+                              <span
+                                key={tIdx}
+                                style={{ color: activePreset.highlightColor }}
+                                className="font-black mx-1.5 opacity-90 select-none"
+                                title="Jeda Intonasi Panjang"
+                              >
+                                //{' '}
+                              </span>
+                            );
+                          }
+                          return <span key={tIdx}>{token.text} </span>;
+                        })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Buffer bawah */}
             <div className="h-44 flex items-center justify-center text-[10px] text-zinc-500 font-medium">
@@ -811,7 +835,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
         - Background abu-abu bergaya iOS dengan tombol sub-tab yang tampak aktif secara visual (tactile)
       */}
       {isSettingsOpen && !isPlaying && (
-        <div className="no-tap-toggle absolute bottom-16 right-2 z-40 w-[75vw] max-w-[340px] bg-zinc-800/95 border border-zinc-600/70 rounded-2xl p-3 shadow-2xl space-y-2.5 text-xs text-zinc-200 animate-in slide-in-from-right-2 duration-150 backdrop-blur-xl max-h-[75%] overflow-y-auto">
+        <div className="no-tap-toggle absolute bottom-16 right-2 z-40 w-[75vw] max-w-[340px] bg-zinc-900 border border-zinc-700 rounded-2xl p-3 shadow-2xl space-y-2.5 text-xs text-zinc-200 animate-in slide-in-from-right-2 duration-150 max-h-[75%] overflow-y-auto">
           {/* Header Panel */}
           <div className="flex items-center justify-between pb-1.5 border-b border-zinc-700/80">
             <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">

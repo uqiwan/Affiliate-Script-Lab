@@ -32,7 +32,7 @@ export const QuotaExhaustedModal: React.FC<QuotaExhaustedModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 animate-in fade-in duration-200"
       aria-modal="true"
       role="dialog"
     >

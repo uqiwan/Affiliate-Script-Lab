@@ -221,20 +221,14 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-5 bg-black/45 dark:bg-black/70 backdrop-blur-2xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-5 bg-black/60 animate-in fade-in duration-200"
       aria-modal="true"
       role="dialog"
     >
-      {/* Outer Card with iOS Frosted Glass */}
-      <div className="bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-3xl border border-white/70 dark:border-white/15 shadow-[0_32px_80px_rgba(0,0,0,0.35),_inset_0_1px_1px_rgba(255,255,255,0.85)] rounded-[32px] max-w-lg w-full p-5 sm:p-7 text-center relative overflow-hidden transition-all animate-in zoom-in-95 duration-200">
-        {/* Animated Aurora Mesh Glow */}
-        <div className="absolute -top-24 -left-24 w-64 h-64 bg-gradient-to-tr from-[#007AFF]/25 via-[#AF52DE]/20 to-[#34C759]/20 rounded-full blur-3xl animate-ios-glow pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-gradient-to-tr from-[#FF9500]/20 via-[#AF52DE]/20 to-[#007AFF]/20 rounded-full blur-3xl animate-ios-glow pointer-events-none" />
-
-        {/* Top Shimmer Accent */}
-        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#007AFF] via-[#AF52DE] to-[#34C759] overflow-hidden">
-          <div className="w-full h-full bg-gradient-to-r from-transparent via-white/80 to-transparent animate-shimmer" />
-        </div>
+      {/* Outer Card Solid Modern Minimalis */}
+      <div className="bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-zinc-800 shadow-2xl rounded-2xl max-w-lg w-full p-5 sm:p-7 text-center relative overflow-hidden transition-all animate-in zoom-in-95 duration-200">
+        {/* Top Accent Line */}
+        <div className="absolute top-0 inset-x-0 h-1 bg-blue-600" />
 
         {/* Central Hero Badge */}
         <div className="relative mx-auto w-20 h-20 sm:w-22 sm:h-22 mb-4 flex items-center justify-center">
@@ -300,30 +294,28 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
         </p>
 
         {/* Milestone Checkpoints & Progress Bar */}
-        <div className="bg-white/60 dark:bg-black/30 backdrop-blur-md rounded-2xl border border-white/80 dark:border-white/10 p-3 sm:p-3.5 mb-4 text-left shadow-xs space-y-2">
+        <div className="bg-slate-50 dark:bg-zinc-900/60 rounded-xl border border-slate-200 dark:border-zinc-800 p-3 sm:p-3.5 mb-4 text-left shadow-xs space-y-2">
           {/* Header Progress Tracker */}
           <div className="flex items-center justify-between text-[11px] font-bold">
-            <span className="flex items-center gap-1.5 text-[#007AFF] dark:text-[#0A84FF]">
+            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
               {progressPercent >= 100 ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               ) : (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               )}
-              {progressPercent >= 100 ? 'Proses Selesai' : 'Progress Berjalan Stabil'}
+              {progressPercent >= 100 ? 'Proses Selesai' : 'Progress Berjalan'}
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-extrabold tabular-nums">
+            <span className="text-slate-700 dark:text-slate-300 font-extrabold tabular-nums">
               {progressPercent}%
             </span>
           </div>
 
           {/* Smooth Linear Progress Bar */}
-          <div className="w-full bg-zinc-200/80 dark:bg-zinc-700/60 rounded-full h-2.5 overflow-hidden relative shadow-inner">
+          <div className="w-full bg-slate-200 dark:bg-zinc-800 rounded-full h-2 overflow-hidden relative">
             <div
-              className="bg-gradient-to-r from-[#007AFF] via-[#AF52DE] to-[#34C759] h-full rounded-full transition-[width] duration-150 ease-linear relative"
+              className="bg-blue-600 h-full rounded-full transition-[width] duration-150 ease-linear"
               style={{ width: `${Math.min(100, Math.max(2, progressPercent))}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
-            </div>
+            />
           </div>
 
           {/* Steps Timeline Checklist */}
@@ -337,10 +329,10 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
                   key={idx}
                   className={`flex items-start gap-2 text-xs transition-all duration-200 rounded-lg p-1.5 ${
                     isCurrent
-                      ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 font-semibold shadow-2xs'
+                      ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 font-semibold'
                       : isCompleted
-                      ? 'text-zinc-500 dark:text-zinc-400 font-medium'
-                      : 'text-zinc-400/70 dark:text-zinc-600 font-normal'
+                      ? 'text-slate-500 dark:text-slate-400 font-medium'
+                      : 'text-slate-400 dark:text-zinc-600 font-normal'
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
@@ -348,11 +340,10 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 stroke-[2.5]" />
                     ) : isCurrent ? (
                       <div className="relative w-4 h-4 flex items-center justify-center">
-                        <div className="w-3 h-3 rounded-full bg-[#007AFF] animate-ping opacity-60" />
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#007AFF]" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                       </div>
                     ) : (
-                      <Circle className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600" />
+                      <Circle className="w-3.5 h-3.5 text-slate-300 dark:text-zinc-700" />
                     )}
                   </div>
                   <span className="leading-tight flex-1">{stepText}</span>
@@ -362,8 +353,8 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
           </div>
         </div>
 
-        {/* Educational Creator Tips Carousel */}
-        <div className="bg-gradient-to-b from-white/70 to-white/40 dark:from-white/8 dark:to-white/4 backdrop-blur-md rounded-2xl border border-white/90 dark:border-white/10 p-3 sm:p-3.5 mb-4 text-left shadow-xs relative overflow-hidden transition-all duration-300">
+        {/* Creator Tips Carousel */}
+        <div className="bg-slate-50 dark:bg-zinc-900/60 rounded-xl border border-slate-200 dark:border-zinc-800 p-3 sm:p-3.5 mb-4 text-left shadow-xs relative overflow-hidden transition-all duration-300">
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
               <Lightbulb className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />

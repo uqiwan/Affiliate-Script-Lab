@@ -54,6 +54,9 @@ import {
   SlidersHorizontal,
   Feather,
   Megaphone,
+  Timer,
+  Hash,
+  LayoutGrid,
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import {
@@ -229,7 +232,7 @@ const DURATION_OPTIONS: DurationMeta[] = [
     duration: 20,
     label: '20 Detik',
     words: '~45-55 kata',
-    icon: Zap,
+    icon: Timer,
     color: 'text-amber-500',
     activeColor: 'bg-amber-500 text-white shadow-amber-500/25',
   },
@@ -237,7 +240,7 @@ const DURATION_OPTIONS: DurationMeta[] = [
     duration: 30,
     label: '30 Detik',
     words: '~65-80 kata (Standar)',
-    icon: Sparkles,
+    icon: Clock,
     color: 'text-blue-500',
     activeColor: 'bg-blue-600 text-white shadow-blue-500/25',
   },
@@ -253,7 +256,7 @@ const DURATION_OPTIONS: DurationMeta[] = [
     duration: 90,
     label: '90 Detik',
     words: '~200-240 kata',
-    icon: BookOpen,
+    icon: Timer,
     color: 'text-purple-500',
     activeColor: 'bg-purple-600 text-white shadow-purple-500/25',
   },
@@ -261,9 +264,9 @@ const DURATION_OPTIONS: DurationMeta[] = [
     duration: 120,
     label: '120 Detik',
     words: '~280-320 kata',
-    icon: Layers,
-    color: 'text-rose-500',
-    activeColor: 'bg-rose-600 text-white shadow-rose-500/25',
+    icon: Clock,
+    color: 'text-indigo-500',
+    activeColor: 'bg-indigo-600 text-white shadow-indigo-500/25',
   },
 ];
 
@@ -279,9 +282,9 @@ interface ScriptCountMeta {
 
 const SCRIPT_COUNT_OPTIONS: ScriptCountMeta[] = [
   { count: 2, label: '2 Skrip', icon: FileText, color: 'text-sky-500' },
-  { count: 5, label: '5 Skrip', icon: Sparkles, color: 'text-blue-600' },
-  { count: 10, label: '10 Skrip', icon: Flame, color: 'text-amber-500' },
-  { count: 20, label: '20 Skrip', icon: Layers, color: 'text-purple-600' },
+  { count: 5, label: '5 Skrip', icon: ListOrdered, color: 'text-blue-600' },
+  { count: 10, label: '10 Skrip', icon: Hash, color: 'text-amber-500' },
+  { count: 20, label: '20 Skrip', icon: LayoutGrid, color: 'text-purple-600' },
   { count: 30, label: '30 Skrip', icon: Rocket, color: 'text-rose-600' },
 ];
 
@@ -681,42 +684,35 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
       {/* ========================================================= */}
       {/* 1. KELOMPOK UTAMA (PARAMETER INTI SKRIP)                  */}
       {/* ========================================================= */}
-      <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs overflow-hidden">
         {/* Section Header */}
-        <div className="px-5 py-4 border-b border-[#F2F2F7] dark:border-[#2C2C2E] flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-zinc-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5856D6]/10 text-[#5856D6] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
               <SlidersHorizontal className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5 tracking-tight">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 tracking-tight">
                 <span>Parameter Inti Skrip</span>
                 <InfoTooltip
                   title="Konfigurasi Generator"
                   content="Pilih durasi, jumlah variasi, dan gaya narasi untuk pembuatan skrip video pendek affiliate yang optimal."
                 />
               </h2>
-              <p className="text-[11px] text-[#8E8E93] font-medium">
-                Sesuaikan format utama agar sesuai dengan gaya konten Anda
-              </p>
             </div>
           </div>
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Item 1: Target Durasi Video (iOS Segmented Cards with Icons & Colors) */}
+          {/* Item 1: Durasi Video */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-[#007AFF]" />
-                <span>Target Durasi Video</span>
+              <label className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>Durasi Video</span>
               </label>
-              <span className="text-[11px] text-[#007AFF] font-medium tabular-nums">
-                {config.durationSeconds === 20 && '~45-55 kata (Hook Singkat FYP)'}
-                {config.durationSeconds === 30 && '~65-80 kata (Standar E-Commerce)'}
-                {config.durationSeconds === 60 && '~130-160 kata (Ulasan Lengkap)'}
-                {config.durationSeconds === 90 && '~200-240 kata (Tutorial / Story)'}
-                {config.durationSeconds === 120 && '~280-320 kata (Video Panjang)'}
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
+                {config.durationSeconds} Detik
               </span>
             </div>
 
@@ -729,10 +725,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                     key={durOpt.duration}
                     type="button"
                     onClick={() => handleDurationSelect(durOpt.duration)}
-                    className={`py-2.5 px-3 rounded-[14px] text-xs font-semibold transition-all duration-200 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 border ${
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 border ${
                       isSelected
-                        ? `${durOpt.activeColor} border-transparent shadow-sm`
-                        : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-transparent text-[#1C1C1E] dark:text-white hover:bg-[#E5E5EA]'
+                        ? `${durOpt.activeColor} border-transparent shadow-xs`
+                        : 'bg-slate-50 dark:bg-zinc-800/80 border-slate-200/80 dark:border-zinc-700/60 text-slate-800 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700/80'
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
@@ -743,7 +739,7 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                     </div>
                     <span
                       className={`text-[10px] ${
-                        isSelected ? 'text-white/80' : 'text-[#8E8E93]'
+                        isSelected ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'
                       }`}
                     >
                       {durOpt.words.split(' ')[0]}
@@ -754,19 +750,19 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
             </div>
           </div>
 
-          {/* Item 2: Jumlah Skrip yang Dibuat (iOS Segmented Pills with Icons) */}
+          {/* Item 2: Jumlah Skrip */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-[#5856D6]" />
-                <span>Jumlah Skrip yang Dibuat Sekaligus</span>
+              <label className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Jumlah Skrip</span>
               </label>
-              <span className="text-[11px] text-[#5856D6] font-bold tabular-nums">
-                {config.scriptCount} Variasi Konsep Berbeda
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
+                {config.scriptCount} Konsep
               </span>
             </div>
 
-            <div className="grid grid-cols-5 gap-1.5 bg-[#F2F2F7] dark:bg-[#2C2C2E] p-1 rounded-[14px]">
+            <div className="grid grid-cols-5 gap-1.5 bg-slate-100 dark:bg-zinc-800/80 p-1 rounded-xl border border-slate-200/60 dark:border-zinc-700/50">
               {SCRIPT_COUNT_OPTIONS.map((cnt) => {
                 const isSelected = config.scriptCount === cnt.count;
                 const IconComponent = cnt.icon;
@@ -775,14 +771,14 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                     key={cnt.count}
                     type="button"
                     onClick={() => handleScriptCountChange(cnt.count)}
-                    className={`py-2 px-1 rounded-[10px] text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+                    className={`py-2 px-1 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
                       isSelected
-                        ? 'bg-white dark:bg-[#1C1C1E] text-[#1C1C1E] dark:text-white shadow-xs font-bold'
-                        : 'text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white'
+                        ? 'bg-white dark:bg-[#1C1C1E] text-slate-900 dark:text-white shadow-xs font-bold'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <IconComponent
-                      className={`w-3.5 h-3.5 ${isSelected ? cnt.color : 'text-zinc-400'}`}
+                      className={`w-3.5 h-3.5 ${isSelected ? cnt.color : 'text-slate-400 dark:text-zinc-500'}`}
                     />
                     <span>{cnt.count} Skrip</span>
                   </button>
@@ -791,29 +787,29 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
             </div>
           </div>
 
-          {/* Item 3: Gaya Pembawaan Narasi (iOS Interactive Visual Cards with Icons & Colors) */}
+          {/* Item 3: Gaya Narasi */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-[#007AFF]" />
-                <span>Gaya Pembawaan Narasi (Tone & Suasana)</span>
+              <label className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>Gaya Narasi</span>
                 <InfoTooltip
-                  title="Gaya Pembawaan Narasi"
-                  content="Pilih karakter penyampaian audio/video. Setiap pilihan memiliki icon informatif dan nuansa warna untuk mempermudah identifikasi."
+                  title="Gaya Narasi"
+                  content="Pilih karakter penyampaian audio/video untuk mempermudah identifikasi nuansa konten."
                 />
               </label>
               <button
                 type="button"
                 onClick={() => setShowAllStyles(!showAllStyles)}
-                className="text-[11px] text-[#007AFF] font-semibold hover:underline cursor-pointer"
+                className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
               >
                 {showAllStyles ? 'Tutup Pilihan' : 'Lihat Semua 10 Gaya'}
               </button>
             </div>
 
-            {/* Featured Active Style Card (iOS Banner Style) */}
+            {/* Featured Active Style Card */}
             <div
-              className={`p-3.5 rounded-[18px] border transition-all ${currentStyleMeta.colorBg} ${currentStyleMeta.colorBorder} flex items-center justify-between gap-3`}
+              className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 flex items-center justify-between gap-3 shadow-2xs"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -823,14 +819,14 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
                       {currentStyleMeta.labelId}
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/80 dark:bg-black/40 text-zinc-700 dark:text-zinc-300 border border-black/5">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700">
                       {currentStyleMeta.badge}
                     </span>
                   </div>
-                  <p className="text-[11px] text-zinc-600 dark:text-zinc-300 mt-0.5">
+                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-0.5">
                     {currentStyleMeta.desc}
                   </p>
                 </div>
@@ -838,13 +834,13 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAllStyles(!showAllStyles)}
-                className="px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#2C2C2E] text-xs font-semibold text-[#007AFF] hover:bg-white shadow-2xs shrink-0 cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-700 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-slate-50 border border-slate-200 dark:border-zinc-600 shadow-2xs shrink-0 cursor-pointer"
               >
                 Ganti
               </button>
             </div>
 
-            {/* Expandable 10-Style iOS Grid */}
+            {/* Expandable 10-Style Grid */}
             {showAllStyles && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 animate-in fade-in duration-200">
                 {STYLE_OPTIONS.map((st) => {
@@ -858,14 +854,14 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                         onChange({ ...config, style: st.value });
                         setShowAllStyles(false);
                       }}
-                      className={`text-left p-3 rounded-[16px] border transition-all flex items-start gap-2.5 cursor-pointer active:scale-[0.98] ${
+                      className={`text-left p-3 rounded-xl border transition-all flex items-start gap-2.5 cursor-pointer active:scale-[0.98] ${
                         isSelected
-                          ? `bg-white dark:bg-[#1C1C1E] ring-2 ring-[#007AFF] border-transparent shadow-xs`
-                          : `bg-[#F9F9FB] dark:bg-[#2C2C2E]/60 border-zinc-200/70 dark:border-zinc-800 hover:bg-white dark:hover:bg-[#2C2C2E]`
+                          ? `bg-white dark:bg-[#1C1C1E] ring-2 ring-blue-600 border-transparent shadow-xs`
+                          : `bg-slate-50 dark:bg-zinc-800/60 border-slate-200/80 dark:border-zinc-700/60 hover:bg-white dark:hover:bg-zinc-800`
                       }`}
                     >
                       <div
-                        className={`w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                           isSelected ? st.colorActiveBg : `${st.colorBg} ${st.colorText}`
                         }`}
                       >
@@ -873,16 +869,16 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-bold text-zinc-900 dark:text-white truncate">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                             {st.labelId}
                           </span>
                           {isSelected && (
-                            <span className="w-4 h-4 rounded-full bg-[#007AFF] text-white flex items-center justify-center shrink-0">
+                            <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
                               <Check className="w-2.5 h-2.5" />
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
                           {st.desc}
                         </p>
                       </div>
@@ -896,27 +892,23 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* 2. TARGET AUDIENS & PERSONA                              */}
+      {/* 2. TARGET AUDIENS                                         */}
       {/* ========================================================= */}
-      <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#F2F2F7] dark:border-[#2C2C2E] flex items-center justify-between">
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-zinc-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5856D6]/10 text-[#5856D6] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <UserIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white">
-                Target Persona Audiens (Sasaran Penonton)
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                Target Audiens
               </h3>
-              <p className="text-[11px] text-[#8E8E93]">
-                Diksi kalimat disesuaikan dengan latar belakang penonton
-              </p>
             </div>
           </div>
         </div>
 
         <div className="p-5 space-y-3">
-          {/* Persona Selection Pills with Colorful Icons */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {PERSONA_OPTIONS.map((p) => {
               const isSelected = config.audiencePersona === p.value && !isCustomSelected;
@@ -926,10 +918,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                   key={p.value}
                   type="button"
                   onClick={() => onChange({ ...config, audiencePersona: p.value })}
-                  className={`p-2.5 rounded-[14px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border active:scale-95 ${
+                  className={`p-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border active:scale-95 ${
                     isSelected
                       ? `${p.activeBg} border-transparent shadow-xs font-bold`
-                      : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-transparent text-zinc-700 dark:text-zinc-300 hover:bg-[#E5E5EA]'
+                      : 'bg-slate-50 dark:bg-zinc-800/80 border-slate-200/80 dark:border-zinc-700/60 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700'
                   }`}
                 >
                   <IconComp
@@ -946,10 +938,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
               onClick={() => {
                 onChange({ ...config, audiencePersona: 'Custom' });
               }}
-              className={`p-2.5 rounded-[14px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border active:scale-95 ${
+              className={`p-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border active:scale-95 ${
                 isCustomSelected
                   ? 'bg-rose-600 text-white border-transparent shadow-xs font-bold'
-                  : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-transparent text-zinc-700 dark:text-zinc-300 hover:bg-[#E5E5EA]'
+                  : 'bg-slate-50 dark:bg-zinc-800/80 border-slate-200/80 dark:border-zinc-700/60 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700'
               }`}
             >
               <PlusCircle
@@ -971,7 +963,7 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                 }}
                 onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Contoh: Pecinta tanaman hias, fotografer pemula, atlet gym..."
-                className="w-full h-11 px-3.5 rounded-[14px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent focus:border-[#5856D6] focus:bg-white dark:focus:bg-[#1C1C1E] text-xs sm:text-sm text-[#1C1C1E] dark:text-white focus:outline-none transition-all"
+                className="w-full h-11 px-3.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 focus:border-blue-600 focus:bg-white dark:focus:bg-[#1C1C1E] text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none transition-all"
               />
             </div>
           )}
@@ -979,55 +971,50 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* 3. PENGATURAN LANJUTAN & FORMULA (BAHASA INDONESIA LENGKAP) */}
+      {/* 3. PENGATURAN LANJUTAN                                    */}
       {/* ========================================================= */}
-      <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] border border-[#E5E5EA] dark:border-[#38383A] shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs overflow-hidden">
         {/* Collapsible Accordion Header */}
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[#F2F2F7]/50 active:bg-[#F2F2F7] transition-colors cursor-pointer select-none"
+          className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer select-none"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#FF9500]/15 text-[#FF9500] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm sm:text-base font-bold text-[#1C1C1E] dark:text-white">
-                Pengaturan Lanjutan & Formula Skrip
-              </div>
-              <div className="text-[11px] text-[#8E8E93]">
-                {showAdvanced
-                  ? 'Sembunyikan pengaturan lanjutan'
-                  : 'Pustaka 20 angle, hook pembuka, demo produk, CTA, & tombol promo'}
+              <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                Pengaturan Lanjutan
               </div>
             </div>
           </div>
-          <div className="w-8 h-8 rounded-full bg-[#F2F2F7] dark:bg-[#2C2C2E] flex items-center justify-center text-[#8E8E93]">
+          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-500 dark:text-zinc-400 border border-slate-200/80 dark:border-zinc-700">
             {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
         </button>
 
         {showAdvanced && (
-          <div className="p-5 border-t border-[#F2F2F7] dark:border-[#2C2C2E] space-y-6 animate-in fade-in duration-200">
+          <div className="p-5 border-t border-slate-100 dark:border-zinc-800 space-y-6 animate-in fade-in duration-200">
             {/* 3.1 Pustaka 20 Formula Sudut Pandang (Angle) */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                  <Target className="w-4 h-4 text-[#007AFF]" />
-                  <span>Formula Sudut Pandang Konten (Angle)</span>
+            <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold text-xs sm:text-sm">
+                  <Target className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span>Sudut Pandang (Angle)</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowAngleLibrary(!showAngleLibrary)}
-                  className="text-[#007AFF] font-semibold hover:underline cursor-pointer text-xs"
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
                 >
                   {showAngleLibrary ? 'Tutup Pustaka' : 'Buka 20 Pustaka Angle'}
                 </button>
               </div>
 
               {showAngleLibrary && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2.5 bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[18px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2.5 bg-white dark:bg-zinc-800/80 rounded-xl border border-slate-200 dark:border-zinc-700">
                   {CONTENT_ANGLES.map((ang) => {
                     const isSelected =
                       config.selectedAngles.includes(ang.label) ||
@@ -1038,10 +1025,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                         key={ang.id}
                         type="button"
                         onClick={() => toggleAngle(ang.label)}
-                        className={`text-left p-2.5 rounded-[12px] text-xs transition-all flex items-start justify-between cursor-pointer border active:scale-95 ${
+                        className={`text-left p-2.5 rounded-lg text-xs transition-all flex items-start justify-between cursor-pointer border active:scale-95 ${
                           isSelected
-                            ? 'bg-[#007AFF] text-white font-semibold border-transparent shadow-xs'
-                            : 'bg-white dark:bg-[#1C1C1E] text-[#1C1C1E] dark:text-white hover:bg-[#E5E5EA]/70 border-black/5 dark:border-white/5'
+                            ? 'bg-blue-600 text-white font-semibold border-transparent shadow-xs'
+                            : 'bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-zinc-700 border-slate-200 dark:border-zinc-700'
                         }`}
                         title={ang.description}
                       >
@@ -1049,7 +1036,7 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                           <div className="font-bold truncate">{ang.label}</div>
                           <div
                             className={`text-[10px] line-clamp-1 ${
-                              isSelected ? 'text-white/80' : 'text-zinc-500'
+                              isSelected ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'
                             }`}
                           >
                             {ang.description}
@@ -1063,12 +1050,14 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
               )}
             </div>
 
-            {/* 3.2 Intensitas Jualan (Selling Intensity) - iOS Segmented Control with Icons */}
-            <div className="space-y-2">
-              <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                <Scale className="w-4 h-4 text-[#34C759]" />
-                <span>Intensitas Jualan (Tingkat Dorongan Beli)</span>
-              </label>
+            {/* 3.2 Intensitas Promosi */}
+            <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+              <div>
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-bold text-xs sm:text-sm">
+                  <Scale className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Intensitas Promosi</span>
+                </span>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {INTENSITY_OPTIONS_META.map((intOpt) => {
@@ -1079,10 +1068,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       key={intOpt.value}
                       type="button"
                       onClick={() => onChange({ ...config, sellingIntensity: intOpt.value })}
-                      className={`p-3 rounded-[14px] text-xs font-semibold transition-all flex flex-col items-start gap-1 cursor-pointer border active:scale-95 ${
+                      className={`p-3 rounded-xl text-xs font-semibold transition-all flex flex-col items-start gap-1 cursor-pointer border active:scale-95 ${
                         isSelected
                           ? `${intOpt.activeBg} border-transparent shadow-xs font-bold`
-                          : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-transparent text-zinc-700 dark:text-zinc-300 hover:bg-[#E5E5EA]'
+                          : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700'
                       }`}
                     >
                       <div className="flex items-center gap-1.5">
@@ -1093,7 +1082,7 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       </div>
                       <span
                         className={`text-[10px] text-left leading-tight ${
-                          isSelected ? 'text-white/80' : 'text-zinc-500'
+                          isSelected ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'
                         }`}
                       >
                         {intOpt.desc}
@@ -1104,19 +1093,19 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
               </div>
             </div>
 
-            {/* 3.3 Hook Pembuka & Metode Demo (Bahasa Indonesia & Icon) */}
+            {/* 3.3 Hook Pembuka & Metode Demo */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Hook Type */}
-              <div className="space-y-1.5">
-                <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-[#FF9500]" />
-                  <span>Tipe Hook 3 Detik Awal</span>
-                </label>
+              <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-bold text-xs sm:text-sm">
+                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Tipe Hook Pembuka</span>
+                </span>
                 <div className="relative">
                   <select
                     value={config.hookType}
                     onChange={(e) => onChange({ ...config, hookType: e.target.value as HookType })}
-                    className="w-full h-11 px-3.5 rounded-[14px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs sm:text-sm font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-[#007AFF]/30"
+                    className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs sm:text-sm font-medium text-slate-900 dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-blue-600/30"
                   >
                     {HOOK_META_OPTIONS.map((h) => (
                       <option key={h.value} value={h.value}>
@@ -1124,23 +1113,23 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
               {/* Demo Method */}
-              <div className="space-y-1.5">
-                <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                  <Eye className="w-4 h-4 text-[#5856D6]" />
-                  <span>Metode Demo Produk (B-Roll Visual)</span>
-                </label>
+              <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 font-bold text-xs sm:text-sm">
+                  <Eye className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                  <span>Metode Demo Visual</span>
+                </span>
                 <div className="relative">
                   <select
                     value={config.demoMethod}
                     onChange={(e) =>
                       onChange({ ...config, demoMethod: e.target.value as DemoMethod })
                     }
-                    className="w-full h-11 px-3.5 rounded-[14px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs sm:text-sm font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-[#007AFF]/30"
+                    className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs sm:text-sm font-medium text-slate-900 dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-blue-600/30"
                   >
                     {DEMO_META_OPTIONS.map((d) => (
                       <option key={d.value} value={d.value}>
@@ -1148,7 +1137,7 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -1156,16 +1145,16 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
             {/* 3.4 Ajakan Bertindak (CTA) & Kata Ganti */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* CTA Type */}
-              <div className="space-y-1.5">
-                <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                  <ShoppingBag className="w-4 h-4 text-[#34C759]" />
-                  <span>Ajakan Bertindak (Call to Action / CTA)</span>
-                </label>
+              <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-bold text-xs sm:text-sm">
+                  <ShoppingBag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Ajakan Bertindak (CTA)</span>
+                </span>
                 <div className="relative">
                   <select
                     value={config.ctaType}
                     onChange={(e) => onChange({ ...config, ctaType: e.target.value as CtaType })}
-                    className="w-full h-11 px-3.5 rounded-[14px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent text-xs sm:text-sm font-medium text-[#1C1C1E] dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-[#007AFF]/30"
+                    className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs sm:text-sm font-medium text-slate-900 dark:text-white appearance-none cursor-pointer focus:outline-none pr-10 focus:ring-2 focus:ring-blue-600/30"
                   >
                     {CTA_META_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>
@@ -1173,16 +1162,16 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8E93] pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
-              {/* Kata Ganti (Pronouns) */}
-              <div className="space-y-1.5">
-                <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                  <UserIcon className="w-4 h-4 text-[#007AFF]" />
-                  <span>Kata Ganti Penyebutan Diri</span>
-                </label>
+              {/* Kata Ganti */}
+              <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-bold text-xs sm:text-sm">
+                  <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>Kata Ganti Kreator</span>
+                </span>
                 <div className="grid grid-cols-3 gap-1.5">
                   {PRONOUN_META_OPTIONS.map((p) => {
                     const isSelected = config.pronouns === p.value;
@@ -1192,10 +1181,10 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
                         key={p.value}
                         type="button"
                         onClick={() => onChange({ ...config, pronouns: p.value })}
-                        className={`py-2.5 px-2 rounded-[12px] text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer border active:scale-95 ${
+                        className={`py-2.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer border active:scale-95 ${
                           isSelected
-                            ? 'bg-[#007AFF] text-white border-transparent shadow-xs font-bold'
-                            : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-transparent text-zinc-700 dark:text-zinc-300 hover:bg-[#E5E5EA]'
+                            ? 'bg-blue-600 text-white border-transparent shadow-xs font-bold'
+                            : 'bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700'
                         }`}
                       >
                         <IconComp
@@ -1209,102 +1198,69 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
               </div>
             </div>
 
-            {/* 3.5 iOS Grouped List with Genuine Animated Sliding Switch Toggles */}
-            <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[20px] overflow-hidden divide-y divide-[#E5E5EA] dark:divide-[#38383A] shadow-2xs">
-              {/* Switch 1: Price Anchoring */}
-              <div className="p-4 flex items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Tag className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-2">
-                      <span>Sorot Perbandingan Harga (Price Anchoring)</span>
-                      <span
-                        className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase transition-all duration-300 ${
-                          config.priceAnchoringEnabled
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
-                        }`}
-                      >
-                        {config.priceAnchoringEnabled ? 'Aktif' : 'Mati'}
-                      </span>
+            {/* 3.5 Price Anchoring & Urgensi */}
+            <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-bold text-xs sm:text-sm">
+                <Tag className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                <span>Perbandingan Harga & Batas Promo</span>
+              </span>
+
+              <div className="bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 overflow-hidden divide-y divide-slate-100 dark:divide-zinc-700/60 shadow-xs">
+                {/* Switch 1: Price Anchoring */}
+                <div className="p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <Tag className="w-4 h-4" />
                     </div>
-                    <p className="text-[11px] text-[#8E8E93] mt-0.5">
-                      Bandingkan harga normal (coret) vs harga promo diskon untuk menegaskan rasa hemat
-                    </p>
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                      Perbandingan Harga Coret
+                    </div>
                   </div>
+
+                  <IosAnimatedSwitch
+                    checked={Boolean(config.priceAnchoringEnabled)}
+                    onChange={(checked) => onChange({ ...config, priceAnchoringEnabled: checked })}
+                    label="Sorot Perbandingan Harga"
+                  />
                 </div>
 
-                {/* Animated Spring Switch */}
-                <IosAnimatedSwitch
-                  checked={Boolean(config.priceAnchoringEnabled)}
-                  onChange={(checked) => onChange({ ...config, priceAnchoringEnabled: checked })}
-                  label="Sorot Perbandingan Harga"
-                />
-              </div>
-
-              {/* Switch 2: Urgensi & Batas Promo */}
-              <div className="p-4 flex items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Flame className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs sm:text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-2">
-                      <span>Urgensi & Batas Promo (Scarcity)</span>
-                      <span
-                        className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase transition-all duration-300 ${
-                          config.urgencyEnabled
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
-                        }`}
-                      >
-                        {config.urgencyEnabled ? 'Aktif' : 'Mati'}
-                      </span>
+                {/* Switch 2: Urgensi */}
+                <div className="p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4" />
                     </div>
-                    <p className="text-[11px] text-[#8E8E93] mt-0.5">
-                      Menekankan batas waktu promo atau sisa kuota hanya jika ada data valid pada brief
-                    </p>
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                      Batas Waktu & Kuota Promo
+                    </div>
                   </div>
-                </div>
 
-                {/* Animated Spring Switch */}
-                <IosAnimatedSwitch
-                  checked={Boolean(config.urgencyEnabled)}
-                  onChange={(checked) => onChange({ ...config, urgencyEnabled: checked })}
-                  label="Urgensi & Batas Promo"
-                />
+                  <IosAnimatedSwitch
+                    checked={Boolean(config.urgencyEnabled)}
+                    onChange={(checked) => onChange({ ...config, urgencyEnabled: checked })}
+                    label="Urgensi & Batas Promo"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* 3.6 Instruksi Khusus untuk AI */}
-            <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-semibold text-[#1C1C1E] dark:text-white flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-[#5856D6]" />
-                <span>Instruksi Khusus Tambahan untuk AI (Opsional)</span>
-              </label>
+            {/* 3.6 Instruksi Khusus */}
+            <div className="bg-slate-50/70 dark:bg-zinc-900/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-3">
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 font-bold text-xs sm:text-sm">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Instruksi Khusus AI</span>
+              </span>
               <textarea
                 rows={2}
                 value={config.extraInstructions || ''}
                 onChange={(e) => onChange({ ...config, extraInstructions: e.target.value })}
                 onKeyDown={(e) => e.stopPropagation()}
-                placeholder="Contoh: Fokus pada varian warna sage green, sebutkan voucher gajian akhir bulan, gunakan sapaan 'Kakak'..."
-                className="w-full px-3.5 py-2.5 rounded-[14px] bg-[#F2F2F7] dark:bg-[#2C2C2E] border border-transparent focus:border-[#007AFF] text-xs sm:text-sm text-[#1C1C1E] dark:text-white focus:outline-none transition-all"
+                placeholder="Contoh: Fokus pada varian warna sage green, sebutkan voucher gajian akhir bulan..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 focus:border-blue-600 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none transition-all resize-none"
               />
             </div>
           </div>
         )}
-      </div>
-
-      {/* Compliance Badge */}
-      <div className="px-4 py-3 bg-[#34C759]/10 rounded-[18px] flex items-center justify-between gap-3 text-xs text-[#34C759]">
-        <div className="flex items-center gap-2.5">
-          <ShieldCheck className="w-4 h-4 text-[#34C759] shrink-0" />
-          <span className="font-semibold text-xs text-[#1C1C1E] dark:text-white">
-            Kepatuhan Multi-Platform & Etika Aktif (Shopee Video, TikTok, Tokopedia, Reels)
-          </span>
-        </div>
       </div>
 
       {/* Script Generator Protection Warning Box */}
@@ -1329,57 +1285,6 @@ const GeneratorConfigPanelComponent: React.FC<GeneratorConfigPanelProps> = ({
           </div>
         </div>
       )}
-
-      {/* Primary Action Button: Buat Skrip Video Real-Time Streaming */}
-      <div className="bg-gradient-to-r from-[#007AFF]/10 via-[#5856D6]/10 to-[#34C759]/10 p-4 sm:p-5 rounded-[22px] border border-[#007AFF]/20 space-y-3 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-bold text-[#1C1C1E] dark:text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#007AFF]" />
-              <span>Siap Membuat {config.scriptCount} Konsep Skrip Video</span>
-            </div>
-            <p className="text-xs text-[#8E8E93] mt-0.5">
-              Mode streaming real-time aktif (TTFT 1–2s). Teks skrip langsung muncul kata demi kata.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (isAuthLocked && !hasApiKey) {
-                onRequireAuthOrKey();
-              } else if (!isGenerating && onGenerate) {
-                onGenerate();
-              }
-            }}
-            disabled={isGenerating || disabled}
-            className={`h-12 px-6 rounded-[14px] text-xs sm:text-sm font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0 ${
-              isGenerating
-                ? 'bg-[#007AFF]/70 cursor-wait'
-                : isAuthLocked && !hasApiKey
-                ? 'bg-amber-500 hover:bg-amber-600'
-                : 'bg-gradient-to-r from-[#007AFF] via-[#5856D6] to-[#007AFF] hover:opacity-95 shadow-[#007AFF]/25'
-            }`}
-          >
-            {isGenerating ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                <span>AI Sedang Mengetik Skrip...</span>
-              </>
-            ) : isAuthLocked && !hasApiKey ? (
-              <>
-                <Lock className="w-4 h-4" />
-                <span>Atur API Key untuk Mulai</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4 fill-white text-white" />
-                <span>Buat {config.scriptCount} Skrip Streaming Sekarang</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* Action Bar: Navigasi Kembali */}
       {onBackToBrief && (

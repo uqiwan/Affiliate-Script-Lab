@@ -54,23 +54,23 @@ export const TELEPROMPTER_THEMES: Record<TeleprompterThemeId, TeleprompterTheme>
   soft_comfort: {
     id: 'soft_comfort',
     name: 'Soft Comfort',
-    tagline: 'Latar abu-abu gelap, teks putih gading, penanda teks aktif hijau mint',
-    backgroundColor: '#18181B', // Abu-abu gelap nyaman di mata
+    tagline: 'Latar hitam pekat kontras, kontrol tombol hijau segar',
+    backgroundColor: '#000000', // Hitam pekat agar teks kontras dan terang
     textColor: '#FAF9F6', // Putih gading / ivory
-    highlightColor: '#34D399', // Hijau mint segar
+    highlightColor: '#22C55E', // Aksen tombol / kontrol hijau
     secondaryTextColor: '#9CA3AF',
-    cardBg: '#27272A',
-    cardBorder: '#3F3F46',
+    cardBg: '#0F172A',
+    cardBorder: '#166534',
     cardTextColor: '#FAF9F6',
-    focusLineColor: '#34D399',
-    dockBg: 'rgba(24, 24, 27, 0.96)',
-    dockBorder: '#3F3F46',
-    dockBtnBg: '#27272A',
-    dockBtnText: '#FAF9F6',
+    focusLineColor: '#22C55E',
+    dockBg: 'rgba(0, 0, 0, 0.95)',
+    dockBorder: '#15803D',
+    dockBtnBg: '#14532D',
+    dockBtnText: '#4ADE80',
     previewSwatch: {
-      bg: '#18181B',
+      bg: '#000000',
       text: '#FAF9F6',
-      highlight: '#34D399',
+      highlight: '#22C55E',
     },
   },
   light_clean: {
