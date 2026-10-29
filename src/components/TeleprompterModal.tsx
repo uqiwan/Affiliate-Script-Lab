@@ -23,6 +23,7 @@ import {
   Check,
   Timer,
   RotateCw,
+  Palette,
 } from 'lucide-react';
 import { ScriptItem, ProductBrief } from '../types';
 import {
@@ -55,7 +56,7 @@ interface TeleprompterModalProps {
   onSelectTheme?: (themeId: TeleprompterThemeId) => void;
 }
 
-export type SettingsTabId = 'teks' | 'countdown' | 'layar';
+export type SettingsTabId = 'teks' | 'tema' | 'countdown' | 'layar';
 
 // Kurva kecepatan ultra-lambat (Speed 1 sangat santai: 2.5 px/detik)
 const SPEED_CURVE = [2.5, 4.5, 7.5, 11, 16, 23, 32, 43, 56, 72];
@@ -692,12 +693,10 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                 key={concept.id}
                 className={`space-y-6 border-b border-zinc-800/40 pb-16 last:border-b-0 ${cIdx > 0 ? 'mt-16 pt-10' : ''}`}
               >
-                {/* Jeda Khusus Antar-Konsep: Memberi Waktu Kreator Menekan Tombol Kamera */}
+                {/* Garis Pemisah Antar-Konsep */}
                 {cIdx > 0 && (
-                  <div className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/10 text-center select-none mb-6">
-                    <span className="text-xs sm:text-sm font-bold tracking-widest text-amber-400 uppercase">
-                      ⏱ Jeda Nafas & Siap Rekam Kamera Sebelum Konsep Berikutnya
-                    </span>
+                  <div className="w-full my-6 flex items-center justify-center select-none">
+                    <div className="w-full border-t border-dashed border-white/20" />
                   </div>
                 )}
 
@@ -849,12 +848,12 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             </button>
           </div>
 
-          {/* Sub-tabs Bergaya iOS: Teks, Countdown, Layar (Tampak Bisa Dipencet Walau Tidak Aktif) */}
+          {/* Sub-tabs Bergaya iOS: Teks, Tema, Countdown, Layar */}
           <div className="flex items-center gap-1.5 p-1 bg-zinc-900/90 rounded-xl border border-zinc-700/80">
             <button
               type="button"
               onClick={() => setSettingsTab('teks')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'teks'
                   ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
                   : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
@@ -866,8 +865,21 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
             <button
               type="button"
+              onClick={() => setSettingsTab('tema')}
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                settingsTab === 'tema'
+                  ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
+                  : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Tema</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setSettingsTab('countdown')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'countdown'
                   ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
                   : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
@@ -880,7 +892,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             <button
               type="button"
               onClick={() => setSettingsTab('layar')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 settingsTab === 'layar'
                   ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400/40'
                   : 'bg-zinc-700/90 hover:bg-zinc-600 text-zinc-100 border border-zinc-500/60 shadow-sm active:scale-95'
@@ -894,51 +906,6 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
           {/* TAB 1: TEKS & SUBTITLE */}
           {settingsTab === 'teks' && (
             <div className="space-y-3.5">
-              {/* 3 PRESET TEMA UTAMA TELEPROMPTER */}
-              <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-zinc-300">Tema Warna Teleprompter:</span>
-                  <span className="font-bold text-amber-400">{activeTheme.name}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {(Object.values(TELEPROMPTER_THEMES)).map((t) => {
-                    const isSelected = activeTheme.id === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          const updated = saveStoredPrompterTheme(t.id);
-                          setInternalTheme(updated);
-                          if (onSelectTheme) onSelectTheme(t.id);
-                        }}
-                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-zinc-800 border-amber-500 shadow-md ring-1 ring-amber-500/50'
-                            : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
-                        }`}
-                      >
-                        <div
-                          style={{ backgroundColor: t.previewSwatch.bg }}
-                          className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center relative shadow-xs"
-                        >
-                          <span style={{ color: t.previewSwatch.text }} className="text-[10px] font-black">
-                            T
-                          </span>
-                          <span
-                            style={{ backgroundColor: t.previewSwatch.highlight }}
-                            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-1 ring-black"
-                          />
-                        </div>
-                        <span className={`text-[11px] font-bold whitespace-nowrap ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
-                          {t.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Ukuran Font (Mulai dari 7px hingga 64px) */}
               <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
                 <div className="flex items-center justify-between text-xs">
@@ -997,7 +964,56 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: HITUNG MUNDUR (COUNTDOWN) */}
+          {/* TAB 2: TEMA WARNA TELEPROMPTER */}
+          {settingsTab === 'tema' && (
+            <div className="space-y-3.5">
+              <div className="space-y-2 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-zinc-300">Tema Warna Teleprompter:</span>
+                  <span className="font-bold text-amber-400">{activeTheme.name}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {(Object.values(TELEPROMPTER_THEMES)).map((t) => {
+                    const isSelected = activeTheme.id === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          const updated = saveStoredPrompterTheme(t.id);
+                          setInternalTheme(updated);
+                          if (onSelectTheme) onSelectTheme(t.id);
+                        }}
+                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-zinc-800 border-amber-500 shadow-md ring-1 ring-amber-500/50'
+                            : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div
+                          style={{ backgroundColor: t.previewSwatch.bg }}
+                          className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center relative shadow-xs"
+                        >
+                          <span style={{ color: t.previewSwatch.text }} className="text-[11px] font-black">
+                            T
+                          </span>
+                          <span
+                            style={{ backgroundColor: t.previewSwatch.highlight }}
+                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-1 ring-black"
+                          />
+                        </div>
+                        <span className={`text-[11px] font-bold whitespace-nowrap ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                          {t.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: HITUNG MUNDUR (COUNTDOWN) */}
           {settingsTab === 'countdown' && (
             <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
               <div className="flex items-center justify-between">
@@ -1005,16 +1021,23 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                   <Timer className="w-4 h-4 text-amber-400" />
                   <span className="font-semibold text-zinc-200 text-xs">Hitung Mundur Sebelum Teks Jalan:</span>
                 </div>
+                {/* Gaya Toggle Switch (Sakelar) */}
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={countdownEnabled}
                   onClick={() => setCountdownEnabled((e) => !e)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                    countdownEnabled
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                  title={countdownEnabled ? 'Nonaktifkan Hitung Mundur' : 'Aktifkan Hitung Mundur'}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                    countdownEnabled ? 'bg-amber-500' : 'bg-zinc-700'
                   }`}
                 >
-                  {countdownEnabled ? 'Aktif' : 'Nonaktif'}
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      countdownEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
 
@@ -1042,7 +1065,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: TAMPILAN & FOKUS MATA */}
+          {/* TAB 4: TAMPILAN & FOKUS MATA */}
           {settingsTab === 'layar' && (
             <div className="space-y-3.5">
               {/* Slider Transparansi Menyeluruh */}
@@ -1061,51 +1084,70 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                 />
               </div>
 
-              {/* Posisi Garis Fokus Mata (Hanya Garis & Persen) */}
-              <div className="space-y-1.5 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
+              {/* Posisi Garis Fokus Mata (Sejajar: Toggle Switch di Kiri, Slider di Kanan) */}
+              <div className="space-y-2 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-zinc-300">Garis Panduan Kamera:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowFocusZone((z) => !z)}
-                      className={`text-xs font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                        showFocusZone
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                          : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                  <span className="font-mono font-bold text-amber-400">{focusZonePosition}%</span>
+                </div>
+                <div className="flex items-center gap-3 pt-0.5">
+                  {/* Tombol Toggle Switch (Sakelar) di sebelah kiri */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showFocusZone}
+                    onClick={() => setShowFocusZone((z) => !z)}
+                    title={showFocusZone ? 'Nonaktifkan Garis Panduan' : 'Aktifkan Garis Panduan'}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                      showFocusZone ? 'bg-amber-500' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        showFocusZone ? 'translate-x-5' : 'translate-x-0'
                       }`}
-                    >
-                      {showFocusZone ? 'Aktif' : 'Off'}
-                    </button>
-                    <span className="font-mono font-bold text-amber-400">{focusZonePosition}%</span>
+                    />
+                  </button>
+                  {/* Slider geser di sebelah kanannya (sejajar) */}
+                  <div className="flex-1 flex items-center min-w-0">
+                    <input
+                      type="range"
+                      min="5"
+                      max="75"
+                      value={focusZonePosition}
+                      disabled={!showFocusZone}
+                      onChange={(e) => setFocusZonePosition(Number(e.target.value))}
+                      className={`w-full h-1.5 rounded-lg accent-amber-500 transition-opacity cursor-pointer ${
+                        showFocusZone ? 'bg-zinc-800 opacity-100' : 'bg-zinc-800/40 opacity-40 cursor-not-allowed'
+                      }`}
+                    />
                   </div>
                 </div>
-                {showFocusZone && (
-                  <input
-                    type="range"
-                    min="5"
-                    max="75"
-                    value={focusZonePosition}
-                    onChange={(e) => setFocusZonePosition(Number(e.target.value))}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg accent-amber-500 cursor-pointer"
-                  />
-                )}
               </div>
 
               {/* Opsi Mirror Kaca */}
               <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                <span className="text-xs text-zinc-300 font-semibold">Mirror Kaca Teleprompter:</span>
+                <div className="flex items-center gap-2">
+                  <FlipHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="text-xs text-zinc-300 font-semibold">Mirror Kaca Teleprompter:</span>
+                </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={isMirrored}
                   onClick={() => setIsMirrored((m) => !m)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
-                    isMirrored
-                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                  title={isMirrored ? 'Nonaktifkan Mode Mirror' : 'Aktifkan Mode Mirror'}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                    isMirrored ? 'bg-amber-500' : 'bg-zinc-700'
                   }`}
                 >
-                  <FlipHorizontal className="w-3.5 h-3.5" />
-                  <span>{isMirrored ? 'Aktif' : 'Nonaktif'}</span>
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      isMirrored ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
             </div>

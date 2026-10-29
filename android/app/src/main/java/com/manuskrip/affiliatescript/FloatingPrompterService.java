@@ -1144,6 +1144,20 @@ public class FloatingPrompterService extends Service {
             "    .pill-btn.active {\n" +
             "      border-color: #F59E0B; background: #F59E0B; color: black;\n" +
             "    }\n" +
+            "    .toggle-switch {\n" +
+            "      position: relative; display: inline-block; width: 34px; height: 18px; flex-shrink: 0; cursor: pointer;\n" +
+            "    }\n" +
+            "    .toggle-switch input { opacity: 0; width: 0; height: 0; }\n" +
+            "    .toggle-slider {\n" +
+            "      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;\n" +
+            "      background-color: #3F3F46; transition: .2s; border-radius: 18px;\n" +
+            "    }\n" +
+            "    .toggle-slider:before {\n" +
+            "      position: absolute; content: \"\"; height: 14px; width: 14px; left: 2px; bottom: 2px;\n" +
+            "      background-color: white; transition: .2s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.5);\n" +
+            "    }\n" +
+            "    input:checked + .toggle-slider { background-color: #F59E0B; }\n" +
+            "    input:checked + .toggle-slider:before { transform: translateX(16px); }\n" +
             "\n" +
             "    #minimized-pill {\n" +
             "      display: none; width: 100%; height: 100%;\n" +
@@ -1223,25 +1237,44 @@ public class FloatingPrompterService extends Service {
             "        </button>\n" +
             "      </div>\n" +
             "\n" +
-            "      <!-- Tabs Teks, Countdown, Layar -->\n" +
+            "      <!-- Tabs Teks, Tema, Countdown, Layar -->\n" +
             "      <div class=\"tabs-row\">\n" +
             "        <div id=\"tab-teks\" class=\"tab-item active\" onclick=\"switchTab('teks')\">\n" +
-            "          <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"4 7 4 4 20 4 20 7\"/><line x1=\"9\" y1=\"20\" x2=\"15\" y2=\"20\"/><line x1=\"12\" y1=\"4\" x2=\"12\" y2=\"20\"/></svg>\n" +
+            "          <svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"4 7 4 4 20 4 20 7\"/><line x1=\"9\" y1=\"20\" x2=\"15\" y2=\"20\"/><line x1=\"12\" y1=\"4\" x2=\"12\" y2=\"20\"/></svg>\n" +
             "          <span>Teks</span>\n" +
             "        </div>\n" +
+            "        <div id=\"tab-tema\" class=\"tab-item\" onclick=\"switchTab('tema')\">\n" +
+            "          <svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z\"/></svg>\n" +
+            "          <span>Tema</span>\n" +
+            "        </div>\n" +
             "        <div id=\"tab-countdown\" class=\"tab-item\" onclick=\"switchTab('countdown')\">\n" +
-            "          <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>\n" +
+            "          <svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>\n" +
             "          <span>Countdown</span>\n" +
             "        </div>\n" +
             "        <div id=\"tab-layar\" class=\"tab-item\" onclick=\"switchTab('layar')\">\n" +
-            "          <svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>\n" +
+            "          <svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>\n" +
             "          <span>Layar</span>\n" +
             "        </div>\n" +
             "      </div>\n" +
             "\n" +
-            "      <!-- Subtab Teks: 3 Preset Tema (Dropdown Grouped), Ukuran Font & 10 Gaya Subtitle -->\n" +
+            "      <!-- Subtab Teks: Ukuran Font & 10 Gaya Subtitle -->\n" +
             "      <div id=\"panel-teks\" style=\"display:flex; flex-direction:column; gap:7px;\">\n" +
-            "        <!-- 3 PRESET TEMA TELEPROMPTER (DROPDOWN GROUPED SEPERTI WEB APP) -->\n" +
+            "        <div class=\"setting-group\">\n" +
+            "          <div class=\"setting-label\">\n" +
+            "            <span>Ukuran Font (Mulai dari 7px):</span>\n" +
+            "            <span id=\"font-label\" style=\"color:#F59E0B; font-weight:bold; font-family:monospace;\">" + fontSize + "px</span>\n" +
+            "          </div>\n" +
+            "          <input type=\"range\" min=\"7\" max=\"48\" value=\"" + fontSize + "\" class=\"slider-input\" oninput=\"updateFontSize(this.value)\" />\n" +
+            "        </div>\n" +
+            "\n" +
+            "        <div class=\"setting-group\">\n" +
+            "          <div class=\"setting-label\"><span>Pilih 10 Gaya Subtitle Siap Rekam:</span></div>\n" +
+            "          <div id=\"presets-list\" class=\"presets-container\"></div>\n" +
+            "        </div>\n" +
+            "      </div>\n" +
+            "\n" +
+            "      <!-- Subtab Tema: 3 Preset Tema Teleprompter -->\n" +
+            "      <div id=\"panel-tema\" style=\"display:none; flex-direction:column; gap:7px;\">\n" +
             "        <div class=\"setting-group\" style=\"background:rgba(0,0,0,0.35); padding:7px; border-radius:12px; border:1px solid #27272A;\">\n" +
             "          <div class=\"setting-label\" style=\"margin-bottom:4px;\">\n" +
             "            <span style=\"color:#E4E4E7; font-weight:bold; display:flex; align-items:center; gap:4px;\">\n" +
@@ -1297,27 +1330,17 @@ public class FloatingPrompterService extends Service {
             "            </div>\n" +
             "          </div>\n" +
             "        </div>\n" +
-            "\n" +
-            "        <div class=\"setting-group\">\n" +
-            "          <div class=\"setting-label\">\n" +
-            "            <span>Ukuran Font (Mulai dari 7px):</span>\n" +
-            "            <span id=\"font-label\" style=\"color:#F59E0B; font-weight:bold; font-family:monospace;\">" + fontSize + "px</span>\n" +
-            "          </div>\n" +
-            "          <input type=\"range\" min=\"7\" max=\"48\" value=\"" + fontSize + "\" class=\"slider-input\" oninput=\"updateFontSize(this.value)\" />\n" +
-            "        </div>\n" +
-            "\n" +
-            "        <div class=\"setting-group\">\n" +
-            "          <div class=\"setting-label\"><span>Pilih 10 Gaya Subtitle Siap Rekam:</span></div>\n" +
-            "          <div id=\"presets-list\" class=\"presets-container\"></div>\n" +
-            "        </div>\n" +
             "      </div>\n" +
             "\n" +
             "      <!-- Subtab Countdown -->\n" +
             "      <div id=\"panel-countdown\" style=\"display:none; flex-direction:column; gap:7px;\">\n" +
             "        <div class=\"setting-group\">\n" +
-            "          <div class=\"setting-label\">\n" +
+            "          <div class=\"setting-label\" style=\"display:flex; align-items:center; justify-content:space-between;\">\n" +
             "            <span>Hitung Mundur (Countdown):</span>\n" +
-            "            <button onclick=\"toggleCountdownEnabled()\" id=\"cd-toggle-btn\" class=\"pill-btn " + (countdownSec > 0 ? "active" : "") + "\">" + (countdownSec > 0 ? "Aktif" : "Nonaktif") + "</button>\n" +
+            "            <label class=\"toggle-switch\">\n" +
+            "              <input type=\"checkbox\" id=\"cd-switch-input\" onchange=\"toggleCountdownSwitch(this.checked)\" " + (countdownSec > 0 ? "checked" : "") + " />\n" +
+            "              <span class=\"toggle-slider\"></span>\n" +
+            "            </label>\n" +
             "          </div>\n" +
             "          <div class=\"setting-label\" style=\"margin-top:3px;\">\n" +
             "            <span>Durasi:</span>\n" +
@@ -1344,9 +1367,16 @@ public class FloatingPrompterService extends Service {
             "        <div class=\"setting-group\">\n" +
             "          <div class=\"setting-label\">\n" +
             "            <span>Garis Panduan Kamera:</span>\n" +
-            "            <button onclick=\"toggleFocusGuide()\" id=\"guide-toggle-btn\" class=\"pill-btn " + (showFocusGuide ? "active" : "") + "\">" + (showFocusGuide ? "Aktif" : "Off") + "</button>\n" +
+            "            <span id=\"focus-pct-label\" style=\"color:#F59E0B; font-weight:bold; font-family:monospace;\">" + focusPercent + "%</span>\n" +
             "          </div>\n" +
-            "          <input type=\"range\" min=\"5\" max=\"75\" value=\"" + focusPercent + "\" class=\"slider-input\" oninput=\"updateFocusPercent(this.value)\" />\n" +
+            "          <!-- Sejajar: Toggle Switch di Kiri, Slider di Kanan -->\n" +
+            "          <div style=\"display:flex; align-items:center; gap:8px;\">\n" +
+            "            <label class=\"toggle-switch\">\n" +
+            "              <input type=\"checkbox\" id=\"guide-switch-input\" onchange=\"toggleFocusGuideSwitch(this.checked)\" " + (showFocusGuide ? "checked" : "") + " />\n" +
+            "              <span class=\"toggle-slider\"></span>\n" +
+            "            </label>\n" +
+            "            <input type=\"range\" id=\"focus-slider-input\" min=\"5\" max=\"75\" value=\"" + focusPercent + "\" class=\"slider-input\" style=\"flex:1; " + (showFocusGuide ? "" : "opacity:0.4;") + "\" " + (showFocusGuide ? "" : "disabled") + " oninput=\"updateFocusPercent(this.value)\" />\n" +
+            "          </div>\n" +
             "        </div>\n" +
             "        <div style=\"display:flex; gap:4px; padding-top:2px;\">\n" +
             "          <button class=\"pill-btn\" style=\"flex:1; display:flex; align-items:center; justify-content:center; gap:3px;\" onclick=\"toggleMirror()\">\n" +
@@ -2017,10 +2047,12 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "    function switchTab(tabId) {\n" +
             "      document.getElementById('tab-teks').className = 'tab-item' + (tabId === 'teks' ? ' active' : '');\n" +
+            "      document.getElementById('tab-tema').className = 'tab-item' + (tabId === 'tema' ? ' active' : '');\n" +
             "      document.getElementById('tab-countdown').className = 'tab-item' + (tabId === 'countdown' ? ' active' : '');\n" +
             "      document.getElementById('tab-layar').className = 'tab-item' + (tabId === 'layar' ? ' active' : '');\n" +
             "\n" +
             "      document.getElementById('panel-teks').style.display = tabId === 'teks' ? 'flex' : 'none';\n" +
+            "      document.getElementById('panel-tema').style.display = tabId === 'tema' ? 'flex' : 'none';\n" +
             "      document.getElementById('panel-countdown').style.display = tabId === 'countdown' ? 'flex' : 'none';\n" +
             "      document.getElementById('panel-layar').style.display = tabId === 'layar' ? 'flex' : 'none';\n" +
             "    }\n" +
@@ -2032,20 +2064,22 @@ public class FloatingPrompterService extends Service {
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
-            "    function toggleCountdownEnabled() {\n" +
-            "      countdownSec = countdownSec > 0 ? 0 : 3;\n" +
-            "      const btn = document.getElementById('cd-toggle-btn');\n" +
-            "      btn.innerText = countdownSec > 0 ? 'Aktif' : 'Nonaktif';\n" +
-            "      btn.className = 'pill-btn ' + (countdownSec > 0 ? 'active' : '');\n" +
+            "    function toggleCountdownSwitch(checked) {\n" +
+            "      countdownSec = checked ? (countdownSec > 0 ? countdownSec : 3) : 0;\n" +
+            "      const input = document.getElementById('cd-switch-input');\n" +
+            "      if (input) input.checked = countdownSec > 0;\n" +
             "      document.getElementById('cd-label').innerText = countdownSec > 0 ? countdownSec + ' Detik' : 'Langsung';\n" +
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
+            "    function toggleCountdownEnabled() {\n" +
+            "      toggleCountdownSwitch(countdownSec === 0);\n" +
+            "    }\n" +
+            "\n" +
             "    function setCd(sec) {\n" +
             "      countdownSec = sec;\n" +
-            "      const btn = document.getElementById('cd-toggle-btn');\n" +
-            "      btn.innerText = countdownSec > 0 ? 'Aktif' : 'Nonaktif';\n" +
-            "      btn.className = 'pill-btn ' + (countdownSec > 0 ? 'active' : '');\n" +
+            "      const input = document.getElementById('cd-switch-input');\n" +
+            "      if (input) input.checked = countdownSec > 0;\n" +
             "      document.getElementById('cd-label').innerText = countdownSec > 0 ? countdownSec + ' Detik' : 'Langsung';\n" +
             "      saveAllSettings();\n" +
             "    }\n" +
@@ -2059,20 +2093,31 @@ public class FloatingPrompterService extends Service {
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
-            "    function toggleFocusGuide() {\n" +
-            "      showFocus = !showFocus;\n" +
+            "    function toggleFocusGuideSwitch(checked) {\n" +
+            "      showFocus = checked;\n" +
             "      document.getElementById('focus-guide').style.display = showFocus ? 'flex' : 'none';\n" +
-            "      const btn = document.getElementById('guide-toggle-btn');\n" +
-            "      btn.innerText = showFocus ? 'Aktif' : 'Off';\n" +
-            "      btn.className = 'pill-btn ' + (showFocus ? 'active' : '');\n" +
+            "      const input = document.getElementById('guide-switch-input');\n" +
+            "      if (input) input.checked = showFocus;\n" +
+            "      const slider = document.getElementById('focus-slider-input');\n" +
+            "      if (slider) {\n" +
+            "        slider.style.opacity = showFocus ? '1' : '0.4';\n" +
+            "        slider.disabled = !showFocus;\n" +
+            "      }\n" +
             "      saveAllSettings();\n" +
+            "    }\n" +
+            "\n" +
+            "    function toggleFocusGuide() {\n" +
+            "      toggleFocusGuideSwitch(!showFocus);\n" +
             "    }\n" +
             "\n" +
             "    function updateFocusPercent(val) {\n" +
             "      focusPercent = Number(val);\n" +
             "      const guide = document.getElementById('focus-guide');\n" +
-            "      guide.style.top = focusPercent + '%';\n" +
-            "      document.getElementById('focus-badge').innerText = focusPercent + '%';\n" +
+            "      if (guide) guide.style.top = focusPercent + '%';\n" +
+            "      const badge = document.getElementById('focus-badge');\n" +
+            "      if (badge) badge.innerText = focusPercent + '%';\n" +
+            "      const pctLabel = document.getElementById('focus-pct-label');\n" +
+            "      if (pctLabel) pctLabel.innerText = focusPercent + '%';\n" +
             "      saveAllSettings();\n" +
             "    }\n" +
             "\n" +
