@@ -198,6 +198,8 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
     const customApiKey =
       (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
 
+    const preferredModel = (req.body as any)?.preferredModel || (req.body as any)?.model || undefined;
+
     // Call Gemini for multimodal & text extraction with explicit inputMode
     const { brief, notes, conflicts } = await withTimeout(
       extractProductBrief({
@@ -206,6 +208,7 @@ app.post('/api/extract-product', async (req: Request, res: Response, next: NextF
         urlData,
         images: validatedImages,
         customApiKey,
+        preferredModel,
       }),
       60000,
       'Ekstraksi brief produk melebihi batas waktu (timeout). Silakan periksa koneksi internet atau coba kembali.'
@@ -268,10 +271,11 @@ app.post('/api/generate-scripts', async (req: Request, res: Response, next: Next
 
     // Clamp scriptCount between 1 and 30
     config.scriptCount = Math.max(1, Math.min(30, Math.floor(config.scriptCount)));
+    const preferredModel = (req.body as any)?.preferredModel || (req.body as any)?.model || undefined;
 
     // Generate scripts using Gemini with timeout
     const scripts = await withTimeout(
-      generateScripts({ productBrief, config, customApiKey }),
+      generateScripts({ productBrief, config, customApiKey, preferredModel }),
       160000,
       'Pembuatan skrip melebihi batas waktu (timeout). Silakan kurangi jumlah skrip atau coba kembali.'
     );
@@ -293,6 +297,7 @@ app.post('/api/generate-scripts-stream', async (req: Request, res: Response) => 
     const { productBrief, config } = req.body as GenerateScriptsRequest;
     const customApiKey =
       (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
+    const preferredModel = (req.body as any)?.preferredModel || (req.body as any)?.model || undefined;
 
     if (!productBrief || !productBrief.name) {
       return res.status(400).json({
@@ -319,6 +324,7 @@ app.post('/api/generate-scripts-stream', async (req: Request, res: Response) => 
       productBrief,
       config,
       customApiKey,
+      preferredModel,
       onChunk: (text) => {
         try {
           res.write(`event: chunk\ndata: ${JSON.stringify({ text })}\n\n`);
@@ -363,6 +369,7 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
       req.body as RefineScriptRequest;
     const customApiKey =
       (req.body as any)?.apiKey || (req.headers['x-gemini-api-key'] as string) || undefined;
+    const preferredModel = (req.body as any)?.preferredModel || (req.body as any)?.model || undefined;
 
     if (!script || !productBrief || !config || !refinementType) {
       return res.status(400).json({
@@ -378,6 +385,7 @@ app.post('/api/refine-script', async (req: Request, res: Response, next: NextFun
         refinementType,
         customInstruction,
         customApiKey,
+        preferredModel,
       }),
       45000,
       'Penyempurnaan skrip melebihi batas waktu (timeout). Silakan coba kembali.'

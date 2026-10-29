@@ -36,7 +36,11 @@ import {
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
 import { openDocumentPip, isDocumentPipSupported } from '../utils/teleprompterPip';
-import { launchAndroidFloatingPrompter } from '../utils/androidPrompterSettings';
+import {
+  launchAndroidFloatingPrompter,
+  loadAndroidPrompterConfig,
+  saveAndroidPrompterConfig,
+} from '../utils/androidPrompterSettings';
 import {
   TeleprompterTheme,
   TeleprompterThemeId,
@@ -125,7 +129,10 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
     }
   }, [isMinimized, isOpen]);
 
-  const [opacity, setOpacity] = useState<number>(85); // 10% - 100% (Berlaku untuk seluruh tampilan)
+  // Muat konfigurasi default tersinkronisasi
+  const initialConfigRef = useRef(loadAndroidPrompterConfig());
+
+  const [opacity, setOpacity] = useState<number>(() => initialConfigRef.current.opacity ?? 85); // 10% - 100% (Berlaku untuk seluruh tampilan)
 
   // Menu setelan terbuka & sub-tab aktif
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -135,14 +142,61 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isCountingDown, setIsCountingDown] = useState<boolean>(false);
   const [countdownValue, setCountdownValue] = useState<number>(3);
-  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(true); // Setting countdown aktif/nonaktif
-  const [countdownDuration, setCountdownDuration] = useState<3 | 5 | 10>(3); // 3, 5, atau 10 detik
+  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(() => (initialConfigRef.current.countdownSec ?? 3) > 0);
+  const [countdownDuration, setCountdownDuration] = useState<3 | 5 | 10>(() => {
+    const sec = initialConfigRef.current.countdownSec;
+    if (sec === 5 || sec === 10) return sec;
+    return 3;
+  });
 
-  const [speed, setSpeed] = useState<number>(3); // Range 1 - 10 (Speed 1 sangat lambat)
-  const [fontSize, setFontSize] = useState<number>(18); // Range 7 - 48 px (Mulai dari 7)
-  const [isMirrored, setIsMirrored] = useState<boolean>(false);
-  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0); // Rotasi manual 0, 90, 180, 270 derajat
+  const [speed, setSpeed] = useState<number>(() => initialConfigRef.current.speed ?? 3); // Range 1 - 10 (Speed 1 sangat lambat)
+  const [fontSize, setFontSize] = useState<number>(() => Math.max(7, initialConfigRef.current.fontSize ?? 18)); // Range 7 - 48 px (Mulai dari 7)
+  const [isMirrored, setIsMirrored] = useState<boolean>(() => Boolean(initialConfigRef.current.isMirrored));
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(() => (initialConfigRef.current.rotation as any) ?? 0); // Rotasi manual 0, 90, 180, 270 derajat
   const [selectedConceptIdx, setSelectedConceptIdx] = useState<number>(conceptIndex);
+
+  // Preset Subtitle (#1 Standard Read sebagai DEFAULT)
+  const [activePresetId, setActivePresetId] = useState<SubtitlePresetId>(() => (initialConfigRef.current.presetId as SubtitlePresetId) || 'standard_read');
+
+  // Fokus Tatap Mata (Hanya garis & angka persen, teks 'fokus mata' dihapus)
+  const [showFocusGuide, setShowFocusGuide] = useState<boolean>(() => initialConfigRef.current.showFocusGuide ?? true);
+  const [focusGuidePosition, setFocusGuidePosition] = useState<number>(() => initialConfigRef.current.focusGuidePercent ?? 12); // % dari atas
+
+  // Auto-sync preferensi prompter ke SharedPreferences & localStorage setiap ada perubahan
+  useEffect(() => {
+    saveAndroidPrompterConfig({
+      ...loadAndroidPrompterConfig(),
+      speed,
+      fontSize,
+      opacity,
+      textColorHex: activeTheme.textColor,
+      presetId: activePresetId,
+      themeId: activeTheme.id,
+      backgroundColorHex: activeTheme.backgroundColor,
+      highlightColorHex: activeTheme.highlightColor,
+      rotation,
+      isMirrored,
+      showFocusGuide,
+      focusGuidePercent: focusGuidePosition,
+      countdownSec: countdownEnabled ? countdownDuration : 0,
+      windowWidth: size.width,
+      windowHeight: size.height,
+    });
+  }, [
+    speed,
+    fontSize,
+    opacity,
+    activeTheme,
+    activePresetId,
+    rotation,
+    isMirrored,
+    showFocusGuide,
+    focusGuidePosition,
+    countdownEnabled,
+    countdownDuration,
+    size.width,
+    size.height,
+  ]);
 
   // Skala otomatis rotasi agar teleprompter mengecil otomatis dan tidak melebihi area layar hp
   const rotScale = React.useMemo(() => {
@@ -161,13 +215,6 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   // Ukuran tombol & ikon dinamis agar menu-menu mengecil saat teleprompter dikecilkan
   const dynamicBtnSize = Math.max(20, Math.min(32, Math.floor((size.width - 24) / 10.2)));
   const dynamicIconSize = Math.max(10, Math.min(16, Math.floor(dynamicBtnSize * 0.46)));
-
-  // Preset Subtitle (#1 Standard Read sebagai DEFAULT)
-  const [activePresetId, setActivePresetId] = useState<SubtitlePresetId>('standard_read');
-
-  // Fokus Tatap Mata (Hanya garis & angka persen, teks 'fokus mata' dihapus)
-  const [showFocusGuide, setShowFocusGuide] = useState<boolean>(true);
-  const [focusGuidePosition, setFocusGuidePosition] = useState<number>(12); // % dari atas
 
   // Feedback animasi tap layar
   const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | null>(null);

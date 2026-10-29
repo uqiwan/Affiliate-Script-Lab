@@ -95,6 +95,15 @@ export function saveAndroidPrompterConfig(config: AndroidPrompterConfig): void {
   } catch (e) {
     console.warn('Failed to save Android prompter settings:', e);
   }
+
+  // Sinkronkan ke native Android SharedPreferences secara instan
+  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.saveFloatingPrompterSettings) {
+    try {
+      (window as any).AndroidFloatingBridge.saveFloatingPrompterSettings(JSON.stringify(config));
+    } catch (e) {
+      console.warn('Failed to sync settings to native SharedPreferences:', e);
+    }
+  }
 }
 
 /**

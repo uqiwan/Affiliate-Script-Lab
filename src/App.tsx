@@ -18,7 +18,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { QuotaExhaustedModal } from './components/QuotaExhaustedModal';
 import { AuthWarningModal } from './components/AuthWarningModal';
 import { UnauthorizedDomainModal } from './components/UnauthorizedDomainModal';
-import { parseApiKeys, cleanSingleKey } from './utils/apiKeys';
+import { parseApiKeys, cleanSingleKey, SUPPORTED_GOOGLE_MODELS, GEMINI_MODEL } from './utils/apiKeys';
 import { InfoTooltip } from './components/InfoTooltip';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { FloatingTeleprompter } from './components/FloatingTeleprompter';
@@ -344,12 +344,12 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     try {
       const stored = localStorage.getItem('affiliate_script_lab_model');
-      if (stored && ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'].includes(stored)) {
+      if (stored && SUPPORTED_GOOGLE_MODELS.some((m) => m.id === stored)) {
         return stored;
       }
-      return 'gemini-3.8-flash';
+      return GEMINI_MODEL;
     } catch {
-      return 'gemini-3.8-flash';
+      return GEMINI_MODEL;
     }
   });
 
@@ -883,6 +883,7 @@ export default function App() {
       const resData = await executeExtractProduct({
         ...data,
         apiKey,
+        preferredModel: selectedModel,
       });
 
       const isSingle = data.inputMode !== 'mixed';
@@ -986,6 +987,7 @@ export default function App() {
         productBrief,
         config,
         apiKey,
+        preferredModel: selectedModel,
         onChunk: () => {
           // Token chunks stream progressively without causing expensive root-level re-renders
         },
@@ -1064,6 +1066,7 @@ export default function App() {
         refinementType,
         customInstruction,
         apiKey,
+        preferredModel: selectedModel,
       });
 
       const updatedList = scripts.map((s) => (s.id === targetScript.id ? resData.script : s));

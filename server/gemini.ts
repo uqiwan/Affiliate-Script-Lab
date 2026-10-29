@@ -657,6 +657,7 @@ export async function extractProductBrief(params: {
   urlData?: ScrapedPageResult;
   images?: Array<{ mimeType: string; base64Data: string; name: string }>;
   customApiKey?: string;
+  preferredModel?: string;
 }): Promise<{ brief: ProductBrief; notes: string; conflicts: string[] }> {
   const parts: any[] = [];
   const mode = params.inputMode || 'mixed';
@@ -793,7 +794,7 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
   try {
     const response = await callGeminiWithRetry(
       {
-        model: GEMINI_MODEL,
+        model: params.preferredModel || GEMINI_MODEL,
         contents: { parts },
         config: {
           temperature: 0.2,
@@ -1889,6 +1890,7 @@ async function generateBatchOfScripts(params: {
   targetWords: { min: number; max: number };
   systemPrompt?: string;
   customApiKey?: string;
+  preferredModel?: string;
 }): Promise<ScriptItem[]> {
   const {
     productBrief,
@@ -1899,6 +1901,7 @@ async function generateBatchOfScripts(params: {
     assignedAngles,
     targetWords,
     customApiKey,
+    preferredModel,
   } = params;
 
   const endIndex = startIndex + batchCount - 1;
@@ -1917,7 +1920,7 @@ async function generateBatchOfScripts(params: {
   try {
     const response = await callGeminiWithRetry(
       {
-        model: GEMINI_MODEL,
+        model: preferredModel || GEMINI_MODEL,
         contents: userPrompt,
         config: {
           systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
@@ -1983,6 +1986,7 @@ async function generateBatchOfScriptsStream(params: {
   assignedAngles: string[];
   targetWords: { min: number; max: number };
   customApiKey?: string;
+  preferredModel?: string;
   onChunk?: (text: string) => void;
   onScriptReady?: (script: ScriptItem) => void;
 }): Promise<ScriptItem[]> {
@@ -1995,6 +1999,7 @@ async function generateBatchOfScriptsStream(params: {
     assignedAngles,
     targetWords,
     customApiKey,
+    preferredModel,
     onChunk,
     onScriptReady,
   } = params;
@@ -2017,7 +2022,7 @@ async function generateBatchOfScriptsStream(params: {
   try {
     accumulatedText = await callGeminiStreamWithRetry(
       {
-        model: GEMINI_MODEL,
+        model: preferredModel || GEMINI_MODEL,
         contents: userPrompt,
         config: {
           systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
@@ -2122,8 +2127,9 @@ export async function generateScripts(params: {
   productBrief: ProductBrief;
   config: GenerationConfig;
   customApiKey?: string;
+  preferredModel?: string;
 }): Promise<ScriptItem[]> {
-  const { productBrief, config, customApiKey } = params;
+  const { productBrief, config, customApiKey, preferredModel } = params;
 
   const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
@@ -2181,6 +2187,7 @@ export async function generateScripts(params: {
         assignedAngles: task.assignedAngles,
         targetWords,
         customApiKey,
+        preferredModel,
       });
     }
   );
@@ -2254,10 +2261,11 @@ export async function generateScriptsStream(params: {
   productBrief: ProductBrief;
   config: GenerationConfig;
   customApiKey?: string;
+  preferredModel?: string;
   onChunk?: (text: string) => void;
   onScriptReady?: (script: ScriptItem) => void;
 }): Promise<ScriptItem[]> {
-  const { productBrief, config, customApiKey, onChunk, onScriptReady } = params;
+  const { productBrief, config, customApiKey, preferredModel, onChunk, onScriptReady } = params;
 
   const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
@@ -2318,6 +2326,7 @@ export async function generateScriptsStream(params: {
       assignedAngles: batchTasks[0].assignedAngles,
       targetWords,
       customApiKey,
+      preferredModel,
       onChunk,
       onScriptReady,
     });
@@ -2336,6 +2345,7 @@ export async function generateScriptsStream(params: {
           assignedAngles: task.assignedAngles,
           targetWords,
           customApiKey,
+          preferredModel,
           // Bind live chunk stream to task 0 for immediate token output
           onChunk: taskIdx === 0 ? onChunk : undefined,
           onScriptReady,
@@ -2376,8 +2386,9 @@ export async function refineSingleScript(params: {
   refinementType: string;
   customInstruction?: string;
   customApiKey?: string;
+  preferredModel?: string;
 }): Promise<ScriptItem> {
-  const { script, productBrief, config, refinementType, customInstruction, customApiKey } = params;
+  const { script, productBrief, config, refinementType, customInstruction, customApiKey, preferredModel } = params;
 
   const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
@@ -2465,7 +2476,7 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
 
   const response = await callGeminiWithRetry(
     {
-      model: GEMINI_MODEL,
+      model: preferredModel || GEMINI_MODEL,
       contents: prompt,
       config: {
         temperature: 0.6,

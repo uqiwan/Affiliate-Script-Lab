@@ -35,7 +35,11 @@ import {
 } from '../utils/prompterFormatter';
 import { SUBTITLE_PRESETS, SubtitlePresetId } from '../utils/teleprompterPresets';
 import { openDocumentPip, isDocumentPipSupported } from '../utils/teleprompterPip';
-import { launchAndroidFloatingPrompter } from '../utils/androidPrompterSettings';
+import {
+  launchAndroidFloatingPrompter,
+  loadAndroidPrompterConfig,
+  saveAndroidPrompterConfig,
+} from '../utils/androidPrompterSettings';
 import {
   TeleprompterTheme,
   TeleprompterThemeId,
@@ -83,22 +87,60 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
       setInternalTheme(getStoredPrompterTheme());
     }
   }, [propTheme, isOpen]);
+
+  // Muat konfigurasi default tersinkronisasi
+  const initialConfigRef = useRef(loadAndroidPrompterConfig());
+
   // State manajemen kontrol prompter
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isCountingDown, setIsCountingDown] = useState<boolean>(false);
   const [countdownValue, setCountdownValue] = useState<number>(3);
-  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(true); // Setting countdown aktif/nonaktif
-  const [countdownDuration, setCountdownDuration] = useState<3 | 5 | 10>(3); // 3, 5, atau 10 detik
+  const [countdownEnabled, setCountdownEnabled] = useState<boolean>(() => (initialConfigRef.current.countdownSec ?? 3) > 0);
+  const [countdownDuration, setCountdownDuration] = useState<3 | 5 | 10>(() => {
+    const sec = initialConfigRef.current.countdownSec;
+    if (sec === 5 || sec === 10) return sec;
+    return 3;
+  });
 
-  const [speed, setSpeed] = useState<number>(3); // Range 1 - 10 (Speed 1 sangat lambat)
-  const [fontSize, setFontSize] = useState<number>(24); // Range 7 - 64 px (Mulai dari 7)
-  const [opacity, setOpacity] = useState<number>(95); // 5% - 100%
-  const [isMirrored, setIsMirrored] = useState<boolean>(false);
-  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0); // Rotasi manual 0, 90, 180, 270 derajat
-  const [showFocusZone, setShowFocusZone] = useState<boolean>(true);
-  const [focusZonePosition, setFocusZonePosition] = useState<number>(14); // % dari atas
+  const [speed, setSpeed] = useState<number>(() => initialConfigRef.current.speed ?? 3);
+  const [fontSize, setFontSize] = useState<number>(() => Math.max(7, initialConfigRef.current.fontSize ?? 24));
+  const [opacity, setOpacity] = useState<number>(() => initialConfigRef.current.opacity ?? 95);
+  const [isMirrored, setIsMirrored] = useState<boolean>(() => Boolean(initialConfigRef.current.isMirrored));
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(() => (initialConfigRef.current.rotation as any) ?? 0);
+  const [showFocusZone, setShowFocusZone] = useState<boolean>(() => initialConfigRef.current.showFocusGuide ?? true);
+  const [focusZonePosition, setFocusZonePosition] = useState<number>(() => initialConfigRef.current.focusGuidePercent ?? 14);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
+
+  // Auto-sync preferensi prompter ke SharedPreferences & localStorage setiap ada perubahan
+  useEffect(() => {
+    saveAndroidPrompterConfig({
+      ...loadAndroidPrompterConfig(),
+      speed,
+      fontSize,
+      opacity,
+      textColorHex: activeTheme.textColor,
+      themeId: activeTheme.id,
+      backgroundColorHex: activeTheme.backgroundColor,
+      highlightColorHex: activeTheme.highlightColor,
+      rotation,
+      isMirrored,
+      showFocusGuide: showFocusZone,
+      focusGuidePercent: focusZonePosition,
+      countdownSec: countdownEnabled ? countdownDuration : 0,
+    });
+  }, [
+    speed,
+    fontSize,
+    opacity,
+    activeTheme,
+    rotation,
+    isMirrored,
+    showFocusZone,
+    focusZonePosition,
+    countdownEnabled,
+    countdownDuration,
+  ]);
   const [minimizedPos, setMinimizedPos] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== 'undefined') {
       const safeX = Math.max(12, window.innerWidth - 240);

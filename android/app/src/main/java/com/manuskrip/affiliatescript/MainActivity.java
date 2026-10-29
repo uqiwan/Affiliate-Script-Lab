@@ -385,6 +385,29 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void saveFloatingPrompterSettings(String configJson) {
+            try {
+                org.json.JSONObject obj = new org.json.JSONObject(configJson);
+                android.content.SharedPreferences.Editor editor = getSharedPreferences("gagaswara_prompter_prefs", android.content.Context.MODE_PRIVATE).edit();
+                if (obj.has("speed")) editor.putInt("speed", obj.getInt("speed"));
+                if (obj.has("fontSize")) editor.putInt("font_size", obj.getInt("fontSize"));
+                if (obj.has("opacity")) editor.putInt("opacity", obj.getInt("opacity"));
+                if (obj.has("themeId")) editor.putString("theme_id", obj.getString("themeId"));
+                if (obj.has("presetId")) editor.putString("preset_id", obj.getString("presetId"));
+                if (obj.has("rotation")) editor.putInt("rotation", obj.getInt("rotation"));
+                if (obj.has("isMirrored")) editor.putBoolean("is_mirrored", obj.getBoolean("isMirrored"));
+                if (obj.has("showFocusGuide")) editor.putBoolean("show_focus_guide", obj.getBoolean("showFocusGuide"));
+                if (obj.has("focusGuidePercent")) editor.putInt("focus_percent", obj.getInt("focusGuidePercent"));
+                if (obj.has("countdownSec")) editor.putInt("countdown_sec", obj.getInt("countdownSec"));
+                if (obj.has("windowWidth")) editor.putInt("window_width", obj.getInt("windowWidth"));
+                if (obj.has("windowHeight")) editor.putInt("window_height", obj.getInt("windowHeight"));
+                editor.apply();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @JavascriptInterface
         public void openAppDetailsSettings() {
             try {
                 Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);

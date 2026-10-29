@@ -1228,10 +1228,11 @@ export async function directGenerateScriptsStream(params: {
   productBrief: ProductBrief;
   config: GenerationConfig;
   apiKey?: string;
+  preferredModel?: string;
   onChunk?: (text: string) => void;
   onScriptReady?: (script: ScriptItem) => void;
 }): Promise<GenerateScriptsResponse> {
-  const { productBrief, config, apiKey, onChunk, onScriptReady } = params;
+  const { productBrief, config, apiKey, preferredModel, onChunk, onScriptReady } = params;
 
   const targetWordsMap: Record<number, { min: number; max: number }> = {
     15: { min: 30, max: 40 },
@@ -1507,6 +1508,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         contents: userPrompt,
         systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
         apiKey,
+        preferredModel,
         temperature: 0.8,
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,
