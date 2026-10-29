@@ -115,7 +115,9 @@ export function sanitizeCrossPlatformText(text: string): string {
     .replace(/\bke\s+tiktok\b/gi, 'ke keranjang bawah')
     .replace(/\bdi\s+tokopedia\b/gi, 'di keranjang bawah')
     .replace(/\bke\s+tokopedia\b/gi, 'ke keranjang bawah')
-    .replace(/\s+/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -644,7 +646,10 @@ function buildDirectFallbackScript(
     },
   ];
 
-  const voiceoverOnly = segments.map((s) => s.spokenDialogue).join(' ');
+  const voiceoverOnly = segments
+    .map((s) => (s.spokenDialogue || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
   const words = countWords(voiceoverOnly);
 
   return {
@@ -1078,7 +1083,7 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         "strategyNote": "Neutral CTA"
       }
     ],
-    "voiceoverOnly": "Gabungan dialog lisan",
+    "voiceoverOnly": "Seluruh dialog spokenDialogue digabung dengan jarak dua kali Enter (\\n\\n) di antara setiap bagian Hook, Problem, Demo/Solusi, dan CTA",
     "qualityChecklist": ["Hook 3 detik pertama", "Safe zone overlay", "Durasi sesuai target"],
     "warnings": []
   }
@@ -1135,9 +1140,19 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
             strategyNote: seg.strategyNote || '',
           }));
 
-          const rawVo =
-            s.voiceoverOnly ||
-            segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+          let rawVo = '';
+          if (segments.length > 0) {
+            rawVo = segments
+              .map((seg: any) => (seg.spokenDialogue || '').trim())
+              .filter(Boolean)
+              .join('\n\n');
+          } else if (s.voiceoverOnly && typeof s.voiceoverOnly === 'string') {
+            rawVo = s.voiceoverOnly
+              .split(/\n\s*\n+/)
+              .map((p: string) => p.trim())
+              .filter(Boolean)
+              .join('\n\n');
+          }
           const compiledVoiceover = sanitizeCrossPlatformText(rawVo);
           const actualWords = countWords(compiledVoiceover);
           const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
@@ -1440,9 +1455,19 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
           strategyNote: seg.strategyNote || '',
         }));
 
-        const rawVo =
-          s.voiceoverOnly ||
-          segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+        let rawVo = '';
+        if (segments.length > 0) {
+          rawVo = segments
+            .map((seg: any) => (seg.spokenDialogue || '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+        } else if (s.voiceoverOnly && typeof s.voiceoverOnly === 'string') {
+          rawVo = s.voiceoverOnly
+            .split(/\n\s*\n+/)
+            .map((p: string) => p.trim())
+            .filter(Boolean)
+            .join('\n\n');
+        }
         const compiledVoiceover = sanitizeCrossPlatformText(rawVo);
         const actualWords = countWords(compiledVoiceover);
         const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
@@ -1666,9 +1691,20 @@ ATURAN:
         spokenDialogue: sanitizeCrossPlatformText(seg.spokenDialogue),
         overlayText: sanitizeCrossPlatformText(seg.overlayText),
       }));
-      const voiceoverOnly = sanitizeCrossPlatformText(
-        parsed.voiceoverOnly || segments.map((s: any) => s.spokenDialogue).join(' ')
-      );
+      let rawVo = '';
+      if (segments.length > 0) {
+        rawVo = segments
+          .map((s: any) => (s.spokenDialogue || '').trim())
+          .filter(Boolean)
+          .join('\n\n');
+      } else if (parsed.voiceoverOnly && typeof parsed.voiceoverOnly === 'string') {
+        rawVo = parsed.voiceoverOnly
+          .split(/\n\s*\n+/)
+          .map((p: string) => p.trim())
+          .filter(Boolean)
+          .join('\n\n');
+      }
+      const voiceoverOnly = sanitizeCrossPlatformText(rawVo);
       const actualWords = countWords(voiceoverOnly);
       const evalStatus = evaluateDurationStatus(actualWords, config.durationSeconds);
 

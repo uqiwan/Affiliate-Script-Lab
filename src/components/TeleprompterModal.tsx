@@ -217,6 +217,25 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
   const lastTimeRef = useRef<number | null>(null);
   const scrollAccumulatorRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(isPlaying);
+  const countdownTimerRef = useRef<any>(null);
+  const tapFeedbackTimerRef = useRef<any>(null);
+
+  const clearTimers = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    if (tapFeedbackTimerRef.current) {
+      clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+    };
+  }, [clearTimers]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -316,17 +335,22 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
 
   // Trigger Play dengan Countdown jika aktif
   const triggerPlay = useCallback(() => {
+    clearTimers();
     if (countdownEnabled) {
       setIsCountingDown(true);
       setCountdownValue(countdownDuration);
-      const timer = setInterval(() => {
+      countdownTimerRef.current = setInterval(() => {
         setCountdownValue((prev) => {
           if (prev <= 1) {
-            clearInterval(timer);
+            if (countdownTimerRef.current) {
+              clearInterval(countdownTimerRef.current);
+              countdownTimerRef.current = null;
+            }
             setIsCountingDown(false);
             setIsPlaying(true);
             setTapFeedback('play');
-            setTimeout(() => setTapFeedback(null), 500);
+            if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+            tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
             return countdownDuration;
           }
           return prev - 1;
@@ -335,26 +359,31 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
     } else {
       setIsPlaying(true);
       setTapFeedback('play');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     }
-  }, [countdownEnabled, countdownDuration]);
+  }, [countdownEnabled, countdownDuration, clearTimers]);
 
   // Mulai atau Jeda
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
+      clearTimers();
       setIsPlaying(false);
       setTapFeedback('pause');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     } else if (isCountingDown) {
+      clearTimers();
       setIsCountingDown(false);
       setIsPlaying(true);
       setTapFeedback('play');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     } else {
       triggerPlay();
       setIsSettingsOpen(false);
     }
-  }, [isPlaying, isCountingDown, triggerPlay]);
+  }, [isPlaying, isCountingDown, triggerPlay, clearTimers]);
 
   // Tap layar untuk Mulai / Jeda
   const handleScreenTap = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -691,12 +720,12 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
             return (
               <section
                 key={concept.id}
-                className={`space-y-6 border-b border-zinc-800/40 pb-16 last:border-b-0 ${cIdx > 0 ? 'mt-16 pt-10' : ''}`}
+                className={`space-y-6 ${cIdx > 0 ? 'mt-8 pt-2' : ''}`}
               >
-                {/* Garis Pemisah Antar-Konsep */}
+                {/* Garis Pemisah Antar-Konsep: 1 Garis Pemisah Tunggal & Jarak Proporsional */}
                 {cIdx > 0 && (
-                  <div className="w-full my-6 flex items-center justify-center select-none">
-                    <div className="w-full border-t border-dashed border-white/20" />
+                  <div className="w-full mb-6 flex items-center justify-center select-none">
+                    <div className="w-full border-t border-dashed border-white/25" />
                   </div>
                 )}
 

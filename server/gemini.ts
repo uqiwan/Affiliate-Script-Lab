@@ -185,7 +185,9 @@ export function sanitizeCrossPlatformText(text: string): string {
     .replace(/\bke\s+tiktok\b/gi, 'ke keranjang bawah')
     .replace(/\bdi\s+tokopedia\b/gi, 'di keranjang bawah')
     .replace(/\bke\s+tokopedia\b/gi, 'ke keranjang bawah')
-    .replace(/\s+/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -1506,7 +1508,10 @@ function buildFallbackScript(
     },
   ];
 
-  const voiceoverOnly = segments.map((s) => s.spokenDialogue).join(' ');
+  const voiceoverOnly = segments
+    .map((s) => (s.spokenDialogue || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
   const words = countWords(voiceoverOnly);
 
   return {
@@ -1621,6 +1626,7 @@ ATURAN ANTI-REPETISI & DIVERSIFIKASI MUTLAK:
 3. Arahan visual B-roll harus variatif: ada yang close-up tangan, ada yang tatap kamera, ada yang split perbandingan, ada yang unboxing.
 4. DILARANG menyebut nama platform (Shopee, TikTok, Tokopedia).
 5. DILARANG menggunakan istilah "keranjang kuning" atau "keranjang orange". Wajib sebutan netral universal: "keranjang kiri bawah" atau "keranjang bawah video ini".
+6. PEMISAHAN STRUKTUR DUA KALI ENTER (\n\n): Pada output skrip, pisahkan setiap struktur bagian (seperti Hook, Problem/Masalah, Solusi/Demo, dan Call to Action) dengan jarak baris baru dua kali Enter (\n\n) agar setiap bagian teks skrip mudah dibaca, dipindai, dan dibedakan.
 
 FORMAT OUTPUT JSON (Kembalikan JSON Array murni berisi TEPAT ${batchCount} objek skrip dengan struktur berikut):
 [
@@ -1677,7 +1683,7 @@ FORMAT OUTPUT JSON (Kembalikan JSON Array murni berisi TEPAT ${batchCount} objek
         "strategyNote": "Ajakan bertindak netral multi-platform"
       }
     ],
-    "voiceoverOnly": "Seluruh dialog lisan spokenDialogue digabung siap rekam",
+    "voiceoverOnly": "Seluruh dialog lisan spokenDialogue digabung dengan jarak baris baru dua kali Enter (\\n\\n) di antara setiap bagian Hook, Problem, Solusi, dan CTA",
     "qualityChecklist": ["Hook 3 detik pertama", "Fakta produk akurat", "Safe zone overlay", "Durasi sesuai target"],
     "warnings": []
   }
@@ -1720,10 +1726,19 @@ export function normalizeRawScripts(
       };
     });
 
-    const rawVoiceover =
-      s.voiceoverOnly && typeof s.voiceoverOnly === 'string'
-        ? s.voiceoverOnly
-        : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+    let rawVoiceover = '';
+    if (segments.length > 0) {
+      rawVoiceover = segments
+        .map((seg: any) => (seg.spokenDialogue || '').trim())
+        .filter(Boolean)
+        .join('\n\n');
+    } else if (s.voiceoverOnly && typeof s.voiceoverOnly === 'string') {
+      rawVoiceover = s.voiceoverOnly
+        .split(/\n\s*\n+/)
+        .map((p: string) => p.trim())
+        .filter(Boolean)
+        .join('\n\n');
+    }
 
     const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
     const actualWordCount = countWords(compiledVoiceover);
@@ -2475,10 +2490,19 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
     strategyNote: seg.strategyNote || '',
   }));
 
-  const rawVoiceover =
-    parsed.voiceoverOnly && typeof parsed.voiceoverOnly === 'string'
-      ? parsed.voiceoverOnly
-      : segments.map((seg: any) => seg.spokenDialogue).filter(Boolean).join(' ');
+  let rawVoiceover = '';
+  if (segments.length > 0) {
+    rawVoiceover = segments
+      .map((seg: any) => (seg.spokenDialogue || '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+  } else if (parsed.voiceoverOnly && typeof parsed.voiceoverOnly === 'string') {
+    rawVoiceover = parsed.voiceoverOnly
+      .split(/\n\s*\n+/)
+      .map((p: string) => p.trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
 
   const compiledVoiceover = sanitizeCrossPlatformText(rawVoiceover);
   const actualWordCount = countWords(compiledVoiceover);

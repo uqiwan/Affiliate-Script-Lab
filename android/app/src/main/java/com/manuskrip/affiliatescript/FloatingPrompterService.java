@@ -1566,7 +1566,11 @@ public class FloatingPrompterService extends Service {
             "        try {\n" +
             "          const parsedConcepts = JSON.parse(RAW_CONCEPTS_JSON);\n" +
             "          if (Array.isArray(parsedConcepts) && parsedConcepts.length > 0) {\n" +
-            "            for (let c of parsedConcepts) {\n" +
+            "            for (let idx = 0; idx < parsedConcepts.length; idx++) {\n" +
+            "              let c = parsedConcepts[idx];\n" +
+            "              if (idx > 0) {\n" +
+            "                html += '<div style=\"margin: 18px 0 12px 0; border-top: 1px dashed rgba(255,255,255,0.25);\"></div>';\n" +
+            "              }\n" +
             "              html += '<div class=\"concept-header\">' +\n" +
             "                        '<div style=\"display:flex;align-items:center;gap:6px;min-width:0;\">' +\n" +
             "                          '<span style=\"width:7px;height:7px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
@@ -1610,7 +1614,10 @@ public class FloatingPrompterService extends Service {
             "      const lines = RAW_SCRIPT.split('\\n');\n" +
             "      for (let i = 0; i < lines.length; i++) {\n" +
             "        let line = lines[i].trim();\n" +
-            "        if (!line) continue;\n" +
+            "        if (!line) {\n" +
+            "          html += '<div style=\"height:16px;\"></div>';\n" +
+            "          continue;\n" +
+            "        }\n" +
             "\n" +
             "        if (line.startsWith('===') && line.endsWith('===')) {\n" +
             "          let title = line.replace(/===/g, '').trim();\n" +

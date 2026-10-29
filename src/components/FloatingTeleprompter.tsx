@@ -171,6 +171,8 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
 
   // Feedback animasi tap layar
   const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | null>(null);
+  const countdownTimerRef = useRef<any>(null);
+  const tapFeedbackTimerRef = useRef<any>(null);
 
   // References
   const widgetRef = useRef<HTMLDivElement | null>(null);
@@ -189,6 +191,23 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
   const lastTimeRef = useRef<number | null>(null);
   const scrollAccumulatorRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(isPlaying);
+
+  const clearTimers = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    if (tapFeedbackTimerRef.current) {
+      clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+    };
+  }, [clearTimers]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -402,17 +421,22 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
 
   // Mulai dengan Countdown jika aktif
   const triggerPlay = () => {
+    clearTimers();
     if (countdownEnabled) {
       setIsCountingDown(true);
       setCountdownValue(countdownDuration);
-      const timer = setInterval(() => {
+      countdownTimerRef.current = setInterval(() => {
         setCountdownValue((prev) => {
           if (prev <= 1) {
-            clearInterval(timer);
+            if (countdownTimerRef.current) {
+              clearInterval(countdownTimerRef.current);
+              countdownTimerRef.current = null;
+            }
             setIsCountingDown(false);
             setIsPlaying(true);
             setTapFeedback('play');
-            setTimeout(() => setTapFeedback(null), 500);
+            if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+            tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
             return countdownDuration;
           }
           return prev - 1;
@@ -421,7 +445,8 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
     } else {
       setIsPlaying(true);
       setTapFeedback('play');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     }
   };
 
@@ -431,14 +456,18 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
       return;
     }
     if (isPlaying) {
+      clearTimers();
       setIsPlaying(false);
       setTapFeedback('pause');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     } else if (isCountingDown) {
+      clearTimers();
       setIsCountingDown(false);
       setIsPlaying(true);
       setTapFeedback('play');
-      setTimeout(() => setTapFeedback(null), 500);
+      if (tapFeedbackTimerRef.current) clearTimeout(tapFeedbackTimerRef.current);
+      tapFeedbackTimerRef.current = setTimeout(() => setTapFeedback(null), 500);
     } else {
       triggerPlay();
       setIsSettingsOpen(false);
@@ -704,11 +733,11 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
             {activeConcepts.map((concept, cIdx) => {
               const parts = formatConceptDisplayParts(concept.conceptNumber, concept.title, concept.angle);
               return (
-                <div key={concept.id || cIdx} className={`space-y-4 mb-10 ${cIdx > 0 ? 'mt-16 pt-10 border-t border-dashed border-white/20' : ''}`}>
-                  {/* Garis Pemisah Antar-Konsep */}
+                <div key={concept.id || cIdx} className={`space-y-4 mb-6 ${cIdx > 0 ? 'mt-6 pt-1' : ''}`}>
+                  {/* Garis Pemisah Antar-Konsep: 1 Garis Pemisah Tunggal & Jarak Proporsional */}
                   {cIdx > 0 && (
-                    <div className="w-full my-3 flex items-center justify-center select-none">
-                      <div className="w-full border-t border-dashed border-white/20" />
+                    <div className="w-full mb-4 flex items-center justify-center select-none">
+                      <div className="w-full border-t border-dashed border-white/25" />
                     </div>
                   )}
 

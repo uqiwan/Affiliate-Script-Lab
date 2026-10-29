@@ -30,7 +30,11 @@ export function formatScriptAsText(script: ScriptItem, index?: number): string {
   });
 
   txt += `--- NARASI / VOICEOVER SAJA (SIAP DIBACA) ---\n`;
-  txt += `${script.voiceoverOnly}\n\n`;
+  const voText =
+    script.segments && script.segments.length > 1
+      ? script.segments.map((s) => (s.spokenDialogue || '').trim()).filter(Boolean).join('\n\n')
+      : (script.voiceoverOnly || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).join('\n\n');
+  txt += `${voText}\n\n`;
 
   return txt;
 }
@@ -65,10 +69,14 @@ export function generateAllVoiceoversTxt(
   full += `============================================================\n\n`;
 
   scripts.forEach((script, idx) => {
+    const voText =
+      script.segments && script.segments.length > 1
+        ? script.segments.map((s) => (s.spokenDialogue || '').trim()).filter(Boolean).join('\n\n')
+        : (script.voiceoverOnly || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).join('\n\n');
     full += `[KONSEP #${idx + 1}] ${script.title}\n`;
     full += `Angle: ${script.angle} | Durasi: ${script.estimatedDurationSeconds} detik (${script.spokenWordCount} kata)\n`;
     full += `------------------------------------------------------------\n`;
-    full += `"${script.voiceoverOnly}"\n\n`;
+    full += `"${voText}"\n\n\n`;
   });
 
   return full;

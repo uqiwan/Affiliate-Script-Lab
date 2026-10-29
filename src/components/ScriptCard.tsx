@@ -126,12 +126,19 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
   // Sync edit buffers when script changes or edit mode opens
   useEffect(() => {
     setEditTitle(script.title);
-    setEditPersona(script.persona || '');
-    const initialVo =
-      (script.voiceoverOnly && script.voiceoverOnly.trim()) ||
-      (script.segments && script.segments.length > 0
-        ? script.segments.map((s) => cleanDialogueText(s.spokenDialogue)).filter(Boolean).join('\n\n')
-        : '');
+    let initialVo = '';
+    if (script.segments && script.segments.length > 1) {
+      initialVo = script.segments
+        .map((s) => cleanDialogueText(s.spokenDialogue))
+        .filter(Boolean)
+        .join('\n\n');
+    } else if (script.voiceoverOnly && script.voiceoverOnly.trim()) {
+      initialVo = script.voiceoverOnly
+        .split(/\n+/)
+        .map((p) => cleanDialogueText(p))
+        .filter(Boolean)
+        .join('\n\n');
+    }
     setEditVoiceover(initialVo);
     setEditSegments(
       script.segments && script.segments.length > 0
@@ -189,14 +196,38 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
     return evaluateDurationStatus(currentEditWords, durSec);
   }, [currentEditWords, script.estimatedDurationSeconds]);
 
-  // Dialog paragraphs for normal view - preserve paragraph separation
+  // Dialog paragraphs for normal view - preserve paragraph separation with blank lines
   const scriptParagraphs: string[] = useMemo(() => {
+    // 1. If segments exist with multiple structured parts (Hook, Problem, Solusi, CTA), prioritize them
+    if (script.segments && script.segments.length > 1) {
+      const segDialogues = script.segments
+        .map((seg) => (seg.spokenDialogue ? cleanDialogueText(seg.spokenDialogue) : ''))
+        .filter(Boolean);
+      if (segDialogues.length > 1) {
+        return segDialogues;
+      }
+    }
+
+    // 2. If voiceoverOnly has paragraph breaks (double newline or newline)
     if (script.voiceoverOnly && script.voiceoverOnly.trim()) {
-      return script.voiceoverOnly
+      const parts = script.voiceoverOnly
         .split(/\n\s*\n+/)
         .map((p) => cleanDialogueText(p))
         .filter(Boolean);
+      if (parts.length > 1) {
+        return parts;
+      }
+      const singleLineParts = script.voiceoverOnly
+        .split(/\n+/)
+        .map((p) => cleanDialogueText(p))
+        .filter(Boolean);
+      if (singleLineParts.length > 1) {
+        return singleLineParts;
+      }
+      return [cleanDialogueText(script.voiceoverOnly)];
     }
+
+    // 3. Fallback to single segment
     if (script.segments && script.segments.length > 0) {
       const segDialogues = script.segments
         .map((seg) => (seg.spokenDialogue ? cleanDialogueText(seg.spokenDialogue) : ''))
@@ -645,7 +676,7 @@ const ScriptCardComponent: React.FC<ScriptCardProps> = ({
       ) : (
         /* MODE TAMPILAN NORMAL - Bersih, Fokus ke Skrip, Ikon Edit di Akhir Teks */
         <div className="p-4 sm:p-6 space-y-4">
-          <div className="space-y-4 sm:space-y-5">
+          <div className="space-y-6 sm:space-y-7">
             {scriptParagraphs.map((paragraph, pIdx) => {
               const isLast = pIdx === scriptParagraphs.length - 1;
               return (
