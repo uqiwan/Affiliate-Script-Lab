@@ -757,6 +757,7 @@ FORMAT OUTPUT JSON (Kembalikan JSON murni tanpa markdown):
     apiKey: params.apiKey,
     temperature: 0.2,
     responseMimeType: 'application/json',
+    maxOutputTokens: 1500,
   });
 
   let parsed: any;
@@ -1442,11 +1443,11 @@ FORMAT OUTPUT JSON (Array murni ${task.batchCount} objek):
         apiKey,
         temperature: 0.8,
         responseMimeType: 'application/json',
-        maxOutputTokens: 4096,
+        maxOutputTokens: 2500,
         onChunk: (chunk) => {
           accumulatedText += chunk;
           if (onChunk) onChunk(chunk);
-          if (onScriptReady && accumulatedText.length > 150) {
+          if (onScriptReady && accumulatedText.length > 80 && accumulatedText.includes('}')) {
             const parsed = parseAndEmitScripts(accumulatedText);
             parsed.forEach((script, idx) => {
               if (!emittedIndices.has(idx) && script.segments && script.segments.length >= 3) {

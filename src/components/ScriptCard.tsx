@@ -63,7 +63,7 @@ function cleanDialogueText(text: string): string {
   return cleaned;
 }
 
-export const ScriptCard: React.FC<ScriptCardProps> = ({
+const ScriptCardComponent: React.FC<ScriptCardProps> = ({
   script,
   index,
   totalScripts,
@@ -879,3 +879,5 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
     </div>
   );
 };
+
+export const ScriptCard = React.memo(ScriptCardComponent);

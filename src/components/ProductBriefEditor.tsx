@@ -87,7 +87,7 @@ const AutoGrowTextarea: React.FC<AutoGrowTextareaProps> = ({
   );
 };
 
-export const ProductBriefEditor: React.FC<ProductBriefEditorProps> = ({
+const ProductBriefEditorComponent: React.FC<ProductBriefEditorProps> = ({
   brief,
   onChange,
   conflicts = [],
@@ -658,3 +658,5 @@ export const ProductBriefEditor: React.FC<ProductBriefEditorProps> = ({
     </div>
   );
 };
+
+export const ProductBriefEditor = React.memo(ProductBriefEditorComponent);

@@ -299,10 +299,10 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
   const [isBriefApproved, setIsBriefApproved] = useState<boolean>(false);
 
-  // Loading States
+  // Loading & In-flight request deduplication states
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [streamingLiveText, setStreamingLiveText] = useState<string>('');
+  const inFlightRequestRef = React.useRef<boolean>(false);
   const [isRefining, setIsRefining] = useState<boolean>(false);
   const [activeInputMode, setActiveInputMode] = useState<InputMode>('images');
 
@@ -735,6 +735,8 @@ export default function App() {
     productUrl?: string;
     images?: Array<{ name: string; mimeType: string; base64Data: string; size: number }>;
   }) => {
+    if (inFlightRequestRef.current) return;
+    inFlightRequestRef.current = true;
     setActiveInputMode(data.inputMode);
     setIsAnalyzing(true);
     setGlobalError(null);
@@ -802,6 +804,7 @@ export default function App() {
       }
     } finally {
       setIsAnalyzing(false);
+      inFlightRequestRef.current = false;
     }
   };
 
@@ -818,6 +821,8 @@ export default function App() {
 
   // 3. Generate scripts: Real-time token streaming with 1-2s TTFT & Progressive Render
   const handleGenerateScripts = async () => {
+    if (inFlightRequestRef.current) return;
+
     // Check if an AI key is available either from server backend or custom API key
     const canGenerate = serverHasKey || Boolean(apiKey && apiKey.trim());
     if (!canGenerate) {
@@ -834,9 +839,9 @@ export default function App() {
       return;
     }
 
+    inFlightRequestRef.current = true;
     setIsGenerating(true);
     setGlobalError(null);
-    setStreamingLiveText('');
     setScripts([]); // Reset previous scripts so user sees new concepts streaming in
     setCurrentStep(4); // Advance immediately to Step 4 so user experiences live generation
 
@@ -845,8 +850,8 @@ export default function App() {
         productBrief,
         config,
         apiKey,
-        onChunk: (chunk) => {
-          setStreamingLiveText((prev) => prev + chunk);
+        onChunk: () => {
+          // Token chunks stream progressively without causing expensive root-level re-renders
         },
         onScriptReady: (newScript) => {
           setScripts((prev) => {
@@ -900,7 +905,7 @@ export default function App() {
       }
     } finally {
       setIsGenerating(false);
-      setStreamingLiveText('');
+      inFlightRequestRef.current = false;
     }
   };
 

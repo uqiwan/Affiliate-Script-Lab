@@ -39,7 +39,7 @@ interface InputPanelProps {
   onValidityChange?: (isValid: boolean, triggerAnalyze: () => void) => void;
 }
 
-export const InputPanel: React.FC<InputPanelProps> = ({
+const InputPanelComponent: React.FC<InputPanelProps> = ({
   onAnalyze,
   isAnalyzing,
   disabled = false,
@@ -504,3 +504,5 @@ export const InputPanel: React.FC<InputPanelProps> = ({
     </div>
   );
 };
+
+export const InputPanel = React.memo(InputPanelComponent);

@@ -19,9 +19,15 @@ import {
 
 export { SUPPORTED_GOOGLE_MODELS, GEMINI_MODEL, parseApiKeys, cleanSingleKey, safeHeaderValue };
 
+const aiClientsCache = new Map<string, GoogleGenAI>();
+
 function getAiClient(apiKey: string): GoogleGenAI {
   const cleanKey = cleanSingleKey(apiKey);
   const safeVal = safeHeaderValue(cleanKey);
+  const cached = aiClientsCache.get(safeVal);
+  if (cached) {
+    return cached;
+  }
   const headers: Record<string, string> = {
     'User-Agent': 'aistudio-build',
     'x-goog-api-key': safeVal,
@@ -29,12 +35,19 @@ function getAiClient(apiKey: string): GoogleGenAI {
   if (safeVal.startsWith('ya29.')) {
     headers['Authorization'] = `Bearer ${safeVal}`;
   }
-  return new GoogleGenAI({
+  const client = new GoogleGenAI({
     apiKey: safeVal,
     httpOptions: {
       headers,
     },
   });
+  // Prevent unbounded cache growth
+  if (aiClientsCache.size > 20) {
+    const first = aiClientsCache.keys().next().value;
+    if (first) aiClientsCache.delete(first);
+  }
+  aiClientsCache.set(safeVal, client);
+  return client;
 }
 
 
@@ -737,7 +750,10 @@ OUTPUT FORMAT: Hasilkan JSON murni tanpa markdown dengan kelengkapan penuh:
         config: {
           temperature: 0.2,
           responseMimeType: 'application/json',
-          maxOutputTokens: 2500,
+          maxOutputTokens: 1500,
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.LOW,
+          },
         },
       },
       params.customApiKey,
@@ -1923,7 +1939,10 @@ async function generateBatchOfScriptsStream(params: {
           systemInstruction: STATIC_AFFILIATE_SYSTEM_PROMPT,
           temperature: 0.85,
           responseMimeType: 'application/json',
-          maxOutputTokens: 8192,
+          maxOutputTokens: 2500,
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.LOW,
+          },
         },
       },
       customApiKey,
@@ -1931,7 +1950,7 @@ async function generateBatchOfScriptsStream(params: {
         accumulatedText += chunk;
         if (onChunk) onChunk(chunk);
         // Attempt progressive object extraction as tokens arrive in real-time
-        if (onScriptReady && accumulatedText.length > 150) {
+        if (onScriptReady && accumulatedText.length > 80 && accumulatedText.includes('}')) {
           const completedObjs = extractCompletedJsonObjects(accumulatedText);
           if (completedObjs.length > 0) {
             const partial = normalizeRawScripts(
@@ -2341,6 +2360,10 @@ KEMBALIKAN HANYA OBJEK JSON TUNGGAL DENGAN STRUKTUR SCRIPTITEM:
       config: {
         temperature: 0.6,
         responseMimeType: 'application/json',
+        maxOutputTokens: 1500,
+        thinkingConfig: {
+          thinkingLevel: ThinkingLevel.LOW,
+        },
       },
     },
     customApiKey
