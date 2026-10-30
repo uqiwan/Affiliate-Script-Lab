@@ -781,11 +781,15 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
               const parts = formatConceptDisplayParts(concept.conceptNumber, concept.title, concept.angle);
               return (
                 <div key={concept.id || cIdx} className={`space-y-4 mb-6 ${cIdx > 0 ? 'mt-6 pt-1' : ''}`}>
-                  {/* Garis Pemisah Antar-Konsep: 1 Garis Pemisah Tunggal & Jarak Proporsional */}
+                  {/* Garis Pemisah Antar-Konsep: Garis Pemisah & Ruang Kosong Jeda Stop Scroll */}
                   {cIdx > 0 && (
-                    <div className="w-full mb-4 flex items-center justify-center select-none">
-                      <div className="w-full border-t border-dashed border-white/25" />
-                    </div>
+                    <>
+                      <div className="w-full pt-6 flex items-center justify-center select-none">
+                        <div className="w-full border-t border-dashed border-white/25" />
+                      </div>
+                      {/* Ruang kosong tinggi antara baris pemisah dengan kotak teks pemisah (jeda user stop scroll) */}
+                      <div className="w-full h-40 select-none pointer-events-none" />
+                    </>
                   )}
 
                   {/* Header Pemisah Konsep Sesuai Tema (2 Baris: Baris 1 Nomor, Baris 2 Nama Konsep & Formula) */}

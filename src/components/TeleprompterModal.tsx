@@ -764,11 +764,15 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                 key={concept.id}
                 className={`space-y-6 ${cIdx > 0 ? 'mt-8 pt-2' : ''}`}
               >
-                {/* Garis Pemisah Antar-Konsep: 1 Garis Pemisah Tunggal & Jarak Proporsional */}
+                {/* Garis Pemisah Antar-Konsep: Garis Pemisah & Ruang Kosong Jeda Stop Scroll */}
                 {cIdx > 0 && (
-                  <div className="w-full mb-6 flex items-center justify-center select-none">
-                    <div className="w-full border-t border-dashed border-white/25" />
-                  </div>
+                  <>
+                    <div className="w-full pt-8 flex items-center justify-center select-none">
+                      <div className="w-full border-t border-dashed border-white/25" />
+                    </div>
+                    {/* Ruang kosong tinggi antara baris pemisah dengan kotak teks pemisah (jeda user stop scroll) */}
+                    <div className="w-full h-44 select-none pointer-events-none" />
+                  </>
                 )}
 
                 {/* Pemisah Antar-Konsep Sesuai Tema (2 Baris Lengkap) */}

@@ -1013,18 +1013,28 @@ public class FloatingPrompterService extends Service {
             "      transition: transform 0.2s ease;\n" +
             "    }\n" +
             "    .concept-header {\n" +
-            "      display: flex; align-items: center; justify-content: space-between; gap: 8px;\n" +
-            "      padding: 10px 14px; border-radius: 12px; margin: 12px 0 10px 0;\n" +
+            "      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;\n" +
+            "      padding: 12px 14px; border-radius: 14px; margin: 14px 0 12px 0;\n" +
             "      background: " + resolvedCardBg + "; border: 2px solid " + resolvedCardBorder + ";\n" +
-            "      font-size: 13px; font-weight: 900; color: " + resolvedCardText + ";\n" +
-            "      box-shadow: 0 4px 16px rgba(0,0,0,0.45); text-transform: uppercase;\n" +
+            "      box-shadow: 0 4px 18px rgba(0,0,0,0.45); min-height: 56px;\n" +
             "    }\n" +
-            "    .concept-title {\n" +
-            "      color: " + resolvedCardText + "; font-weight: 900; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n" +
+            "    .concept-line-1 {\n" +
+            "      font-size: 11px; font-weight: 900; letter-spacing: 0.06em;\n" +
+            "      text-transform: uppercase; line-height: 1.25; margin-bottom: 2px;\n" +
+            "    }\n" +
+            "    .concept-line-2 {\n" +
+            "      font-size: 13px; font-weight: 900; letter-spacing: -0.01em;\n" +
+            "      line-height: 1.35; word-break: break-word; text-transform: uppercase;\n" +
             "    }\n" +
             "    .duration-badge {\n" +
             "      font-size: 10px; font-weight: 900; color: " + resolvedBadgeText + "; background: " + resolvedBadgeBg + ";\n" +
-            "      padding: 3px 8px; border-radius: 7px; border: 1px solid " + resolvedBadgeBorder + "; flex-shrink: 0;\n" +
+            "      padding: 3px 8px; border-radius: 7px; border: 1px solid " + resolvedBadgeBorder + "; flex-shrink: 0; margin-top: 2px;\n" +
+            "    }\n" +
+            "    .concept-divider-line {\n" +
+            "      width: 100%; border-top: 1.5px dashed " + (safeThemeId.equals("light_clean") ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.3)") + ";\n" +
+            "    }\n" +
+            "    .concept-scroll-pause-gap {\n" +
+            "      width: 100%; height: 160px; pointer-events: none;\n" +
             "    }\n" +
             "    .prompter-line {\n" +
             "      margin-bottom: 14px; transition: font-size 0.15s ease; color: " + resolvedText + ";\n" +
@@ -1562,6 +1572,38 @@ public class FloatingPrompterService extends Service {
             "      return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n" +
             "    }\n" +
             "\n" +
+            "    function formatConceptParts(conceptNumber, title, angle) {\n" +
+            "      var num = conceptNumber || 1;\n" +
+            "      var rawTitle = String(title || '').trim();\n" +
+            "      var rawAngle = String(angle || '').trim();\n" +
+            "      var cleanTitle = rawTitle;\n" +
+            "      if (cleanTitle.toLowerCase().indexOf('konsep') === 0) {\n" +
+            "        var colonIdx = cleanTitle.indexOf(':');\n" +
+            "        if (colonIdx !== -1) {\n" +
+            "          cleanTitle = cleanTitle.substring(colonIdx + 1).trim();\n" +
+            "        } else {\n" +
+            "          var hyphenIdx = cleanTitle.indexOf('-');\n" +
+            "          if (hyphenIdx !== -1) {\n" +
+            "            cleanTitle = cleanTitle.substring(hyphenIdx + 1).trim();\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "      if (!cleanTitle && rawAngle) {\n" +
+            "        cleanTitle = rawAngle;\n" +
+            "      }\n" +
+            "      if (!cleanTitle) {\n" +
+            "        cleanTitle = 'Skrip Affiliate';\n" +
+            "      }\n" +
+            "      var line2 = cleanTitle;\n" +
+            "      if (rawAngle && rawAngle.toLowerCase() !== cleanTitle.toLowerCase() && cleanTitle.toLowerCase().indexOf(rawAngle.toLowerCase()) === -1) {\n" +
+            "        line2 = cleanTitle + ' (' + rawAngle + ')';\n" +
+            "      }\n" +
+            "      return {\n" +
+            "        line1: 'KONSEP #' + num,\n" +
+            "        line2: line2\n" +
+            "      };\n" +
+            "    }\n" +
+            "\n" +
             "    function tokenizeSentenceText(sentence) {\n" +
             "      let text = String(sentence || '').trim();\n" +
             "      text = text.replace(/^(hook|problem|masalah|demo|solusi|value|cta|voiceover|narasi):\\s*/gi, '');\n" +
@@ -1606,12 +1648,19 @@ public class FloatingPrompterService extends Service {
             "            for (let idx = 0; idx < parsedConcepts.length; idx++) {\n" +
             "              let c = parsedConcepts[idx];\n" +
             "              if (idx > 0) {\n" +
-            "                html += '<div style=\"margin: 18px 0 12px 0; border-top: 1px dashed rgba(255,255,255,0.25);\"></div>';\n" +
+            "                html += '<div style=\"height: 36px;\"></div>';\n" +
+            "                html += '<div class=\"concept-divider-line\"></div>';\n" +
+            "                html += '<div class=\"concept-scroll-pause-gap\"></div>';\n" +
             "              }\n" +
+            "              var parts = formatConceptParts(c.conceptNumber || (idx + 1), c.title, c.angle);\n" +
+            "              var line1Color = (currentThemeId === 'light_clean') ? '#60A5FA' : '#D97706';\n" +
             "              html += '<div class=\"concept-header\" style=\"background:' + currentCardBg + ' !important; border:2px solid ' + currentCardBorder + ' !important; color:' + currentCardText + ' !important;\">' +\n" +
-            "                        '<div style=\"display:flex;align-items:center;gap:6px;min-width:0;\">' +\n" +
-            "                          '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
-            "                          '<span class=\"concept-title\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(c.title || 'Skrip Affiliate') + '</span>' +\n" +
+            "                        '<div style=\"display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;\">' +\n" +
+            "                          '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;margin-top:3px;\"></span>' +\n" +
+            "                          '<div style=\"min-width:0;flex:1;\">' +\n" +
+            "                            '<div class=\"concept-line-1\" style=\"color:' + line1Color + ' !important;\">' + escapeHtml(parts.line1) + '</div>' +\n" +
+            "                            '<div class=\"concept-line-2\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(parts.line2) + '</div>' +\n" +
+            "                          '</div>' +\n" +
             "                        '</div>' +\n" +
             "                        '<span class=\"duration-badge\" style=\"background:' + currentBadgeBg + ' !important; color:' + currentBadgeText + ' !important; border:1px solid ' + currentBadgeBorder + ' !important;\">±' + (c.estimatedDuration || 30) + 's</span>' +\n" +
             "                      '</div>';\n" +
@@ -1649,6 +1698,7 @@ public class FloatingPrompterService extends Service {
             "      }\n" +
             "\n" +
             "      const lines = RAW_SCRIPT.split('\\n');\n" +
+            "      var fallbackConceptCount = 0;\n" +
             "      for (let i = 0; i < lines.length; i++) {\n" +
             "        let line = lines[i].trim();\n" +
             "        if (!line) {\n" +
@@ -1658,17 +1708,30 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "        if (line.startsWith('===') && line.endsWith('===')) {\n" +
             "          let title = line.replace(/===/g, '').trim();\n" +
+            "          fallbackConceptCount++;\n" +
+            "          if (fallbackConceptCount > 1) {\n" +
+            "            html += '<div style=\"height: 36px;\"></div>';\n" +
+            "            html += '<div class=\"concept-divider-line\"></div>';\n" +
+            "            html += '<div class=\"concept-scroll-pause-gap\"></div>';\n" +
+            "          }\n" +
+            "          var parts = formatConceptParts(fallbackConceptCount, title, '');\n" +
+            "          var line1Color = (currentThemeId === 'light_clean') ? '#60A5FA' : '#D97706';\n" +
             "          html += '<div class=\"concept-header\" style=\"background:' + currentCardBg + ' !important; border:2px solid ' + currentCardBorder + ' !important; color:' + currentCardText + ' !important;\">' +\n" +
-            "                    '<div style=\"display:flex;align-items:center;gap:6px;min-width:0;\">' +\n" +
-            "                      '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
-            "                      '<span class=\"concept-title\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(title) + '</span>' +\n" +
+            "                    '<div style=\"display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;\">' +\n" +
+            "                      '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;margin-top:3px;\"></span>' +\n" +
+            "                      '<div style=\"min-width:0;flex:1;\">' +\n" +
+            "                        '<div class=\"concept-line-1\" style=\"color:' + line1Color + ' !important;\">' + escapeHtml(parts.line1) + '</div>' +\n" +
+            "                        '<div class=\"concept-line-2\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(parts.line2) + '</div>' +\n" +
+            "                      '</div>' +\n" +
             "                    '</div>' +\n" +
             "                    '<span class=\"duration-badge\" style=\"background:' + currentBadgeBg + ' !important; color:' + currentBadgeText + ' !important; border:1px solid ' + currentBadgeBorder + ' !important;\">±30s</span>' +\n" +
             "                  '</div>';\n" +
             "          continue;\n" +
             "        }\n" +
             "        if (line === '---') {\n" +
-            "          html += '<div style=\"height:16px; border-bottom:1px dashed rgba(255,255,255,0.15); margin-bottom:12px;\"></div>';\n" +
+            "          html += '<div style=\"height: 36px;\"></div>';\n" +
+            "          html += '<div class=\"concept-divider-line\"></div>';\n" +
+            "          html += '<div class=\"concept-scroll-pause-gap\"></div>';\n" +
             "          continue;\n" +
             "        }\n" +
             "\n" +
