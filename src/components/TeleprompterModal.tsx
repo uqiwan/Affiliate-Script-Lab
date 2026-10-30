@@ -782,13 +782,13 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                 >
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <span
-                      style={{ backgroundColor: activeTheme.highlightColor }}
+                      style={{ backgroundColor: activeTheme.id === 'light_clean' ? '#2563EB' : '#F59E0B' }}
                       className="w-3.5 h-3.5 rounded-full ring-4 ring-black/10 shrink-0 mt-1"
                     />
                     <div className="min-w-0 flex-1">
                       {/* Baris 1: Nomor Konsep */}
                       <div
-                        style={{ color: activeTheme.highlightColor }}
+                        style={{ color: activeTheme.id === 'light_clean' ? '#60A5FA' : '#D97706' }}
                         className="text-xs sm:text-sm font-black tracking-wider uppercase leading-tight"
                       >
                         {parts.line1}
@@ -796,7 +796,7 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                       {/* Baris 2: Nama Formula & Sudut Skrip Lengkap */}
                       <h2
                         style={{ color: activeTheme.cardTextColor }}
-                        className="text-base sm:text-lg md:text-xl font-bold tracking-tight leading-snug mt-1 break-words"
+                        className="text-base sm:text-lg md:text-xl font-black tracking-tight leading-snug mt-1 break-words"
                       >
                         {parts.line2}
                       </h2>
@@ -804,9 +804,9 @@ export const TeleprompterModal: React.FC<TeleprompterModalProps> = ({
                   </div>
                   <div
                     style={{
-                      color: activeTheme.secondaryTextColor,
-                      backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
-                      borderColor: activeTheme.cardBorder,
+                      color: activeTheme.id === 'light_clean' ? '#FFFFFF' : '#000000',
+                      backgroundColor: activeTheme.id === 'light_clean' ? '#18181B' : '#F1F5F9',
+                      borderColor: activeTheme.id === 'light_clean' ? '#3F3F46' : '#E2E8F0',
                     }}
                     className="flex items-center gap-2 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-xl border shrink-0 mt-0.5"
                   >

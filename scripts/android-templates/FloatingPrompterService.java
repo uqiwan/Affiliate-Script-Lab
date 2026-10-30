@@ -124,16 +124,16 @@ public class FloatingPrompterService extends Service {
         boolean hasSavedSettings = prefs.contains("window_width") || prefs.contains("speed") || prefs.contains("theme_id");
 
         if (hasSavedSettings) {
-            currentSavedSpeed = prefs.getInt("speed", 3);
-            currentSavedFontSize = prefs.getInt("font_size", 18);
-            currentSavedOpacity = prefs.getInt("opacity", 85);
-            currentSavedThemeId = prefs.getString("theme_id", "dark_pro");
-            currentSavedPresetId = prefs.getString("preset_id", "standard_read");
-            currentSavedRotation = prefs.getInt("rotation", 0);
-            currentSavedMirrored = prefs.getBoolean("is_mirrored", false);
-            currentSavedShowFocusGuide = prefs.getBoolean("show_focus_guide", true);
-            currentSavedFocusPercent = prefs.getInt("focus_percent", 12);
-            currentSavedCountdownSec = prefs.getInt("countdown_sec", 3);
+            currentSavedSpeed = prefs.getInt("speed", currentSavedSpeed);
+            currentSavedFontSize = prefs.getInt("font_size", currentSavedFontSize);
+            currentSavedOpacity = prefs.getInt("opacity", currentSavedOpacity);
+            currentSavedThemeId = prefs.getString("theme_id", currentSavedThemeId);
+            currentSavedPresetId = prefs.getString("preset_id", currentSavedPresetId);
+            currentSavedRotation = prefs.getInt("rotation", currentSavedRotation);
+            currentSavedMirrored = prefs.getBoolean("is_mirrored", currentSavedMirrored);
+            currentSavedShowFocusGuide = prefs.getBoolean("show_focus_guide", currentSavedShowFocusGuide);
+            currentSavedFocusPercent = prefs.getInt("focus_percent", currentSavedFocusPercent);
+            currentSavedCountdownSec = prefs.getInt("countdown_sec", currentSavedCountdownSec);
         }
 
         String scriptText = "Halo kreator! Naskah teleprompter melayang Gagaswara siap digunakan...";
@@ -163,14 +163,18 @@ public class FloatingPrompterService extends Service {
             if (intent.hasExtra("conceptsJson") && intent.getStringExtra("conceptsJson") != null) {
                 conceptsJson = intent.getStringExtra("conceptsJson");
             }
-            // Jika ada tema eksplisit dikirim dari aplikasi utama
-            if (intent.hasExtra("themeId") && intent.getStringExtra("themeId") != null) {
-                themeId = intent.getStringExtra("themeId");
-                currentSavedThemeId = themeId;
-            }
-            if (intent.hasExtra("presetId") && intent.getStringExtra("presetId") != null && !hasSavedSettings) {
-                presetId = intent.getStringExtra("presetId");
-                currentSavedPresetId = presetId;
+            // Jika belum ada setelan tersimpan di SharedPreferences, adopsi dari intent
+            if (!hasSavedSettings) {
+                if (intent.hasExtra("speed")) speed = intent.getIntExtra("speed", speed);
+                if (intent.hasExtra("fontSize")) fontSize = intent.getIntExtra("fontSize", fontSize);
+                if (intent.hasExtra("opacity")) opacity = intent.getIntExtra("opacity", opacity);
+                if (intent.hasExtra("themeId") && intent.getStringExtra("themeId") != null) themeId = intent.getStringExtra("themeId");
+                if (intent.hasExtra("presetId") && intent.getStringExtra("presetId") != null) presetId = intent.getStringExtra("presetId");
+                if (intent.hasExtra("rotation")) rotation = intent.getIntExtra("rotation", rotation);
+                if (intent.hasExtra("isMirrored")) isMirrored = intent.getBooleanExtra("isMirrored", isMirrored);
+                if (intent.hasExtra("showFocusGuide")) showFocusGuide = intent.getBooleanExtra("showFocusGuide", showFocusGuide);
+                if (intent.hasExtra("focusGuidePercent")) focusPercent = intent.getIntExtra("focusGuidePercent", focusPercent);
+                if (intent.hasExtra("countdownSec")) countdownSec = intent.getIntExtra("countdownSec", countdownSec);
             }
             if (intent.hasExtra("backgroundColorHex") && intent.getStringExtra("backgroundColorHex") != null) {
                 bgColor = intent.getStringExtra("backgroundColorHex");
@@ -182,6 +186,18 @@ public class FloatingPrompterService extends Service {
                 textColor = intent.getStringExtra("textColorHex");
             }
         }
+
+        currentSavedSpeed = speed;
+        currentSavedFontSize = fontSize;
+        currentSavedOpacity = opacity;
+        currentSavedThemeId = themeId;
+        currentSavedPresetId = presetId;
+        currentSavedRotation = rotation;
+        currentSavedMirrored = isMirrored;
+        currentSavedShowFocusGuide = showFocusGuide;
+        currentSavedFocusPercent = focusPercent;
+        currentSavedCountdownSec = countdownSec;
+        savePrompterState();
 
         final String fScriptText = scriptText;
         final String fConceptsJson = conceptsJson;
@@ -897,32 +913,47 @@ public class FloatingPrompterService extends Service {
         String resolvedBgRgb = "0, 0, 0";
         String resolvedText = "#FFFFFF";
         String resolvedHighlight = "#FACC15";
-        String resolvedCardBg = "#18181B";
-        String resolvedCardBorder = "#27272A";
-        String resolvedCardText = "#FFFFFF";
+
+        // Kontras Pembatas (Separators):
+        // Jika tema berlatar gelap/hitam: pembatas PUTIH (#FFFFFF) dengan teks HITAM (#000000)
+        // Jika tema berlatar putih: pembatas HITAM (#000000) dengan teks PUTIH (#FFFFFF)
+        String resolvedCardBg = "#FFFFFF";
+        String resolvedCardBorder = "#E4E4E7";
+        String resolvedCardText = "#000000";
+        String resolvedBadgeBg = "#000000";
+        String resolvedBadgeText = "#FFFFFF";
+        String resolvedBadgeBorder = "#27272A";
         String resolvedDockBg = "rgba(9, 9, 11, 0.96)";
         String resolvedDockBorder = "#27272A";
         String resolvedBtnBg = "#18181B";
         String resolvedBtnText = "#E4E4E7";
 
         if ("soft_comfort".equals(safeThemeId)) {
-            resolvedBgRgb = "24, 24, 27";
+            resolvedBgRgb = "0, 0, 0";
             resolvedText = "#FAF9F6";
-            resolvedHighlight = "#34D399";
-            resolvedCardBg = "#27272A";
-            resolvedCardBorder = "#3F3F46";
-            resolvedCardText = "#FAF9F6";
-            resolvedDockBg = "rgba(24, 24, 27, 0.96)";
-            resolvedDockBorder = "#3F3F46";
-            resolvedBtnBg = "#27272A";
-            resolvedBtnText = "#FAF9F6";
+            resolvedHighlight = "#22C55E";
+            // Soft Comfort (Latar Hitam): Pembatas PUTIH dengan teks HITAM
+            resolvedCardBg = "#FFFFFF";
+            resolvedCardBorder = "#E4E4E7";
+            resolvedCardText = "#000000";
+            resolvedBadgeBg = "#000000";
+            resolvedBadgeText = "#FFFFFF";
+            resolvedBadgeBorder = "#27272A";
+            resolvedDockBg = "rgba(0, 0, 0, 0.96)";
+            resolvedDockBorder = "#15803D";
+            resolvedBtnBg = "#14532D";
+            resolvedBtnText = "#4ADE80";
         } else if ("light_clean".equals(safeThemeId)) {
             resolvedBgRgb = "255, 255, 255";
             resolvedText = "#18181B";
             resolvedHighlight = "#2563EB";
-            resolvedCardBg = "#F4F4F5";
-            resolvedCardBorder = "#E4E4E7";
-            resolvedCardText = "#18181B";
+            // Light Clean (Latar Putih): Pembatas HITAM dengan teks PUTIH
+            resolvedCardBg = "#000000";
+            resolvedCardBorder = "#27272A";
+            resolvedCardText = "#FFFFFF";
+            resolvedBadgeBg = "#FFFFFF";
+            resolvedBadgeText = "#000000";
+            resolvedBadgeBorder = "#E4E4E7";
             resolvedDockBg = "rgba(244, 244, 245, 0.96)";
             resolvedDockBorder = "#E4E4E7";
             resolvedBtnBg = "#FFFFFF";
@@ -983,17 +1014,17 @@ public class FloatingPrompterService extends Service {
             "    }\n" +
             "    .concept-header {\n" +
             "      display: flex; align-items: center; justify-content: space-between; gap: 8px;\n" +
-            "      padding: 8px 12px; border-radius: 12px; margin: 10px 0 8px 0;\n" +
+            "      padding: 10px 14px; border-radius: 12px; margin: 12px 0 10px 0;\n" +
             "      background: " + resolvedCardBg + "; border: 2px solid " + resolvedCardBorder + ";\n" +
-            "      font-size: 12px; font-weight: 900; color: " + resolvedCardText + ";\n" +
-            "      box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-transform: uppercase;\n" +
+            "      font-size: 13px; font-weight: 900; color: " + resolvedCardText + ";\n" +
+            "      box-shadow: 0 4px 16px rgba(0,0,0,0.45); text-transform: uppercase;\n" +
             "    }\n" +
             "    .concept-title {\n" +
             "      color: " + resolvedCardText + "; font-weight: 900; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n" +
             "    }\n" +
             "    .duration-badge {\n" +
-            "      font-size: 10px; font-weight: bold; color: " + resolvedHighlight + "; background: rgba(0,0,0,0.2);\n" +
-            "      padding: 2px 6px; border-radius: 6px; border: 1px solid " + resolvedCardBorder + "; flex-shrink: 0;\n" +
+            "      font-size: 10px; font-weight: 900; color: " + resolvedBadgeText + "; background: " + resolvedBadgeBg + ";\n" +
+            "      padding: 3px 8px; border-radius: 7px; border: 1px solid " + resolvedBadgeBorder + "; flex-shrink: 0;\n" +
             "    }\n" +
             "    .prompter-line {\n" +
             "      margin-bottom: 14px; transition: font-size 0.15s ease; color: " + resolvedText + ";\n" +
@@ -1493,6 +1524,12 @@ public class FloatingPrompterService extends Service {
             "    let currentBgRgb = '" + resolvedBgRgb + "';\n" +
             "    let currentTextColor = '" + resolvedText + "';\n" +
             "    let currentHighlightColor = '" + resolvedHighlight + "';\n" +
+            "    let currentCardBg = '" + resolvedCardBg + "';\n" +
+            "    let currentCardBorder = '" + resolvedCardBorder + "';\n" +
+            "    let currentCardText = '" + resolvedCardText + "';\n" +
+            "    let currentBadgeBg = '" + resolvedBadgeBg + "';\n" +
+            "    let currentBadgeText = '" + resolvedBadgeText + "';\n" +
+            "    let currentBadgeBorder = '" + resolvedBadgeBorder + "';\n" +
             "    let isMirrored = " + isMirrored + ";\n" +
             "    let showFocus = " + showFocusGuide + ";\n" +
             "    let focusPercent = " + focusPercent + ";\n" +
@@ -1571,12 +1608,12 @@ public class FloatingPrompterService extends Service {
             "              if (idx > 0) {\n" +
             "                html += '<div style=\"margin: 18px 0 12px 0; border-top: 1px dashed rgba(255,255,255,0.25);\"></div>';\n" +
             "              }\n" +
-            "              html += '<div class=\"concept-header\">' +\n" +
+            "              html += '<div class=\"concept-header\" style=\"background:' + currentCardBg + ' !important; border:2px solid ' + currentCardBorder + ' !important; color:' + currentCardText + ' !important;\">' +\n" +
             "                        '<div style=\"display:flex;align-items:center;gap:6px;min-width:0;\">' +\n" +
-            "                          '<span style=\"width:7px;height:7px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
-            "                          '<span class=\"concept-title\">' + escapeHtml(c.title || 'Skrip Affiliate') + '</span>' +\n" +
+            "                          '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
+            "                          '<span class=\"concept-title\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(c.title || 'Skrip Affiliate') + '</span>' +\n" +
             "                        '</div>' +\n" +
-            "                        '<span class=\"duration-badge\">±' + (c.estimatedDuration || 30) + 's</span>' +\n" +
+            "                        '<span class=\"duration-badge\" style=\"background:' + currentBadgeBg + ' !important; color:' + currentBadgeText + ' !important; border:1px solid ' + currentBadgeBorder + ' !important;\">±' + (c.estimatedDuration || 30) + 's</span>' +\n" +
             "                      '</div>';\n" +
             "\n" +
             "              if (Array.isArray(c.lines)) {\n" +
@@ -1621,12 +1658,12 @@ public class FloatingPrompterService extends Service {
             "\n" +
             "        if (line.startsWith('===') && line.endsWith('===')) {\n" +
             "          let title = line.replace(/===/g, '').trim();\n" +
-            "          html += '<div class=\"concept-header\">' +\n" +
+            "          html += '<div class=\"concept-header\" style=\"background:' + currentCardBg + ' !important; border:2px solid ' + currentCardBorder + ' !important; color:' + currentCardText + ' !important;\">' +\n" +
             "                    '<div style=\"display:flex;align-items:center;gap:6px;min-width:0;\">' +\n" +
-            "                      '<span style=\"width:7px;height:7px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
-            "                      '<span class=\"concept-title\">' + escapeHtml(title) + '</span>' +\n" +
+            "                      '<span style=\"width:8px;height:8px;border-radius:50%;background:' + currentHighlightColor + ';flex-shrink:0;\"></span>' +\n" +
+            "                      '<span class=\"concept-title\" style=\"color:' + currentCardText + ' !important;\">' + escapeHtml(title) + '</span>' +\n" +
             "                    '</div>' +\n" +
-            "                    '<span class=\"duration-badge\">±30s</span>' +\n" +
+            "                    '<span class=\"duration-badge\" style=\"background:' + currentBadgeBg + ' !important; color:' + currentBadgeText + ' !important; border:1px solid ' + currentBadgeBorder + ' !important;\">±30s</span>' +\n" +
             "                  '</div>';\n" +
             "          continue;\n" +
             "        }\n" +
@@ -1696,30 +1733,39 @@ public class FloatingPrompterService extends Service {
             "      let bgRgb = '0, 0, 0';\n" +
             "      let textCol = '#FFFFFF';\n" +
             "      let hlCol = '#FACC15';\n" +
-            "      let cardBg = '#18181B';\n" +
-            "      let cardBorder = '#27272A';\n" +
-            "      let cardText = '#FFFFFF';\n" +
+            "      let cardBg = '#FFFFFF';\n" +
+            "      let cardBorder = '#E4E4E7';\n" +
+            "      let cardText = '#000000';\n" +
+            "      let badgeBg = '#000000';\n" +
+            "      let badgeText = '#FFFFFF';\n" +
+            "      let badgeBorder = '#27272A';\n" +
             "      let dockBg = 'rgba(9, 9, 11, 0.96)';\n" +
             "      let dockBorder = '#27272A';\n" +
             "      let themeName = 'Dark Pro';\n" +
             "\n" +
             "      if (themeId === 'soft_comfort') {\n" +
-            "        bgRgb = '24, 24, 27';\n" +
+            "        bgRgb = '0, 0, 0';\n" +
             "        textCol = '#FAF9F6';\n" +
-            "        hlCol = '#34D399';\n" +
-            "        cardBg = '#27272A';\n" +
-            "        cardBorder = '#3F3F46';\n" +
-            "        cardText = '#FAF9F6';\n" +
-            "        dockBg = 'rgba(24, 24, 27, 0.96)';\n" +
-            "        dockBorder = '#3F3F46';\n" +
+            "        hlCol = '#22C55E';\n" +
+            "        cardBg = '#FFFFFF';\n" +
+            "        cardBorder = '#E4E4E7';\n" +
+            "        cardText = '#000000';\n" +
+            "        badgeBg = '#000000';\n" +
+            "        badgeText = '#FFFFFF';\n" +
+            "        badgeBorder = '#27272A';\n" +
+            "        dockBg = 'rgba(0, 0, 0, 0.96)';\n" +
+            "        dockBorder = '#15803D';\n" +
             "        themeName = 'Soft Comfort';\n" +
             "      } else if (themeId === 'light_clean') {\n" +
             "        bgRgb = '255, 255, 255';\n" +
             "        textCol = '#18181B';\n" +
             "        hlCol = '#2563EB';\n" +
-            "        cardBg = '#F4F4F5';\n" +
-            "        cardBorder = '#E4E4E7';\n" +
-            "        cardText = '#18181B';\n" +
+            "        cardBg = '#000000';\n" +
+            "        cardBorder = '#27272A';\n" +
+            "        cardText = '#FFFFFF';\n" +
+            "        badgeBg = '#FFFFFF';\n" +
+            "        badgeText = '#000000';\n" +
+            "        badgeBorder = '#E4E4E7';\n" +
             "        dockBg = 'rgba(244, 244, 245, 0.96)';\n" +
             "        dockBorder = '#E4E4E7';\n" +
             "        themeName = 'Light Clean';\n" +
@@ -1728,6 +1774,12 @@ public class FloatingPrompterService extends Service {
             "      currentBgRgb = bgRgb;\n" +
             "      currentTextColor = textCol;\n" +
             "      currentHighlightColor = hlCol;\n" +
+            "      currentCardBg = cardBg;\n" +
+            "      currentCardBorder = cardBorder;\n" +
+            "      currentCardText = cardText;\n" +
+            "      currentBadgeBg = badgeBg;\n" +
+            "      currentBadgeText = badgeText;\n" +
+            "      currentBadgeBorder = badgeBorder;\n" +
             "\n" +
             "      if (appContainer) {\n" +
             "        appContainer.style.backgroundColor = 'rgba(' + bgRgb + ',' + (currentOpacity / 100.0) + ')';\n" +

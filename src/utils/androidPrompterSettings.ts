@@ -46,20 +46,7 @@ const STORAGE_KEY = 'gagaswara_android_prompter_settings';
 export function loadAndroidPrompterConfig(): AndroidPrompterConfig {
   let baseConfig = { ...DEFAULT_ANDROID_PROMPTER_CONFIG };
 
-  // 1. Cek apakah ada setelan native tersimpan dari SharedPreferences Android
-  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.getSavedFloatingPrompterSettings) {
-    try {
-      const nativeJson = (window as any).AndroidFloatingBridge.getSavedFloatingPrompterSettings();
-      if (nativeJson && typeof nativeJson === 'string' && nativeJson.trim().length > 2) {
-        const nativeParsed = JSON.parse(nativeJson);
-        baseConfig = { ...baseConfig, ...nativeParsed };
-      }
-    } catch (e) {
-      console.warn('Failed to parse native prompter settings:', e);
-    }
-  }
-
-  // 2. Gabungkan dengan localStorage
+  // 1. Muat dari localStorage
   try {
     if (typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -72,17 +59,36 @@ export function loadAndroidPrompterConfig(): AndroidPrompterConfig {
       }
     }
   } catch (e) {
-    console.warn('Failed to load Android prompter settings:', e);
+    console.warn('Failed to load local prompter settings:', e);
   }
 
-  // Pastikan tema selalu tersinkron dengan tema aktif tersimpan
-  const storedTheme = getStoredPrompterTheme();
-  if (storedTheme) {
-    baseConfig.themeId = storedTheme.id;
-    baseConfig.backgroundColorHex = storedTheme.backgroundColor;
-    baseConfig.highlightColorHex = storedTheme.highlightColor;
-    baseConfig.textColorHex = storedTheme.textColor;
+  // 2. Ambil dari native Android SharedPreferences jika berjalan di Android APK (Prioritas Tertinggi di Native)
+  if (typeof window !== 'undefined' && (window as any).AndroidFloatingBridge?.getSavedFloatingPrompterSettings) {
+    try {
+      const nativeJson = (window as any).AndroidFloatingBridge.getSavedFloatingPrompterSettings();
+      if (nativeJson && typeof nativeJson === 'string' && nativeJson.trim().length > 2) {
+        const nativeParsed = JSON.parse(nativeJson);
+        baseConfig = { ...baseConfig, ...nativeParsed };
+        // Sinkronkan kembali ke localStorage agar Webview & web component konsisten
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(baseConfig));
+          if (nativeParsed.themeId) {
+            localStorage.setItem('gagaswara_prompter_theme', nativeParsed.themeId);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse native prompter settings:', e);
+    }
   }
+
+  // 3. Pastikan tema selalu sinkron dengan themeId efektif yang tersimpan
+  const effectiveThemeId = baseConfig.themeId || 'dark_pro';
+  const effectiveTheme = TELEPROMPTER_THEMES[effectiveThemeId] || TELEPROMPTER_THEMES.dark_pro;
+  baseConfig.themeId = effectiveTheme.id;
+  baseConfig.backgroundColorHex = effectiveTheme.backgroundColor;
+  baseConfig.highlightColorHex = effectiveTheme.highlightColor;
+  baseConfig.textColorHex = effectiveTheme.textColor;
 
   return baseConfig;
 }
@@ -91,6 +97,9 @@ export function saveAndroidPrompterConfig(config: AndroidPrompterConfig): void {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      if (config.themeId) {
+        localStorage.setItem('gagaswara_prompter_theme', config.themeId);
+      }
     }
   } catch (e) {
     console.warn('Failed to save Android prompter settings:', e);

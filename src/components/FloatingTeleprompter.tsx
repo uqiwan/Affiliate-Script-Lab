@@ -799,13 +799,13 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                   >
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
                       <span
-                        style={{ backgroundColor: activeTheme.highlightColor }}
+                        style={{ backgroundColor: activeTheme.id === 'light_clean' ? '#2563EB' : '#F59E0B' }}
                         className="w-2.5 h-2.5 rounded-full ring-2 ring-black/10 shrink-0 mt-1"
                       />
                       <div className="min-w-0 flex-1">
                         {/* Baris 1: Nomor Konsep */}
                         <div
-                          style={{ color: activeTheme.highlightColor }}
+                          style={{ color: activeTheme.id === 'light_clean' ? '#60A5FA' : '#D97706' }}
                           className="text-[11px] font-black tracking-wider uppercase leading-tight"
                         >
                           {parts.line1}
@@ -813,7 +813,7 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                         {/* Baris 2: Nama Formula & Sudut Skrip */}
                         <h2
                           style={{ color: activeTheme.cardTextColor }}
-                          className="text-xs sm:text-sm font-bold tracking-tight leading-snug mt-0.5 break-words"
+                          className="text-xs sm:text-sm font-black tracking-tight leading-snug mt-0.5 break-words"
                         >
                           {parts.line2}
                         </h2>
@@ -821,9 +821,9 @@ export const FloatingTeleprompter: React.FC<FloatingTeleprompterProps> = ({
                     </div>
                     <span
                       style={{
-                        color: activeTheme.secondaryTextColor,
-                        backgroundColor: activeTheme.id === 'light_clean' ? '#E4E4E7' : '#27272A',
-                        borderColor: activeTheme.cardBorder,
+                        color: activeTheme.id === 'light_clean' ? '#FFFFFF' : '#000000',
+                        backgroundColor: activeTheme.id === 'light_clean' ? '#18181B' : '#F1F5F9',
+                        borderColor: activeTheme.id === 'light_clean' ? '#3F3F46' : '#E2E8F0',
                       }}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 mt-0.5"
                     >

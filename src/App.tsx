@@ -47,6 +47,7 @@ import {
 import {
   launchAndroidFloatingPrompter,
   stopAndroidFloatingPrompter,
+  loadAndroidPrompterConfig,
 } from './utils/androidPrompterSettings';
 import {
   buildPrompterConcept,
@@ -585,6 +586,10 @@ export default function App() {
 
   const doLaunchNativeFloatingPrompter = (conceptIndex?: number, scriptItem?: ScriptItem) => {
     const productKeywords = extractProductKeywords(productBrief?.name);
+    const savedConfig = loadAndroidPrompterConfig();
+    const themeKey = savedConfig.themeId as TeleprompterThemeId | undefined;
+    const effectiveTheme = (themeKey && TELEPROMPTER_THEMES[themeKey]) || prompterTheme;
+
     if (conceptIndex !== undefined && conceptIndex >= 0) {
       const targetScript = scripts[conceptIndex] || scriptItem;
       if (!targetScript) return;
@@ -593,9 +598,10 @@ export default function App() {
         `=== ${targetConcept.title} ===\n\n` +
           targetConcept.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'),
         {
-          themeId: prompterTheme.id,
-          backgroundColorHex: prompterTheme.backgroundColor,
-          highlightColorHex: prompterTheme.highlightColor,
+          ...savedConfig,
+          themeId: effectiveTheme.id,
+          backgroundColorHex: effectiveTheme.backgroundColor,
+          highlightColorHex: effectiveTheme.highlightColor,
         },
         [targetConcept]
       );
@@ -607,9 +613,10 @@ export default function App() {
             .map((c) => `=== ${c.title} ===\n\n` + c.lines.map((l) => l.tokens.map((t) => t.text).join(' ')).join('\n'))
             .join('\n\n---\n\n'),
           {
-            themeId: prompterTheme.id,
-            backgroundColorHex: prompterTheme.backgroundColor,
-            highlightColorHex: prompterTheme.highlightColor,
+            ...savedConfig,
+            themeId: effectiveTheme.id,
+            backgroundColorHex: effectiveTheme.backgroundColor,
+            highlightColorHex: effectiveTheme.highlightColor,
           },
           allConcepts
         );

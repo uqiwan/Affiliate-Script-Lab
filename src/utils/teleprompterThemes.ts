@@ -36,10 +36,10 @@ export const TELEPROMPTER_THEMES: Record<TeleprompterThemeId, TeleprompterTheme>
     backgroundColor: '#000000',
     textColor: '#FFFFFF',
     highlightColor: '#FACC15', // Kuning kontras tinggi
-    secondaryTextColor: '#A1A1AA',
-    cardBg: '#18181B',
-    cardBorder: '#27272A',
-    cardTextColor: '#FFFFFF',
+    secondaryTextColor: '#374151',
+    cardBg: '#FFFFFF', // Pembatas kontras: PUTIH di atas latar hitam
+    cardBorder: '#E5E7EB',
+    cardTextColor: '#000000', // Teks HITAM tegas di atas putih
     focusLineColor: '#FACC15',
     dockBg: 'rgba(9, 9, 11, 0.96)',
     dockBorder: '#27272A',
@@ -58,10 +58,10 @@ export const TELEPROMPTER_THEMES: Record<TeleprompterThemeId, TeleprompterTheme>
     backgroundColor: '#000000', // Hitam pekat agar teks kontras dan terang
     textColor: '#FAF9F6', // Putih gading / ivory
     highlightColor: '#22C55E', // Aksen tombol / kontrol hijau
-    secondaryTextColor: '#9CA3AF',
-    cardBg: '#0F172A',
-    cardBorder: '#166534',
-    cardTextColor: '#FAF9F6',
+    secondaryTextColor: '#374151',
+    cardBg: '#FFFFFF', // Pembatas kontras: PUTIH di atas latar hitam
+    cardBorder: '#E5E7EB',
+    cardTextColor: '#000000', // Teks HITAM tegas di atas putih
     focusLineColor: '#22C55E',
     dockBg: 'rgba(0, 0, 0, 0.95)',
     dockBorder: '#15803D',
@@ -80,10 +80,10 @@ export const TELEPROMPTER_THEMES: Record<TeleprompterThemeId, TeleprompterTheme>
     backgroundColor: '#FFFFFF', // Putih bersih
     textColor: '#18181B', // Hitam tajam
     highlightColor: '#2563EB', // Biru cerah & jelas
-    secondaryTextColor: '#52525B',
-    cardBg: '#F4F4F5',
-    cardBorder: '#E4E4E7',
-    cardTextColor: '#18181B',
+    secondaryTextColor: '#D1D5DB',
+    cardBg: '#000000', // Pembatas kontras: HITAM di atas latar putih
+    cardBorder: '#27272A',
+    cardTextColor: '#FFFFFF', // Teks PUTIH tegas di atas hitam
     focusLineColor: '#2563EB',
     dockBg: 'rgba(244, 244, 245, 0.96)',
     dockBorder: '#E4E4E7',
